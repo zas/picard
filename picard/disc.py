@@ -38,9 +38,8 @@ class Disc(QtCore.QObject):
             device = discid.DEFAULT_DEVICE
         log.debug(u"Reading CD using device: %r", device)
         disc = discid.read(device)
-        if disc:
-            self.id = disc.id
-            self.submission_url = disc.submission_url
+        self.id = disc.id
+        self.submission_url = disc.submission_url
 
     def lookup(self):
         self.tagger.xmlws.lookup_discid(self.id, self._lookup_finished)
