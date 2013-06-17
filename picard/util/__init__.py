@@ -325,3 +325,10 @@ def load_release_type_scores(setting):
 
 def save_release_type_scores(scores):
     return " ".join(["%s %.2f" % v for v in scores.iteritems()])
+
+def uniqify(seq):
+    """Uniqify a list, preserving order"""
+    # Courtesy of Dave Kirby
+    # See http://www.peterbe.com/plog/uniqifiers-benchmark
+    seen = set()
+    return [x for x in seq if x not in seen and not seen.add(x)]
