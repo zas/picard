@@ -26,6 +26,7 @@ from PyQt4 import QtCore
 from picard import log
 from picard.ui.cdlookup import CDLookupDialog
 
+
 class Disc(QtCore.QObject):
 
     def __init__(self):
@@ -35,7 +36,12 @@ class Disc(QtCore.QObject):
 
     def read(self, device=None):
         if device is None:
-            device = discid.DEFAULT_DEVICE
+            try:
+                device = discid.get_default_device()
+            except Exception as e:
+                log.error("Failed to get default device: %s" % e)
+                #even if it fails we still want to try with None as device
+                pass
         log.debug(u"Reading CD using device: %r", device)
         disc = discid.read(device)
         self.id = disc.id
@@ -59,4 +65,5 @@ class Disc(QtCore.QObject):
         dialog.exec_()
 
 
-disc_version = 'discid %s, %s' % (discid.__version__, discid.LIBDISCID_VERSION_STRING)
+disc_version = 'discid %s, %s' % (discid.__version__,
+                                  discid.LIBDISCID_VERSION_STRING)
