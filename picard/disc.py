@@ -36,12 +36,7 @@ class Disc(QtCore.QObject):
 
     def read(self, device=None):
         if device is None:
-            try:
-                device = discid.get_default_device()
-            except Exception as e:
-                log.error("Failed to get default device: %s" % e)
-                #even if it fails we still want to try with None as device
-                pass
+            device = discid.get_default_device()
         log.debug(u"Reading CD using device: %r", device)
         disc = discid.read(device)
         self.id = disc.id
