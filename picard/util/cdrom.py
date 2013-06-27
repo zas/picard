@@ -25,9 +25,12 @@ from picard.util import uniqify
 DEFAULT_DRIVES = []
 try:
     import discid
-    if discid.DEFAULT_DEVICE:
-        DEFAULT_DRIVES = [str(discid.DEFAULT_DEVICE)]
+    device = discid.get_default_device()
+    if device:
+        DEFAULT_DRIVES = [device]
 except:
+    import traceback
+    print(traceback.format_exc())
     pass
 
 LINUX_CDROM_INFO = '/proc/sys/dev/cdrom/info'
