@@ -21,7 +21,6 @@ import re
 
 
 PICARD_ORG_NAME = "MusicBrainz"
-PICARD_APP_NAME = "Picard"
 PICARD_VERSION = (2, 0, 0, 'dev', 2)
 
 
@@ -29,6 +28,11 @@ PICARD_VERSION = (2, 0, 0, 'dev', 2)
 # it should be in the form '<platform>_<YYMMDDHHMMSS>'
 # ie. win32_20140415091256
 PICARD_BUILD_VERSION_STR = ""
+
+if PICARD_VERSION[3] == 'dev':
+    PICARD_APP_NAME = "Picard Dev"
+else:
+    PICARD_APP_NAME = "Picard"
 
 
 class VersionError(Exception):

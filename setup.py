@@ -34,8 +34,13 @@ from distutils.dist import Distribution
 from distutils.spawn import find_executable
 from setuptools import setup, Command, Extension
 
+from picard import PICARD_VERSION
 
-PACKAGE_NAME = "picard"
+# Decides package name on the basis of version
+if PICARD_VERSION[3] == 'dev':
+    PACKAGE_NAME = "picard_dev"
+else:
+    PACKAGE_NAME = "picard"
 
 ext_modules = [
     Extension('picard.util._astrcmp', sources=['picard/util/_astrcmp.c']),
@@ -66,17 +71,17 @@ exclude_modules = [
 if do_py2app:
     args['app'] = ['tagger.py']
     args['name'] = 'Picard'
-    args['options'] = { 'py2app' :
+    args['options'] = {'py2app':
         {
-            'optimize'       : 2,
-            'argv_emulation' : True,
-            'iconfile'       : 'picard.icns',
-            'frameworks'     : ['libiconv.2.dylib', 'libdiscid.0.dylib'],
-            'resources'      : ['locale'],
-            'includes'       : ['json', 'sip', 'PyQt5', 'ntpath'] + [e.name for e in ext_modules],
-            'excludes'  : exclude_modules + py2app_exclude_modules,
-            'plist'     : { 'CFBundleName' : 'MusicBrainz Picard',
-                            'CFBundleGetInfoString' : 'Picard, the next generation MusicBrainz tagger (see https://picard.musicbrainz.org/)',
+            'optimize': 2,
+            'argv_emulation': True,
+            'iconfile': 'picard.icns',
+            'frameworks': ['libiconv.2.dylib', 'libdiscid.0.dylib'],
+            'resources': ['locale'],
+            'includes': ['json', 'sip', 'PyQt5', 'ntpath'] + [e.name for e in ext_modules],
+            'excludes': exclude_modules + py2app_exclude_modules,
+            'plist': {'CFBundleName': 'MusicBrainz Picard',
+                            'CFBundleGetInfoString': 'Picard, the next generation MusicBrainz tagger (see https://picard.musicbrainz.org/)',
                             'CFBundleIdentifier':'org.musicbrainz.picard',
                             'CFBundleShortVersionString':__version__,
                             'CFBundleVersion': 'Picard ' + __version__,
