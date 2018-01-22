@@ -20,7 +20,7 @@
 from PyQt5 import QtGui, QtCore, QtNetwork, QtWidgets
 from operator import itemgetter
 from functools import partial
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from picard import config, log
 from picard.file import File
 from picard.ui import PicardDialog
@@ -58,6 +58,10 @@ class ResultTable(QtWidgets.QTableWidget):
             QtWidgets.QHeaderView.Stretch)
         self.horizontalHeader().setSectionResizeMode(
             QtWidgets.QHeaderView.Interactive)
+
+    def on_scroll(self, action):
+        self.horizontalScrollBar().valueChanged.connect(action)
+        self.verticalScrollBar().valueChanged.connect(action)
 
 
 class SearchBox(QtWidgets.QWidget):
@@ -169,6 +173,18 @@ class CoverArt(QtWidgets.QWidget):
         self.update(shadow)
 
 
+class CoverCell():
+
+    def __init__(self, release, widget):
+        self.release = release
+        self.widget = widget
+        self.fetched = False
+        self.fetch_task = None
+
+    def is_visible(self):
+        return not self.widget.visibleRegion().isEmpty()
+
+
 Retry = namedtuple("Retry", ["function", "query"])
 
 
@@ -182,6 +198,12 @@ class SearchDialog(PicardDialog):
         self.search_box = None
         self.setupUi(accept_button_title)
         self.restore_state()
+        self.cleanup = None
+
+    def closeEvent(self, event):
+        if self.cleanup is not None:
+            self.cleanup()
+        super(PicardDialog, self).closeEvent(event)
 
     def setupUi(self, accept_button_title):
         self.verticalLayout = QtWidgets.QVBoxLayout(self)
@@ -268,8 +290,9 @@ class SearchDialog(PicardDialog):
         self.add_widget_to_center_layout(self.error_widget)
 
     def show_table(self):
-        self.table = ResultTable(self, self.table_headers)
+        self.table = ResultTable(self, list(self._columns.values()))
         self.table.setObjectName("results_table")
+        self.colkeys = list(self._columns.keys())
         self.table.cellDoubleClicked.connect(self.accept)
         self.restore_table_header_state()
         self.add_widget_to_center_layout(self.table)
@@ -277,6 +300,12 @@ class SearchDialog(PicardDialog):
             self.accept_button.setEnabled(True)
         self.table.itemSelectionChanged.connect(
                 enable_accept_button)
+
+    def insert_row(self, row, items):
+        self.table.insertRow(row)
+        for colname, colvalue in items.items():
+            if colvalue:
+                self.table.setItem(row, self.colkeys.index(colname), colvalue)
 
     def network_error(self, reply, error):
         error_msg = _("<strong>Following error occurred while fetching results:<br><br></strong>"
@@ -351,15 +380,15 @@ class TrackSearchDialog(SearchDialog):
             accept_button_title=_("Load into Picard"))
         self.file_ = None
         self.setWindowTitle(_("Track Search Results"))
-        self.table_headers = [
-                _("Name"),
-                _("Length"),
-                _("Artist"),
-                _("Release"),
-                _("Date"),
-                _("Country"),
-                _("Type")
-        ]
+        self._columns = OrderedDict([
+            ('name',   _("Name")),
+            ('length',  _("Length")),
+            ('artist',  _("Artist")),
+            ('release', _("Release")),
+            ('date',    _("Date")),
+            ('country', _("Country")),
+            ('type',    _("Type"))
+        ])
 
     def search(self, text):
         """Perform search using query provided by the user."""
@@ -436,14 +465,16 @@ class TrackSearchDialog(SearchDialog):
         for row, obj in enumerate(self.search_results):
             track = obj[0]
             table_item = QtWidgets.QTableWidgetItem
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, table_item(track.get("title", "")))
-            self.table.setItem(row, 1, table_item(track.get("~length", "")))
-            self.table.setItem(row, 2, table_item(track.get("artist", "")))
-            self.table.setItem(row, 3, table_item(track.get("album", "")))
-            self.table.setItem(row, 4, table_item(track.get("date", "")))
-            self.table.setItem(row, 5, table_item(track.get("country", "")))
-            self.table.setItem(row, 6, table_item(track.get("releasetype", "")))
+            items = {
+                'name':    table_item(track.get("title", "")),
+                'length':  table_item(track.get("~length", "")),
+                'artist':  table_item(track.get("artist", "")),
+                'release': table_item(track.get("album", "")),
+                'date':    table_item(track.get("date", "")),
+                'country': table_item(track.get("country", "")),
+                'type':    table_item(track.get("releasetype", "")),
+            }
+            self.insert_row(row, items)
 
     def parse_tracks(self, tracks):
         for node in tracks:
@@ -520,21 +551,22 @@ class AlbumSearchDialog(SearchDialog):
             accept_button_title=_("Load into Picard"))
         self.cluster = None
         self.setWindowTitle(_("Album Search Results"))
-        self.table_headers = [
-                _("Name"),
-                _("Artist"),
-                _("Format"),
-                _("Tracks"),
-                _("Date"),
-                _("Country"),
-                _("Labels"),
-                _("Catalog #s"),
-                _("Barcode"),
-                _("Language"),
-                _("Type"),
-                _("Status"),
-                _("Cover")
-        ]
+        self._columns = OrderedDict([
+            ('name',     _("Name")),
+            ('artist',   _("Artist")),
+            ('format',   _("Format")),
+            ('tracks',   _("Tracks")),
+            ('date',     _("Date")),
+            ('country',  _("Country")),
+            ('labels',   _("Labels")),
+            ('catnums',  _("Catalog #s")),
+            ('barcode',  _("Barcode")),
+            ('language', _("Language")),
+            ('type',     _("Type")),
+            ('status',   _("Status")),
+            ('cover',    _("Cover")),
+        ])
+
 
     def search(self, text):
         """Perform search using query provided by the user."""
@@ -591,30 +623,30 @@ class AlbumSearchDialog(SearchDialog):
         del self.search_results[:]
         self.parse_releases(releases)
         self.display_results()
-        self.fetch_coverarts()
 
-    def fetch_coverarts(self):
-        """Queue cover art jsons from CAA server for each album in search
-        results.
+    def fetch_coverart(self, key):
+        """Get cover cover art json from CAA server for release.
         """
-        for row, release in enumerate(self.search_results):
-            caa_path = "/release/%s" % release["musicbrainz_albumid"]
-            self.tagger.webservice.download(
-                CAA_HOST,
-                CAA_PORT,
-                caa_path,
-                partial(self._caa_json_downloaded, row)
-            )
+        if key not in self.cover_cells:
+            return
+        caa_path = "/release/%s" % key
+        self.cover_cells[key].fetch_task = self.tagger.webservice.download(
+            CAA_HOST,
+            CAA_PORT,
+            caa_path,
+            partial(self._caa_json_downloaded, key)
+        )
 
-    def _caa_json_downloaded(self, row, data, http, error):
+    def _caa_json_downloaded(self, key, data, http, error):
         """Handle json reply from CAA server.
         If server replies without error, try to get small thumbnail of front
         coverart of the release.
         """
-        if not self.table:
+        try:
+            self.cover_cells[key].fetch_task = None
+            cover_cell = self.cover_cells[key].widget
+        except KeyError:
             return
-
-        cover_cell = self.table.cellWidget(row, len(self.table_headers)-1)
 
         if error:
             cover_cell.not_found()
@@ -635,24 +667,28 @@ class AlbumSearchDialog(SearchDialog):
         if front:
             url = front["thumbnails"]["small"]
             coverartimage = CaaThumbnailCoverArtImage(url=url)
-            self.tagger.webservice.download(
+            self.cover_cells[key].fetch_task = self.tagger.webservice.download(
                 coverartimage.host,
                 coverartimage.port,
                 coverartimage.path,
-                partial(self._cover_downloaded, row),
+                partial(self._cover_downloaded, key),
             )
         else:
             cover_cell.not_found()
 
-    def _cover_downloaded(self, row, data, http, error):
+    def _cover_downloaded(self, key, data, http, error):
         """Handle cover art query reply from CAA server.
         If server returns the cover image successfully, update the cover art
         cell of particular release.
 
         Args:
-            row -- Album's row in results table
+            key -- Album's release id
         """
-        cover_cell = self.table.cellWidget(row, len(self.table_headers)-1)
+        try:
+            self.cover_cells[key].fetch_task = None
+            cover_cell = self.cover_cells[key].widget
+        except KeyError:
+            return
 
         if error:
             cover_cell.not_found()
@@ -680,25 +716,54 @@ class AlbumSearchDialog(SearchDialog):
                 release["country"] = ", ".join(countries)
             self.search_results.append(release)
 
+    def new_cover_cell(self, release):
+        widget = CoverArt(self.table)
+        key = release["musicbrainz_albumid"]
+        self.cover_cells[key] = CoverCell(release, widget)
+        return widget
+
     def display_results(self):
         self.show_table()
         self.table.verticalHeader().setDefaultSectionSize(100)
+        self.table.setColumnWidth(self.colkeys.index('cover'), 130)
+        self.cover_cells = {}
+        self.cover_cells_fetched = {}
         for row, release in enumerate(self.search_results):
             table_item = QtWidgets.QTableWidgetItem
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, table_item(release.get("album", "")))
-            self.table.setItem(row, 1, table_item(release.get("albumartist", "")))
-            self.table.setItem(row, 2, table_item(release.get("format", "")))
-            self.table.setItem(row, 3, table_item(release.get("tracks", "")))
-            self.table.setItem(row, 4, table_item(release.get("date", "")))
-            self.table.setItem(row, 5, table_item(release.get("country", "")))
-            self.table.setItem(row, 6, table_item(release.get("label", "")))
-            self.table.setItem(row, 7, table_item(release.get("catalognumber", "")))
-            self.table.setItem(row, 8, table_item(release.get("barcode", "")))
-            self.table.setItem(row, 9, table_item(release.get("~releaselanguage", "")))
-            self.table.setItem(row, 10, table_item(release.get("releasetype", "")))
-            self.table.setItem(row, 11, table_item(release.get("releasestatus", "")))
-            self.table.setCellWidget(row, 12, CoverArt(self.table))
+            items = {
+                'name':     table_item(release.get("album", "")),
+                'artist':   table_item(release.get("albumartist", "")),
+                'format':   table_item(release.get("format", "")),
+                'tracks':   table_item(release.get("tracks", "")),
+                'date':     table_item(release.get("date", "")),
+                'country':  table_item(release.get("country", "")),
+                'labels':   table_item(release.get("label", "")),
+                'catnums':  table_item(release.get("catalognumber", "")),
+                'barcode':  table_item(release.get("barcode", "")),
+                'language': table_item(release.get("~releaselanguage", "")),
+                'type':     table_item(release.get("releasetype", "")),
+                'status':   table_item(release.get("releasestatus", "")),
+                'cover':    None,
+            }
+            self.insert_row(row, items)
+            self.table.setCellWidget(row, self.colkeys.index('cover'),
+                                     self.new_cover_cell(release))
+        self.fetch_visible_cover_cells()
+        self.table.on_scroll(self.fetch_visible_cover_cells)
+        self.cleanup = self.fetch_cleanup
+
+    def fetch_cleanup(self):
+        for key, cell in self.cover_cells.items():
+            if cell.fetch_task is not None:
+                log.debug("removing task for %s", key)
+                self.tagger.webservice.remove_task(cell.fetch_task)
+
+    def fetch_visible_cover_cells(self):
+        for key, cell in self.cover_cells.items():
+            if not cell.fetched and cell.is_visible():
+                cell.fetched = True
+                self.fetch_coverart(key)
+
 
     def accept_event(self, arg):
         self.load_selection(arg)
@@ -730,16 +795,16 @@ class ArtistSearchDialog(SearchDialog):
             parent,
             accept_button_title=_("Show in browser"))
         self.setWindowTitle(_("Artist Search Dialog"))
-        self.table_headers = [
-                _("Name"),
-                _("Type"),
-                _("Gender"),
-                _("Area"),
-                _("Begin"),
-                _("Begin Area"),
-                _("End"),
-                _("End Area"),
-        ]
+        self._columns = OrderedDict([
+            ('name',        _("Name")),
+            ('type',        _("Type")),
+            ('gender',      _("Gender")),
+            ('area',        _("Area")),
+            ('begindate',   _("Begin")),
+            ('beginarea',   _("Begin Area")),
+            ('enddate',     _("End")),
+            ('endarea',     _("End Area")),
+        ])
 
     def search(self, text):
         self.retry_params = (self.search, text)
@@ -778,15 +843,17 @@ class ArtistSearchDialog(SearchDialog):
         self.show_table()
         for row, artist in enumerate(self.search_results):
             table_item = QtWidgets.QTableWidgetItem
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, table_item(artist.get("name", "")))
-            self.table.setItem(row, 1, table_item(artist.get("type", "")))
-            self.table.setItem(row, 2, table_item(artist.get("gender", "")))
-            self.table.setItem(row, 3, table_item(artist.get("area", "")))
-            self.table.setItem(row, 4, table_item(artist.get("begindate", "")))
-            self.table.setItem(row, 5, table_item(artist.get("beginarea", "")))
-            self.table.setItem(row, 6, table_item(artist.get("enddate", "")))
-            self.table.setItem(row, 7, table_item(artist.get("endarea", "")))
+            items = {
+                'name':         table_item(artist.get("name", "")),
+                'type':         table_item(artist.get("type", "")),
+                'gender':       table_item(artist.get("gender", "")),
+                'area':         table_item(artist.get("area", "")),
+                'begindate':    table_item(artist.get("begindate", "")),
+                'beginarea':    table_item(artist.get("beginarea", "")),
+                'enddate':      table_item(artist.get("enddate", "")),
+                'endarea':      table_item(artist.get("endarea", "")),
+            }
+            self.insert_row(row, items)
 
     def accept_event(self, row):
         self.load_in_browser(row)
