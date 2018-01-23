@@ -142,7 +142,7 @@ class SearchBox(QtWidgets.QWidget):
             self.search_action.trigger()
 
 
-class CoverArt(QtWidgets.QWidget):
+class CoverWidget(QtWidgets.QWidget):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -156,7 +156,7 @@ class CoverArt(QtWidgets.QWidget):
         self.cover_label = None
         self.shadow = QtGui.QPixmap(":/images/CoverArtShadow.png")
 
-    def update(self, pixmap):
+    def set_pixmap(self, pixmap):
         wid = self.layout.takeAt(0)
         if wid:
             wid.widget().deleteLater()
@@ -170,20 +170,39 @@ class CoverArt(QtWidgets.QWidget):
 
     def not_found(self):
         """Update the widget with a blank image."""
-        self.update(self.shadow)
+        self.set_pixmap(self.shadow)
 
 
-class CoverCell():
+class CoverCell:
 
-    def __init__(self, release, parent):
-        self.release = release
+    def __init__(self, parent, release, row, column):
         self.parent = parent
+        self.release = release
         self.fetched = False
         self.fetch_task = None
-        self.widget = CoverArt(self.parent)
+        self.row = row
+        self.column = column
+
+    def item(self):
+        if not self.parent.table:
+            return None
+        return self.parent.table.cellWidget(self.row, self.column)
 
     def is_visible(self):
-        return not self.widget.visibleRegion().isEmpty()
+        item = self.item()
+        if not item:
+            return False
+        return not item.visibleRegion().isEmpty()
+
+    def set_pixmap(self, pixmap):
+        item = self.item()
+        if item:
+            item.set_pixmap(pixmap)
+
+    def not_found(self):
+        item = self.item()
+        if item:
+            item.not_found()
 
 
 Retry = namedtuple("Retry", ["function", "query"])
@@ -313,7 +332,6 @@ class SearchDialog(PicardDialog):
         for colname, colvalue in items.items():
             if colvalue is not None:
                 self.table.setItem(row, self.colindex(colname), colvalue)
-        self.table.setSortingEnabled(True)
 
     def colindex(self, colname):
         return self._colkeys.index(colname)
@@ -653,8 +671,8 @@ class AlbumSearchDialog(SearchDialog):
         coverart of the release.
         """
         try:
-            self.cover_cells[key].fetch_task = None
-            cover_cell = self.cover_cells[key].widget
+            cover_cell = self.cover_cells[key]
+            cover_cell.fetch_task = None
         except KeyError:
             return
 
@@ -695,8 +713,8 @@ class AlbumSearchDialog(SearchDialog):
             key -- Album's release id
         """
         try:
-            self.cover_cells[key].fetch_task = None
-            cover_cell = self.cover_cells[key].widget
+            cover_cell = self.cover_cells[key]
+            cover_cell.fetch_task = None
         except KeyError:
             return
 
@@ -706,7 +724,7 @@ class AlbumSearchDialog(SearchDialog):
             pixmap = QtGui.QPixmap()
             try:
                 pixmap.loadFromData(data)
-                cover_cell.update(pixmap)
+                cover_cell.set_pixmap(pixmap)
             except Exception as e:
                 cover_cell.not_found()
                 log.error(e)
@@ -726,18 +744,12 @@ class AlbumSearchDialog(SearchDialog):
                 release["country"] = ", ".join(countries)
             self.search_results.append(release)
 
-    def new_cover_cell(self, release):
-        key = release["musicbrainz_albumid"]
-        cell = CoverCell(release, self.table)
-        self.cover_cells[key] = cell
-        return cell
-
     def display_results(self):
         self.show_table()
         self.table.verticalHeader().setDefaultSectionSize(100)
         self.table.setColumnWidth(self.colindex('cover'), 130)
-        self.cover_cells = {}
-        self.cover_cells_fetched = {}
+        self.cover_cells = OrderedDict()
+        self.table.setSortingEnabled(False)
         for row, release in enumerate(self.search_results):
             table_item = QtWidgets.QTableWidgetItem
             items = {
@@ -753,12 +765,16 @@ class AlbumSearchDialog(SearchDialog):
                 'language': table_item(release.get("~releaselanguage", "")),
                 'type':     table_item(release.get("releasetype", "")),
                 'status':   table_item(release.get("releasestatus", "")),
-                'cover':    None,
+                'cover':    table_item(),
             }
             self.insert_row(row, items)
-            cell = self.new_cover_cell(release)
-            self.table.setCellWidget(row, self.colindex('cover'),
-                                     cell.widget)
+            col = self.colindex('cover')
+            self.table.setCellWidget(row, col,
+                                     CoverWidget(self.table))
+            key = release["musicbrainz_albumid"]
+            self.cover_cells[key] = CoverCell(self, release, row, col)
+        self.table.setSortingEnabled(True)
+
         self.fetch_visible_cover_cells()
         self.table.on_scroll(self.fetch_visible_cover_cells)
         self.cleanup = self.fetch_cleanup
@@ -771,9 +787,12 @@ class AlbumSearchDialog(SearchDialog):
 
     def fetch_visible_cover_cells(self):
         for key, cell in self.cover_cells.items():
-            if not cell.fetched and cell.is_visible():
-                cell.fetched = True
-                self.fetch_coverart(key)
+            if cell.fetched:
+                continue
+            if not cell.is_visible():
+                continue
+            cell.fetched = True
+            self.fetch_coverart(key)
 
     def accept_event(self, arg):
         self.load_selection(arg)
