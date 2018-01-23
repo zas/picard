@@ -66,7 +66,6 @@ class ResultTable(QtWidgets.QTableWidget):
 class SearchBox(QtWidgets.QWidget):
 
     def __init__(self, parent):
-        self.parent = parent
         super().__init__(parent)
         self.search_action = QtWidgets.QAction(icontheme.lookup('system-search'),
                 _("Search"), self)
@@ -78,9 +77,10 @@ class SearchBox(QtWidgets.QWidget):
         # When focus is on search edit box (ButtonLineEdit), need to disable
         # dialog's accept button. This would avoid closing of dialog when user
         # hits enter.
-        if self.parent.table:
-            self.parent.table.clearSelection()
-        self.parent.accept_button.setEnabled(False)
+        parent = self.parent()
+        if parent.table:
+            parent.table.clearSelection()
+        parent.accept_button.setEnabled(False)
 
     def setupUi(self):
         self.layout = QtWidgets.QVBoxLayout(self)
@@ -123,7 +123,7 @@ class SearchBox(QtWidgets.QWidget):
         self.setMaximumHeight(60)
 
     def search(self):
-        self.parent.search(self.search_edit.text())
+        self.parent().search(self.search_edit.text())
 
     def restore_checkbox_state(self):
         self.use_adv_search_syntax.setChecked(config.setting["use_adv_search_syntax"])
@@ -149,36 +149,38 @@ class CoverArt(QtWidgets.QWidget):
         self.layout = QtWidgets.QVBoxLayout(self)
         self.loading_gif_label = QtWidgets.QLabel(self)
         self.loading_gif_label.setAlignment(QtCore.Qt.AlignCenter)
-        loading_gif = QtGui.QMovie(":/images/loader.gif")
-        self.loading_gif_label.setMovie(loading_gif)
-        loading_gif.start()
+        self.loading_gif = QtGui.QMovie(":/images/loader.gif")
+        self.loading_gif_label.setMovie(self.loading_gif)
+        self.loading_gif.start()
         self.layout.addWidget(self.loading_gif_label)
+        self.cover_label = None
+        self.shadow = QtGui.QPixmap(":/images/CoverArtShadow.png")
 
     def update(self, pixmap):
         wid = self.layout.takeAt(0)
         if wid:
             wid.widget().deleteLater()
-        cover_label = QtWidgets.QLabel(self)
-        cover_label.setPixmap(pixmap.scaled(100,
+        self.cover_label = QtWidgets.QLabel(self)
+        self.cover_label.setPixmap(pixmap.scaled(100,
                                             100,
                                             QtCore.Qt.KeepAspectRatio,
                                             QtCore.Qt.SmoothTransformation)
                               )
-        self.layout.addWidget(cover_label)
+        self.layout.addWidget(self.cover_label)
 
     def not_found(self):
         """Update the widget with a blank image."""
-        shadow = QtGui.QPixmap(":/images/CoverArtShadow.png")
-        self.update(shadow)
+        self.update(self.shadow)
 
 
 class CoverCell():
 
-    def __init__(self, release, widget):
+    def __init__(self, release, parent):
         self.release = release
-        self.widget = widget
+        self.parent = parent
         self.fetched = False
         self.fetch_task = None
+        self.widget = CoverArt(self.parent)
 
     def is_visible(self):
         return not self.widget.visibleRegion().isEmpty()
@@ -724,10 +726,10 @@ class AlbumSearchDialog(SearchDialog):
             self.search_results.append(release)
 
     def new_cover_cell(self, release):
-        widget = CoverArt(self.table)
         key = release["musicbrainz_albumid"]
-        self.cover_cells[key] = CoverCell(release, widget)
-        return widget
+        cell = CoverCell(release, self.table)
+        self.cover_cells[key] = cell
+        return cell
 
     def display_results(self):
         self.show_table()
@@ -753,8 +755,9 @@ class AlbumSearchDialog(SearchDialog):
                 'cover':    None,
             }
             self.insert_row(row, items)
+            cell = self.new_cover_cell(release)
             self.table.setCellWidget(row, self.colindex('cover'),
-                                     self.new_cover_cell(release))
+                                     cell.widget)
         self.fetch_visible_cover_cells()
         self.table.on_scroll(self.fetch_visible_cover_cells)
         self.cleanup = self.fetch_cleanup
