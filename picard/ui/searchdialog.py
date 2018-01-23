@@ -310,7 +310,10 @@ class SearchDialog(PicardDialog):
         self.table.insertRow(row)
         for colname, colvalue in items.items():
             if colvalue is not None:
-                self.table.setItem(row, self._colkeys.index(colname), colvalue)
+                self.table.setItem(row, self.colindex(colname), colvalue)
+
+    def colindex(self, colname):
+        return self._colkeys.index(colname)
 
     def network_error(self, reply, error):
         error_msg = _("<strong>Following error occurred while fetching results:<br><br></strong>"
@@ -730,7 +733,7 @@ class AlbumSearchDialog(SearchDialog):
     def display_results(self):
         self.show_table()
         self.table.verticalHeader().setDefaultSectionSize(100)
-        self.table.setColumnWidth(self._colkeys.index('cover'), 130)
+        self.table.setColumnWidth(self.colindex('cover'), 130)
         self.cover_cells = {}
         self.cover_cells_fetched = {}
         for row, release in enumerate(self.search_results):
@@ -751,7 +754,7 @@ class AlbumSearchDialog(SearchDialog):
                 'cover':    None,
             }
             self.insert_row(row, items)
-            self.table.setCellWidget(row, self._colkeys.index('cover'),
+            self.table.setCellWidget(row, self.colindex('cover'),
                                      self.new_cover_cell(release))
         self.fetch_visible_cover_cells()
         self.table.on_scroll(self.fetch_visible_cover_cells)
