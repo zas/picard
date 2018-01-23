@@ -44,7 +44,7 @@ from picard.coverart.image import CaaThumbnailCoverArtImage
 class ResultTable(QtWidgets.QTableWidget):
 
     def __init__(self, parent, column_titles):
-        QtWidgets.QTableWidget.__init__(self, 0, len(column_titles))
+        super().__init__(0, len(column_titles))
         self.parent = parent
         self.setHorizontalHeaderLabels(column_titles)
         self.setSelectionMode(
@@ -68,7 +68,7 @@ class SearchBox(QtWidgets.QWidget):
 
     def __init__(self, parent):
         self.parent = parent
-        QtWidgets.QWidget.__init__(self, parent)
+        super().__init__(parent)
         self.search_action = QtWidgets.QAction(icontheme.lookup('system-search'),
                 _("Search"), self)
         self.search_action.setEnabled(False)
@@ -146,7 +146,7 @@ class SearchBox(QtWidgets.QWidget):
 class CoverArt(QtWidgets.QWidget):
 
     def __init__(self, parent):
-        QtWidgets.QWidget.__init__(self, parent)
+        super().__init__(parent)
         self.layout = QtWidgets.QVBoxLayout(self)
         self.loading_gif_label = QtWidgets.QLabel(self)
         self.loading_gif_label.setAlignment(QtCore.Qt.AlignCenter)
