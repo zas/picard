@@ -313,6 +313,7 @@ class SearchDialog(PicardDialog):
         for colname, colvalue in items.items():
             if colvalue is not None:
                 self.table.setItem(row, self.colindex(colname), colvalue)
+        self.table.setSortingEnabled(True)
 
     def colindex(self, colname):
         return self._colkeys.index(colname)
