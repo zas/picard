@@ -191,7 +191,7 @@ Retry = namedtuple("Retry", ["function", "query"])
 class SearchDialog(PicardDialog):
 
     def __init__(self, parent, accept_button_title, show_search=True):
-        super().__init__(self, parent)
+        super().__init__(parent)
         self.search_results = []
         self.table = None
         self.show_search = show_search
