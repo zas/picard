@@ -202,6 +202,8 @@ class SearchDialog(PicardDialog):
         # self.columns has to be an ordered dict, with column name as keys, and
         # matching label as values
         self.columns = None
+        # _colkeys will serve as cache for column keys
+        self._colkeys = None
 
     def closeEvent(self, event):
         if self.cleanup is not None:
@@ -295,7 +297,7 @@ class SearchDialog(PicardDialog):
     def show_table(self):
         self.table = ResultTable(self, list(self.columns.values()))
         self.table.setObjectName("results_table")
-        self.colkeys = list(self.columns.keys())
+        self._colkeys = list(self.columns.keys())
         self.table.cellDoubleClicked.connect(self.accept)
         self.restore_table_header_state()
         self.add_widget_to_center_layout(self.table)
@@ -307,8 +309,8 @@ class SearchDialog(PicardDialog):
     def insert_row(self, row, items):
         self.table.insertRow(row)
         for colname, colvalue in items.items():
-            if colvalue:
-                self.table.setItem(row, self.colkeys.index(colname), colvalue)
+            if colvalue is not None:
+                self.table.setItem(row, self._colkeys.index(colname), colvalue)
 
     def network_error(self, reply, error):
         error_msg = _("<strong>Following error occurred while fetching results:<br><br></strong>"
@@ -728,7 +730,7 @@ class AlbumSearchDialog(SearchDialog):
     def display_results(self):
         self.show_table()
         self.table.verticalHeader().setDefaultSectionSize(100)
-        self.table.setColumnWidth(self.colkeys.index('cover'), 130)
+        self.table.setColumnWidth(self._colkeys.index('cover'), 130)
         self.cover_cells = {}
         self.cover_cells_fetched = {}
         for row, release in enumerate(self.search_results):
@@ -749,7 +751,7 @@ class AlbumSearchDialog(SearchDialog):
                 'cover':    None,
             }
             self.insert_row(row, items)
-            self.table.setCellWidget(row, self.colkeys.index('cover'),
+            self.table.setCellWidget(row, self._colkeys.index('cover'),
                                      self.new_cover_cell(release))
         self.fetch_visible_cover_cells()
         self.table.on_scroll(self.fetch_visible_cover_cells)
