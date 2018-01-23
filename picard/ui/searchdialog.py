@@ -199,6 +199,9 @@ class SearchDialog(PicardDialog):
         self.setupUi(accept_button_title)
         self.restore_state()
         self.cleanup = None
+        # self.columns has to be an ordered dict, with column name as keys, and
+        # matching label as values
+        self.columns = None
 
     def closeEvent(self, event):
         if self.cleanup is not None:
@@ -290,9 +293,9 @@ class SearchDialog(PicardDialog):
         self.add_widget_to_center_layout(self.error_widget)
 
     def show_table(self):
-        self.table = ResultTable(self, list(self._columns.values()))
+        self.table = ResultTable(self, list(self.columns.values()))
         self.table.setObjectName("results_table")
-        self.colkeys = list(self._columns.keys())
+        self.colkeys = list(self.columns.keys())
         self.table.cellDoubleClicked.connect(self.accept)
         self.restore_table_header_state()
         self.add_widget_to_center_layout(self.table)
@@ -380,7 +383,7 @@ class TrackSearchDialog(SearchDialog):
             accept_button_title=_("Load into Picard"))
         self.file_ = None
         self.setWindowTitle(_("Track Search Results"))
-        self._columns = OrderedDict([
+        self.columns = OrderedDict([
             ('name',   _("Name")),
             ('length',  _("Length")),
             ('artist',  _("Artist")),
@@ -551,7 +554,7 @@ class AlbumSearchDialog(SearchDialog):
             accept_button_title=_("Load into Picard"))
         self.cluster = None
         self.setWindowTitle(_("Album Search Results"))
-        self._columns = OrderedDict([
+        self.columns = OrderedDict([
             ('name',     _("Name")),
             ('artist',   _("Artist")),
             ('format',   _("Format")),
@@ -795,7 +798,7 @@ class ArtistSearchDialog(SearchDialog):
             parent,
             accept_button_title=_("Show in browser"))
         self.setWindowTitle(_("Artist Search Dialog"))
-        self._columns = OrderedDict([
+        self.columns = OrderedDict([
             ('name',        _("Name")),
             ('type',        _("Type")),
             ('gender',      _("Gender")),
