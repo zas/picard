@@ -44,8 +44,7 @@ from picard.coverart.image import CaaThumbnailCoverArtImage
 class ResultTable(QtWidgets.QTableWidget):
 
     def __init__(self, parent, column_titles):
-        super().__init__(0, len(column_titles))
-        self.parent = parent
+        super().__init__(0, len(column_titles), parent)
         self.setHorizontalHeaderLabels(column_titles)
         self.setSelectionMode(
             QtWidgets.QAbstractItemView.SingleSelection)
