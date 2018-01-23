@@ -208,7 +208,7 @@ class SearchDialog(PicardDialog):
     def closeEvent(self, event):
         if self.cleanup is not None:
             self.cleanup()
-        super(PicardDialog, self).closeEvent(event)
+        super().closeEvent(event)
 
     def setupUi(self, accept_button_title):
         self.verticalLayout = QtWidgets.QVBoxLayout(self)
