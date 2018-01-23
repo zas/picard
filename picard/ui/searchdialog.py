@@ -191,7 +191,7 @@ Retry = namedtuple("Retry", ["function", "query"])
 class SearchDialog(PicardDialog):
 
     def __init__(self, parent, accept_button_title, show_search=True):
-        PicardDialog.__init__(self, parent)
+        super().__init__(self, parent)
         self.search_results = []
         self.table = None
         self.show_search = show_search
@@ -383,7 +383,7 @@ class TrackSearchDialog(SearchDialog):
     ]
 
     def __init__(self, parent):
-        super(TrackSearchDialog, self).__init__(
+        super().__init__(
             parent,
             accept_button_title=_("Load into Picard"))
         self.file_ = None
@@ -554,7 +554,7 @@ class AlbumSearchDialog(SearchDialog):
     ]
 
     def __init__(self, parent):
-        super(AlbumSearchDialog, self).__init__(
+        super().__init__(
             parent,
             accept_button_title=_("Load into Picard"))
         self.cluster = None
@@ -799,7 +799,7 @@ class ArtistSearchDialog(SearchDialog):
     ]
 
     def __init__(self, parent):
-        super(ArtistSearchDialog, self).__init__(
+        super().__init__(
             parent,
             accept_button_title=_("Show in browser"))
         self.setWindowTitle(_("Artist Search Dialog"))
