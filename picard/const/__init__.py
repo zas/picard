@@ -32,6 +32,7 @@ builtins.__dict__['N_'] = lambda a: a
 _appconfiglocation = QStandardPaths.writableLocation(QStandardPaths.AppConfigLocation)
 USER_DIR = os.path.join(_appconfiglocation, "MusicBrainz", PICARD_APP_NAME)
 USER_PLUGIN_DIR = os.path.join(USER_DIR, "plugins")
+USER_SCRIPTS_DIR = os.path.join(USER_DIR, "scripts")
 
 # Cache directory
 CACHE_DIR = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)

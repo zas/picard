@@ -65,6 +65,7 @@ from picard.config_upgrade import upgrade_config
 from picard.const import (
     USER_DIR,
     USER_PLUGIN_DIR,
+    USER_SCRIPTS_DIR,
 )
 from picard.const.sys import (
     IS_FROZEN,
@@ -215,6 +216,12 @@ class Tagger(QtWidgets.QApplication):
         log.debug("Configuration file path: %r", config.config.fileName())
 
         log.debug("User directory: %r", os.path.abspath(USER_DIR))
+
+        log.debug("User scripts directory: %r", os.path.abspath(USER_SCRIPTS_DIR))
+        try:
+            os.makedirs(USER_SCRIPTS_DIR, exist_ok=True)
+        except Exception as e:
+            log.error("Failed to make directory %r: %s", USER_SCRIPTS_DIR, e)
 
         # for compatibility with pre-1.3 plugins
         QtCore.QObject.tagger = self
