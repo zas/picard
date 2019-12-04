@@ -12,6 +12,7 @@ from picard.const.sys import IS_WIN
 from picard.util import (
     find_best_match,
     imageinfo,
+    slugify,
     sort_by_similarity,
 )
 
@@ -321,3 +322,18 @@ class GetQtEnum(unittest.TestCase):
         self.assertIn('LocateFile', values)
         self.assertIn('LocateDirectory', values)
         self.assertNotIn('DesktopLocation', values)
+
+
+class Slugify(unittest.TestCase):
+
+    def test_slugify_default(self):
+        self.assertEqual(
+            slugify.slugify("  l-$à__bs/K  ⺶t\\u³  "),
+            'l-a_bs-K_t-u3'
+        )
+
+    def test_slugify_unicode(self):
+        self.assertEqual(
+            slugify.slugify("  l-$à__bs/K  ⺶t\\u³  ", allow_unicode=True),
+            'l-à_bs-K_-t-u3'
+        )
