@@ -17,20 +17,32 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
+import os
+import tempfile
+
 from PyQt5 import (
     QtCore,
     QtGui,
     QtWidgets,
 )
 
-from picard import config
+from picard import (
+    config,
+    log,
+)
 from picard.const import (
     DEFAULT_NUMBERED_SCRIPT_NAME,
     DEFAULT_SCRIPT_NAME,
     PICARD_URLS,
+    USER_SCRIPTS_DIR,
 )
+from picard.const.sys import IS_WIN
 from picard.script import ScriptParser
-from picard.util import restore_method
+from picard.util import (
+    replace_win32_incompat,
+    restore_method,
+    slugify,
+)
 
 from picard.ui import HashableListWidgetItem
 from picard.ui.options import (
@@ -39,6 +51,18 @@ from picard.ui.options import (
     register_options_page,
 )
 from picard.ui.ui_options_script import Ui_ScriptingOptionsPage
+
+
+def scriptname_to_filename(name, settings=None):
+    if settings is None:
+        settings = config.setting
+    filename = slugify.slugify(name, allow_unicode=not settings["ascii_filenames"])
+    # replace incompatible characters
+    if settings["windows_compatibility"] or IS_WIN:
+        filename = replace_win32_incompat(filename)
+    # remove null characters
+    filename = filename.replace("\x00", "")
+    return filename
 
 
 class TaggerScriptSyntaxHighlighter(QtGui.QSyntaxHighlighter):
@@ -445,6 +469,25 @@ class ScriptingOptionsPage(OptionsPage):
         config.setting["list_of_scripts"] = self.list_of_scripts
         config.persist["last_selected_script_pos"] = self.last_selected_script_pos
         config.persist["scripting_splitter"] = self.ui.splitter.saveState()
+
+        try:
+            os.makedirs(USER_SCRIPTS_DIR, exist_ok=True)
+        except Exception as e:
+            log.error("Failed to make directory %r: %s", USER_SCRIPTS_DIR, e)
+        ext = '.picardscript'
+        for s_pos, s_name, s_enabled, s_text in self.list_of_scripts:
+            try:
+                log.debug("Saving '%s' (pos: %d) script to %r", s_name, s_pos, USER_SCRIPTS_DIR)
+                filename = scriptname_to_filename(s_name) + ext
+                filepath = os.path.join(USER_SCRIPTS_DIR, filename)
+                with tempfile.NamedTemporaryFile(mode='w', dir=USER_SCRIPTS_DIR, delete=False) as f:
+                    f.write("# pos: %d name: %s\n" % (s_pos, s_name))
+                    f.write(s_text)
+                    os.replace(f.name, filepath)
+            except IOError as e:
+                log.error("Failed to write to %r: %s", filepath, e)
+            except Exception as e:
+                log.error("Error while writing to %r: %s", filepath, e)
 
     def display_error(self, error):
         pass
