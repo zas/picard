@@ -18,6 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 import os
+import re
 import tempfile
 
 from PyQt5 import (
@@ -34,6 +35,7 @@ from picard.const import (
     DEFAULT_NUMBERED_SCRIPT_NAME,
     DEFAULT_SCRIPT_NAME,
     PICARD_URLS,
+    SCRIPT_EXTENSION,
     USER_SCRIPTS_DIR,
 )
 from picard.const.sys import IS_WIN
@@ -433,8 +435,50 @@ class ScriptingOptionsPage(OptionsPage):
         super().restore_defaults()
 
     def load(self):
-        self.ui.enable_tagger_scripts.setChecked(config.setting["enable_tagger_scripts"])
+        def strip_extension(s, ext):
+            length = len(ext)
+            if s[-length:] == ext:
+                return s[:-length]
+            return s
         self.list_of_scripts = config.setting["list_of_scripts"]
+        try:
+            log.debug("Searching for scripts in %r ...", USER_SCRIPTS_DIR)
+            for root, dirs, files in os.walk(USER_SCRIPTS_DIR):
+                for f in files:
+                    if f.endswith(SCRIPT_EXTENSION):
+                        filepath = os.path.join(root, f)
+                        with open(filepath, 'r') as of:
+                            content = of.read()
+                            first_line = ''
+                            try:
+                                first_line = content.splitlines(True)[0]
+                            except IndexError as e:
+                                log.debug(e)
+                            text = content[len(first_line):].strip()
+                            match = re.match(r'^\s*#\s*pos:\s*(?P<pos>\d+)\s*name:\s*(?P<name>.*)\s*$', first_line)
+                            pos = None
+                            name = None
+                            if match:
+                                pos = int(match.group('pos'))
+                                name = match.group('name')
+                            if not name:
+                                name = strip_extension(f, SCRIPT_EXTENSION)
+                            log.debug("pos: %r name: %s", pos, name)
+                            log.debug("Script found: %s (%s)", first_line, filepath)
+                            log.debug("---\n%s\n---", text)
+                            found = False
+                            for i, (s_pos, s_name, s_enabled, s_text) in enumerate(self.list_of_scripts):
+                                if s_name == name or scriptname_to_filename(s_name) == name:
+                                    self.list_of_scripts[i] = (pos or s_pos, s_name, s_enabled, text)
+                                    found = True
+                                    break
+                            if not found:
+                                self.list_of_scripts.append((pos or 0, name, False, text))
+
+        except Exception as e:
+            log.error("Failed to get the list of scripts from %r: %s", USER_SCRIPTS_DIR, e)
+
+        self.ui.enable_tagger_scripts.setChecked(config.setting["enable_tagger_scripts"])
         for s_pos, s_name, s_enabled, s_text in self.list_of_scripts:
             script = ScriptItem(s_pos, s_name, s_enabled, s_text)
             list_item = HashableListWidgetItem()
@@ -474,11 +518,10 @@ class ScriptingOptionsPage(OptionsPage):
             os.makedirs(USER_SCRIPTS_DIR, exist_ok=True)
         except Exception as e:
             log.error("Failed to make directory %r: %s", USER_SCRIPTS_DIR, e)
-        ext = '.picardscript'
         for s_pos, s_name, s_enabled, s_text in self.list_of_scripts:
             try:
                 log.debug("Saving '%s' (pos: %d) script to %r", s_name, s_pos, USER_SCRIPTS_DIR)
-                filename = scriptname_to_filename(s_name) + ext
+                filename = scriptname_to_filename(s_name) + SCRIPT_EXTENSION
                 filepath = os.path.join(USER_SCRIPTS_DIR, filename)
                 with tempfile.NamedTemporaryFile(mode='w', dir=USER_SCRIPTS_DIR, delete=False) as f:
                     f.write("# pos: %d name: %s\n" % (s_pos, s_name))
