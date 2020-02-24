@@ -1,0 +1,79 @@
+# -*- coding: utf-8 -*-
+#
+# Picard, the next-generation MusicBrainz tagger
+# Copyright (C) 2020 Laurent Monin
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+
+from test.test_config import TestPicardConfigCommon
+
+from picard.util.preservedtags import PreservedTags
+
+from picard.config import (
+    TextOption,
+)
+
+
+class PreservedTagsTest(TestPicardConfigCommon):
+
+    def test_add(self):
+        TextOption("setting", "preserved_tags", "")
+        print(self.config)
+
+        preserved_tags = PreservedTags(settings=self.config.setting)
+        preserved_tags.add('tag1')
+        self.assertEqual(self.config.setting[PreservedTags.opt_name], 'tag1')
+        preserved_tags.add('tag2')
+        self.assertIn('tag2', self.config.setting[PreservedTags.opt_name])
+        preserved_tags.discard('tag2')
+        preserved_tags.add('tag3')
+        preserved_tags.add('tag2')
+        self.assertEqual(self.config.setting[PreservedTags.opt_name], 'tag1')
+
+
+#
+#
+#class PreservedTags:
+#
+#    opt_name = 'preserved_tags'
+#
+#    def __init__(self, settings=None):
+#        if settings is Noneg
+#            settings = config.setting
+#        self.settings = settings
+#        self._tags = self._from_config()
+#
+#    def _to_config(self):
+#        self.settings[self.opt_name] = ", ".join(sorted(self._tags))
+#
+#    def _from_config(self):
+#        tags = self.settings[self.opt_name].split(',')
+#        return set(filter(bool, map(self._normalize_tag, tags)))
+#
+#    @staticmethod
+#    def _normalize_tag(tag):
+#        return tag.strip().lower()
+#
+#    def add(self, name):
+#        self._tags.add(name)
+#        self._to_config()
+#
+#    def discard(self, name):
+#        self._tags.discard(name)
+#        self._to_config()
+#
+#    def __contains__(self, key):
+#        return key.lower() in self._tags

@@ -25,14 +25,17 @@ class PreservedTags:
 
     opt_name = 'preserved_tags'
 
-    def __init__(self):
+    def __init__(self, settings=None):
+        if settings is None:
+            settings = config.setting
+        self.settings = settings
         self._tags = self._from_config()
 
     def _to_config(self):
-        config.setting[self.opt_name] = ", ".join(sorted(self._tags))
+        self.settings[self.opt_name] = ", ".join(sorted(self._tags))
 
     def _from_config(self):
-        tags = config.setting[self.opt_name].split(',')
+        tags = self.settings[self.opt_name].split(',')
         return set(filter(bool, map(self._normalize_tag, tags)))
 
     @staticmethod
