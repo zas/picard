@@ -153,13 +153,14 @@ class ScriptVariable(object):
 
 class FunctionRegistryItem:
     def __init__(self, function, eval_args, argcount, documentation=None,
-                 name=None, module=None):
+                 name=None, module=None, examples=None):
         self.function = function
         self.eval_args = eval_args
         self.argcount = argcount
         self.documentation = documentation
         self.name = name
         self.module = module
+        self.examples = examples
 
     def __repr__(self):
         return '{classname}({me.function}, {me.eval_args}, {me.argcount}, {doc})'.format(
@@ -174,18 +175,26 @@ class FunctionRegistryItem:
         return data
 
     def markdowndoc(self, preprocessor=None):
+        text = ''
         if self.documentation is not None:
-            ret = _(self.documentation)
-        else:
-            ret = ''
-        return self._preprocess(ret, preprocessor)
+            text = _(self.documentation)
+        if self.examples:
+            text += "\n\n%s\n\n" % _("Examples:")
+            for example in self.examples:
+                text += "```%s```\n\n" % example
+        return self._preprocess(text, preprocessor)
 
     def htmldoc(self, preprocessor=None):
-        if self.documentation is not None and markdown is not None:
-            ret = markdown(_(self.documentation))
-        else:
-            ret = ''
-        return self._preprocess(ret, preprocessor)
+        html = ''
+        if markdown is not None:
+            if self.documentation is not None:
+                html = markdown(_(self.documentation))
+            if self.examples:
+                html += '<div class="examples">%s' % _("Examples:")
+                for example in self.examples:
+                    html += '<div class="example">%s</div>' % markdown(example)
+                html += '</div>'
+        return self._preprocess(html, preprocessor)
 
 
 class ScriptFunctionDocError(Exception):
@@ -503,7 +512,7 @@ def enabled_tagger_scripts_texts():
 
 
 def register_script_function(function, name=None, eval_args=True,
-                             check_argcount=True, documentation=None):
+                             check_argcount=True, documentation=None, examples=None):
     """Registers a script function. If ``name`` is ``None``,
     ``function.__name__`` will be used.
     If ``eval_args`` is ``False``, the arguments will not be evaluated before being
@@ -536,6 +545,7 @@ def register_script_function(function, name=None, eval_args=True,
                 eval_args,
                 argcount if argcount and check_argcount else False,
                 documentation=documentation,
+                examples=examples,
                 name=name,
                 module=function.__module__,
             )
@@ -543,7 +553,14 @@ def register_script_function(function, name=None, eval_args=True,
     )
 
 
-def script_function(name=None, eval_args=True, check_argcount=True, prefix='func_', documentation=None):
+def script_function(
+    name=None,
+    eval_args=True,
+    check_argcount=True,
+    prefix='func_',
+    documentation=None,
+    examples=None
+):
     """Decorator helper to register script functions
 
     It calls ``register_script_function()`` and share same arguments
@@ -567,7 +584,8 @@ def script_function(name=None, eval_args=True, check_argcount=True, prefix='func
             name=sname,
             eval_args=eval_args,
             check_argcount=check_argcount,
-            documentation=documentation
+            documentation=documentation,
+            examples=examples
         )
         return func
     return script_function_decorator
@@ -611,6 +629,9 @@ def func_if2(parser, *args):
     """`$noop(...)`
 
 Does nothing (useful for comments or disabling a block of code)."""
+), examples=(
+    """$noop()""",
+    """$noop(this is ignored)"""
 ))
 def func_noop(parser, *args):
     return ''

@@ -155,6 +155,14 @@ p {
 code {
     font-family: sans-serif;
 }
+.examples {
+    font-family: monospace;
+    color: orange;
+}
+.example {
+    color: red;
+    padding: 15px;
+}
 </style>
 </head>
 <body>
