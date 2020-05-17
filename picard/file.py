@@ -557,7 +557,6 @@ class File(QtCore.QObject, Item):
                 self.parent.remove_file(self)
             self.parent = parent
             self.parent.add_file(self)
-            self.acoustid_update()
 
     def _move(self, parent):
         if parent != self.parent:

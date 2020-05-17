@@ -21,6 +21,7 @@
 # Copyright (C) 2016 Suhas
 # Copyright (C) 2016-2017 Sambhav Kothari
 # Copyright (C) 2018 Vishal Choudhary
+# Copyright (C) 2020 Gabriel Ferreira
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -38,6 +39,7 @@
 
 
 from collections import defaultdict
+from enum import Enum
 from functools import partial
 from heapq import (
     heappop,
@@ -140,6 +142,11 @@ def get_match_color(similarity, basecolor):
         c2[2] + (c1[2] - c2[2]) * similarity)
 
 
+class Panels(Enum):
+    CLUSTERS = 0
+    ALBUMS = 1
+
+
 class MainPanel(QtWidgets.QSplitter):
 
     options = [
@@ -171,8 +178,8 @@ class MainPanel(QtWidgets.QSplitter):
         self.window = window
         self.create_icons()
         self.views = [FileTreeView(window, self), AlbumTreeView(window, self)]
-        self.views[0].itemSelectionChanged.connect(self.update_selection_0)
-        self.views[1].itemSelectionChanged.connect(self.update_selection_1)
+        self.views[Panels.CLUSTERS.value].itemSelectionChanged.connect(self.update_selection_clusters)
+        self.views[Panels.ALBUMS.value].itemSelectionChanged.connect(self.update_selection_albums)
         self._selected_view = 0
         self._ignore_selection_changes = False
 
@@ -256,16 +263,16 @@ class MainPanel(QtWidgets.QSplitter):
         self.window.update_selection(
             [item.obj for item in self.views[i].selectedItems()])
 
-    def update_selection_0(self):
+    def update_selection_clusters(self):
         if not self._ignore_selection_changes:
             self._ignore_selection_changes = True
-            self.update_selection(0, 1)
+            self.update_selection(Panels.CLUSTERS.value, Panels.ALBUMS.value)
             self._ignore_selection_changes = False
 
-    def update_selection_1(self):
+    def update_selection_albums(self):
         if not self._ignore_selection_changes:
             self._ignore_selection_changes = True
-            self.update_selection(1, 0)
+            self.update_selection(Panels.ALBUMS.value, Panels.CLUSTERS.value)
             self._ignore_selection_changes = False
 
     def update_current_view(self):
@@ -283,6 +290,10 @@ class MainPanel(QtWidgets.QSplitter):
             view.setCurrentIndex(index)
         else:
             self.update_current_view()
+
+    def set_sorting(self, sort=True):
+        self.views[Panels.CLUSTERS.value].setSortingEnabled(sort)
+        self.views[Panels.ALBUMS.value].setSortingEnabled(sort)
 
 
 def paint_fingerprint_icon(painter, rect, icon):
@@ -841,12 +852,6 @@ class TreeItem(QtWidgets.QTreeWidgetItem):
         self.setTextAlignment(1, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         self.setTextAlignment(7, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         self.setTextAlignment(8, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-
-    def __lt__(self, other):
-        if not self.sortable:
-            return False
-        column = self.treeWidget().sortColumn()
-        return self.sortkey(column) < other.sortkey(column)
 
     def sortkey(self, column):
         if column == 1:

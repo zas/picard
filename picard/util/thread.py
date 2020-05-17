@@ -9,6 +9,7 @@
 # Copyright (C) 2016 Sambhav Kothari
 # Copyright (C) 2017 Sophist-UK
 # Copyright (C) 2018 Vishal Choudhary
+# Copyright (C) 2020 Gabriel Ferreira
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -26,6 +27,7 @@
 
 
 import sys
+from threading import Event
 import traceback
 
 from PyQt5.QtCore import (
@@ -37,14 +39,17 @@ from PyQt5.QtCore import (
 
 class ProxyToMainEvent(QEvent):
 
-    def __init__(self, func, *args, **kwargs):
+    def __init__(self, func, event, *args, **kwargs):
         super().__init__(QEvent.User)
         self.func = func
+        self.event = event
         self.args = args
         self.kwargs = kwargs
 
     def run(self):
         self.func(*self.args, **self.kwargs)
+        if self.event:
+            self.event.set()
 
 
 class Runnable(QRunnable):
@@ -74,5 +79,7 @@ def run_task(func, next_func, priority=0, thread_pool=None, traceback=True):
 
 
 def to_main(func, *args, **kwargs):
+    event = Event()
     QCoreApplication.postEvent(QCoreApplication.instance(),
-                               ProxyToMainEvent(func, *args, **kwargs))
+                               ProxyToMainEvent(func, event, *args, **kwargs))
+    return event

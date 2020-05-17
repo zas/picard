@@ -17,6 +17,7 @@
 # Copyright (C) 2017 Antonio Larrosa
 # Copyright (C) 2018 Vishal Choudhary
 # Copyright (C) 2020 Ray Bouchard
+# Copyright (C) 2020 Gabriel Ferreira
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -34,6 +35,7 @@
 
 
 from collections import defaultdict
+from enum import IntEnum
 from heapq import (
     heappop,
     heappush,
@@ -263,12 +265,13 @@ class Cluster(QtCore.QObject, Item):
             self.lookup_task = None
 
     @staticmethod
-    def cluster(files, threshold):
+    def cluster(files, threshold, tagger=None):
         win_compat = config.setting["windows_compatibility"] or IS_WIN
         artist_dict = ClusterDict()
         album_dict = ClusterDict()
         tracks = []
-        for file in files:
+
+        for i, file in enumerate(files):
             artist = file.metadata["albumartist"] or file.metadata["artist"]
             album = file.metadata["album"]
             # Improve clustering from directory structure if no existing tags
@@ -281,11 +284,18 @@ class Cluster(QtCore.QObject, Item):
             # For each track, record the index of the artist and album within the clusters
             tracks.append((artist_dict.add(artist), album_dict.add(album)))
 
-        artist_cluster_engine = ClusterEngine(artist_dict)
-        artist_cluster_engine.cluster(threshold)
+            if tagger:
+                tagger.window.set_statusbar_message(
+                    N_("Clustering - step 1: metadata extraction (%d/%d)" % (i, len(files))),
+                    {},
+                    timeout=0.01
+                )
 
-        album_cluster_engine = ClusterEngine(album_dict)
-        album_cluster_engine.cluster(threshold)
+        artist_cluster_engine = ClusterEngine(artist_dict, ClusterType.ARTIST)
+        artist_cluster_engine.cluster(threshold, tagger)
+
+        album_cluster_engine = ClusterEngine(album_dict, ClusterType.ALBUM)
+        album_cluster_engine.cluster(threshold, tagger)
 
         # Arrange tracks into albums
         albums = {}
@@ -296,7 +306,7 @@ class Cluster(QtCore.QObject, Item):
 
         # Now determine the most prominent names in the cluster and build the
         # final cluster list
-        for album_id, album in albums.items():
+        for j, (album_id, album) in enumerate(albums.items()):
             album_name = album_cluster_engine.get_cluster_title(album_id)
 
             artist_max = 0
@@ -317,6 +327,13 @@ class Cluster(QtCore.QObject, Item):
                 artist_name = artist_cluster_engine.get_cluster_title(artist_id)
 
             yield album_name, artist_name, (files[i] for i in album)
+
+            if tagger:
+                tagger.window.set_statusbar_message(
+                    N_("Clustering - step 4: building clusters (%d/%d)" % (j, len(albums))),
+                    {},
+                    timeout=0.01
+                )
 
     def enable_update_metadata_images(self, enabled):
         self.update_metadata_images_enabled = enabled
@@ -453,9 +470,19 @@ class ClusterDict(object):
         return word, count
 
 
+class ClusterType(IntEnum):
+    ARTIST = 2
+    ALBUM = 3
+
+
 class ClusterEngine(object):
 
-    def __init__(self, cluster_dict):
+    CLUSTER_TYPE_LABELS = {
+        ClusterType.ARTIST: 'artist',
+        ClusterType.ALBUM: 'album',
+    }
+
+    def __init__(self, cluster_dict, cluster_type):
         # the cluster dictionary we're using
         self.cluster_dict = cluster_dict
         # keeps track of unique cluster index
@@ -465,8 +492,13 @@ class ClusterEngine(object):
         # Index the word ids -> clusters
         self.index_id_cluster = {}
 
+        self.cluster_type = cluster_type
+
     def get_cluster_from_id(self, clusterid):
         return self.index_id_cluster.get(clusterid)
+
+    def cluster_type_label(self):
+        return ClusterEngine.CLUSTER_TYPE_LABELS[self.cluster_type]
 
     def get_cluster_title(self, cluster):
 
@@ -483,7 +515,7 @@ class ClusterEngine(object):
 
         return maxWord
 
-    def cluster(self, threshold):
+    def cluster(self, threshold, tagger=None):
 
         # Keep the matches sorted in a heap
         heap = []
@@ -496,7 +528,15 @@ class ClusterEngine(object):
                     c = similarity(token_x, token_y)
                     if c >= threshold:
                         heappush(heap, ((1.0 - c), [x, y]))
-            QtCore.QCoreApplication.processEvents()
+            if tagger:
+                tagger.window.set_statusbar_message(
+                    N_("Clustering - step %d: clustering by %s (%d/%d)" % (self.cluster_type.value,
+                                                                           self.cluster_type_label(),
+                                                                           y,
+                                                                           self.cluster_dict.get_size())),
+                    {},
+                    timeout=0.01
+                )
 
         for i in range(self.cluster_dict.get_size()):
             word, count = self.cluster_dict.get_word_and_count(i)

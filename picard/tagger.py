@@ -25,6 +25,7 @@
 # Copyright (C) 2018 Bob Swift
 # Copyright (C) 2018 virusMac
 # Copyright (C) 2019 Joel Lintunen
+# Copyright (C) 2020 Gabriel Ferreira
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -42,6 +43,7 @@
 
 
 import argparse
+from collections import defaultdict
 from functools import partial
 from itertools import chain
 import logging
@@ -52,6 +54,7 @@ import re
 import shutil
 import signal
 import sys
+from threading import Thread
 
 from PyQt5 import (
     QtCore,
@@ -142,6 +145,8 @@ def _patched_shutil_copystat(src, dst, *, follow_symlinks=True):
 
 _orig_shutil_copystat = shutil.copystat
 shutil.copystat = _patched_shutil_copystat
+MAX_CONCURRENT_EVENTS = 30
+NUM_FILES_PER_BATCH = 100
 
 
 class Tagger(QtWidgets.QApplication):
@@ -425,7 +430,11 @@ class Tagger(QtWidgets.QApplication):
         return super().event(event)
 
     def _file_loaded(self, file, target=None):
-        if file is None or file.has_error():
+        if file is None:
+            return
+
+        if file.has_error():
+            self.move_files([file], self.unclustered_files)
             return
 
         if target is not None:
@@ -457,6 +466,8 @@ class Tagger(QtWidgets.QApplication):
                 self.move_file_to_nat(file, recordingid)
                 return
 
+        self.unclustered_files.add_file(file)
+
         # fallback on analyze if nothing else worked
         if config.setting['analyze_new_files'] and file.can_analyze():
             log.debug("Trying to analyze %r ...", file)
@@ -466,6 +477,10 @@ class Tagger(QtWidgets.QApplication):
         if target is None:
             log.debug("Aborting move since target is invalid")
             return
+
+        # Temporarily disable left and right panel sorting
+        self.window.panel.set_sorting(False)
+
         if isinstance(target, (Track, Cluster)):
             for file in files:
                 file.move(target)
@@ -478,6 +493,9 @@ class Tagger(QtWidgets.QApplication):
             self.move_files_to_album(files, album=target)
         elif isinstance(target, ClusterList):
             self.cluster(files)
+
+        # Re-enable left and right panel sorting
+        self.window.panel.set_sorting(True)
 
     def add_files(self, filenames, target=None):
         """Add files to the tagger."""
@@ -511,81 +529,58 @@ class Tagger(QtWidgets.QApplication):
             log.debug("Adding files %r", new_files)
             new_files.sort(key=lambda x: x.filename)
             if target is None or target is self.unclustered_files:
-                self.unclustered_files.add_files(new_files)
                 target = None
             for file in new_files:
                 file.load(partial(self._file_loaded, target=target))
 
-    def add_directory(self, path):
-        if config.setting['recursively_add_files']:
-            self._add_directory_recursive(path)
-        else:
-            self._add_directory_non_recursive(path)
-
-    def _add_directory_recursive(self, path):
-        ignore_hidden = config.setting["ignore_hidden_files"]
-        walk = os.walk(path)
-
-        def get_files():
-            try:
-                root, dirs, files = next(walk)
-                if ignore_hidden:
-                    dirs[:] = [d for d in dirs if not is_hidden(os.path.join(root, d))]
-            except StopIteration:
-                return None
-            else:
-                number_of_files = len(files)
-                if number_of_files:
-                    mparms = {
-                        'count': number_of_files,
-                        'directory': root,
-                    }
-                    log.debug("Adding %(count)d files from '%(directory)r'" %
-                              mparms)
-                    self.window.set_statusbar_message(
-                        ngettext(
-                            "Adding %(count)d file from '%(directory)s' ...",
-                            "Adding %(count)d files from '%(directory)s' ...",
-                            number_of_files),
-                        mparms,
-                        translate=None,
-                        echo=None
-                    )
-                return (os.path.join(root, f) for f in files)
-
-        def process(result=None, error=None):
-            if result:
-                if error is None:
-                    self.add_files(result)
-                thread.run_task(get_files, process)
-
-        process(True, False)
-
-    def _add_directory_non_recursive(self, path):
+    def _scan_dir(self, folders, recursive, ignore_hidden):
         files = []
-        for f in os.listdir(path):
-            listing = os.path.join(path, f)
-            if os.path.isfile(listing):
-                files.append(listing)
-        number_of_files = len(files)
-        if number_of_files:
-            mparms = {
-                'count': number_of_files,
-                'directory': path,
-            }
-            log.debug("Adding %(count)d files from '%(directory)r'" %
-                      mparms)
-            self.window.set_statusbar_message(
-                ngettext(
-                    "Adding %(count)d file from '%(directory)s' ...",
-                    "Adding %(count)d files from '%(directory)s' ...",
-                    number_of_files),
-                mparms,
-                translate=None,
-                echo=None
-            )
-            # Function call only if files exist
-            self.add_files(files)
+        local_folders = list(folders)
+        while local_folders:
+            current_folder = local_folders.pop(0)
+            current_folder_files = []
+
+            try:
+                for entry in os.scandir(current_folder):
+                    if ignore_hidden and is_hidden(entry.path):
+                        continue
+                    if recursive and entry.is_dir():
+                        local_folders.append(entry.path)
+                    else:
+                        current_folder_files.append(entry.path)
+            except FileNotFoundError:
+                pass
+
+            number_of_files = len(current_folder_files)
+            if number_of_files:
+                mparms = {
+                    'count': number_of_files,
+                    'directory': current_folder,
+                }
+                log.debug("Adding %(count)d files from '%(directory)r'" %
+                          mparms)
+                self.window.set_statusbar_message(
+                    ngettext(
+                        "Adding %(count)d file from '%(directory)s' ...",
+                        "Adding %(count)d files from '%(directory)s' ...",
+                        number_of_files),
+                    mparms,
+                    translate=None,
+                    echo=None
+                )
+                files.extend(current_folder_files)
+        return files
+
+    def add_directory(self, path):
+        Thread(target=self._add_directory, args=[path, config.setting['recursively_add_files'], config.setting["ignore_hidden_files"]]).start()
+
+    def _add_directory(self, path, recursive, ignore_hidden):
+        files = self._scan_dir([path], recursive, ignore_hidden)
+
+        # Add files in batches to prevent freezes
+        while files:
+            thread.to_main(self.add_files, files[:NUM_FILES_PER_BATCH]).wait()
+            files = files[NUM_FILES_PER_BATCH:]
 
     def get_file_lookup(self):
         """Return a FileLookup object."""
@@ -844,18 +839,41 @@ class Tagger(QtWidgets.QApplication):
     # =======================================================================
 
     def cluster(self, objs):
+        Thread(target=self._cluster, args=[objs]).start()
+
+    def _cluster(self, objs):
         """Group files with similar metadata to 'clusters'."""
         log.debug("Clustering %r", objs)
         if len(objs) <= 1 or self.unclustered_files in objs:
             files = list(self.unclustered_files.files)
         else:
             files = self.get_files_from_objects(objs)
-        for name, artist, files in Cluster.cluster(files, 1.0):
-            QtCore.QCoreApplication.processEvents()
+
+        # Temporarily disable left panel sorting to speed up related tasks
+        self.window.panel.set_sorting(False)
+
+        cluster_files = defaultdict(list)
+        for name, artist, files in Cluster.cluster(files, 1.0, self):
             cluster = self.load_cluster(name, artist)
-            for file in sorted(files, key=attrgetter('discnumber', 'tracknumber', 'base_filename')):
-                file.move(cluster)
-                QtCore.QCoreApplication.processEvents()
+            cluster_files[cluster].extend(sorted(files, key=attrgetter('discnumber', 'tracknumber', 'base_filename')))
+
+        pending_events = []
+        # Update cluster entries in batches to speed things up and prevent freezes
+        for cluster, files in cluster_files.items():
+            for file in files:
+
+                for event in list(pending_events):
+                    if event.isSet():
+                        pending_events.pop(0)
+
+                event = thread.to_main(file.move, cluster)
+                pending_events.append(event)
+
+                if len(pending_events) > MAX_CONCURRENT_EVENTS:
+                    event.wait()
+
+        # Re-enable left panel sorting
+        self.window.panel.set_sorting(True)
 
     def load_cluster(self, name, artist):
         for cluster in self.clusters:
