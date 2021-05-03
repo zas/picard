@@ -62,7 +62,7 @@ def future_callback(callback, future, log_traceback=True):
     to_main(callback, result=result, error=error)
 
 
-def run_task(func, next_func, priority=0, thread_pool=None, traceback=True):
+def run_task(func, next_func, priority=0, thread_pool='default', traceback=True):
     """Schedules func to be run on a separate thread
 
     Args:
@@ -77,9 +77,7 @@ def run_task(func, next_func, priority=0, thread_pool=None, traceback=True):
     Returns:
         An instance of concurrent.futures.Future
     """
-    if not thread_pool:
-        thread_pool = QCoreApplication.instance().thread_pool
-    future = thread_pool.submit(func)
+    future = QCoreApplication.instance().thread_pools[thread_pool].submit(func)
     future.add_done_callback(partial(future_callback, next_func, log_traceback=traceback))
     return future
 

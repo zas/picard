@@ -539,7 +539,7 @@ class MetadataBox(QtWidgets.QTableWidget):
         if self.selection_dirty:
             self._update_selection()
         thread.run_task(partial(self._update_tags, new_selection, drop_album_caches), self._update_items,
-            thread_pool=self.tagger.priority_thread_pool)
+            thread_pool='priority')
 
     def _update_tags(self, new_selection=True, drop_album_caches=False):
         self.selection_mutex.lock()

@@ -299,7 +299,7 @@ class File(QtCore.QObject, Item):
             partial(self._save_and_rename, self.filename, metadata),
             self._saving_finished,
             priority=2,
-            thread_pool=self.tagger.save_thread_pool)
+            thread_pool='save')
 
     def _preserve_times(self, filename, func):
         """Save filename times before calling func, and set them again"""

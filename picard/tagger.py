@@ -183,18 +183,20 @@ class Tagger(QtWidgets.QApplication):
         if picard_args.debug or "PICARD_DEBUG" in os.environ:
             self.set_log_level(logging.DEBUG)
 
+        self.thread_pools = dict()
+
         # Default thread pool
-        self.thread_pool = ThreadPoolExecutor()
+        self.thread_pools['default'] = ThreadPoolExecutor()
 
         # Provide a separate thread pool for operations that should not be
         # delayed by longer background processing tasks, e.g. because the user
         # expects instant feedback instead of waiting for a long list of
         # operations to finish.
-        self.priority_thread_pool = ThreadPoolExecutor(max_workers=1)
+        self.thread_pools['priority'] = ThreadPoolExecutor(max_workers=1)
 
         # Use a separate thread pool for file saving, with a thread count of 1,
         # to avoid race conditions in File._save_and_rename.
-        self.save_thread_pool = ThreadPoolExecutor(max_workers=1)
+        self.thread_pools['save'] = ThreadPoolExecutor(max_workers=1)
 
         if not IS_WIN:
             # Set up signal handling
@@ -373,9 +375,8 @@ class Tagger(QtWidgets.QApplication):
         self.stopping = True
         log.debug("Picard stopping")
         self._acoustid.done()
-        self.thread_pool.shutdown()
-        self.save_thread_pool.shutdown()
-        self.priority_thread_pool.shutdown()
+        for thread_pool in self.thread_pools.values():
+            thread_pool.shutdown()
         self.browser_integration.stop()
         self.webservice.stop()
         self.run_cleanup()
