@@ -52,6 +52,89 @@ OPTIONS_NOT_IN_PAGES = {
 }
 
 
+class CollapsibleBox(QtWidgets.QWidget):
+    animation_duration = 300
+
+    def __init__(self, title="", parent=None):
+        super().__init__(parent)
+
+        self.toggle_button = QtWidgets.QToolButton(
+            text=title, checkable=True, checked=False
+        )
+        self.toggle_button.setStyleSheet("QToolButton { border: none; }")
+        self.toggle_button.setToolButtonStyle(
+            QtCore.Qt.ToolButtonTextBesideIcon
+        )
+        self.toggle_button.setArrowType(QtCore.Qt.RightArrow)
+
+        self.toggle_animation = QtCore.QParallelAnimationGroup(self)
+
+        self.content_area = QtWidgets.QScrollArea(
+            maximumHeight=0, minimumHeight=0
+        )
+        self.content_area.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+        )
+        self.content_area.setFrameShape(QtWidgets.QFrame.NoFrame)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.toggle_button)
+        layout.addWidget(self.content_area)
+        self.setLayout(layout)
+
+        self.toggle_animation.addAnimation(
+            QtCore.QPropertyAnimation(self, b"minimumHeight")
+        )
+        self.toggle_animation.addAnimation(
+            QtCore.QPropertyAnimation(self, b"maximumHeight")
+        )
+        self.toggle_animation.addAnimation(
+            QtCore.QPropertyAnimation(self.content_area, b"maximumHeight")
+        )
+
+        self.toggle_button.toggled.connect(self.toggled)
+
+    def toggled(self, collapsed):
+        if collapsed:
+            direction = QtCore.QAbstractAnimation.Forward
+            arrow = QtCore.Qt.DownArrow
+        else:
+            direction = QtCore.QAbstractAnimation.Backward
+            arrow = QtCore.Qt.RightArrow
+        self.toggle_animation.setDirection(direction)
+        self.toggle_button.setArrowType(arrow)
+        self.toggle_animation.start()
+
+    def setContentLayout(self, layout):
+        old_layout = self.content_area.layout()
+        if old_layout:
+            del old_layout
+        self.content_area.setLayout(layout)
+        self.set_animations()
+
+    def set_animations(self):
+        layout = self.content_area.layout()
+        collapsed_height = self.sizeHint().height() - self.content_area.maximumHeight()
+        content_height = layout.sizeHint().height()
+        last_anim = self.toggle_animation.animationCount() - 1
+        for i in range(last_anim):
+            animation = self.toggle_animation.animationAt(i)
+            animation.setDuration(self.animation_duration)
+            animation.setStartValue(collapsed_height)
+            end_value = collapsed_height + content_height
+            animation.setEndValue(end_value)
+
+        content_animation = self.toggle_animation.animationAt(last_anim)
+        content_animation.setDuration(self.animation_duration)
+        content_animation.setStartValue(0)
+        content_animation.setEndValue(content_height)
+
+    def resizeEvent(self, event):
+        self.set_animations()
+
+
 class MaintenanceOptionsPage(OptionsPage):
 
     NAME = "maintenance"
@@ -67,7 +150,13 @@ class MaintenanceOptionsPage(OptionsPage):
         super().__init__(parent)
         self.ui = Ui_MaintenanceOptionsPage()
         self.ui.setupUi(self)
-        self.ui.description.setText(_(
+        placeholder = self.ui.description
+        del self.ui.description
+        containing_layout = placeholder.parent().layout()
+        box = CollapsibleBox("Help")
+        containing_layout.replaceWidget(placeholder, box)
+        lay = QtWidgets.QVBoxLayout()
+        label = QtWidgets.QLabel(_(
             "This allows you to remove unused option settings from the configuration INI file.\n\n"
             "Settings that are found in the configuration file that do not appear on any option "
             "settings page will be listed below. If your configuration file does not contain any "
@@ -82,6 +171,8 @@ class MaintenanceOptionsPage(OptionsPage):
             "box next to the setting. When you choose \"Make It So!\" to save your option "
             "settings, the selected items will be removed."
         ))
+        lay.addWidget(label)
+        box.setContentLayout(lay)
         self.ui.tableWidget.setHorizontalHeaderLabels([_("Option"), _("Value")])
         self.ui.select_all.stateChanged.connect(self.select_all_changed)
         self.ui.enable_cleanup.stateChanged.connect(self.enable_cleanup_changed)
