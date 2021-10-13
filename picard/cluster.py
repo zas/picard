@@ -105,7 +105,7 @@ class Cluster(FileList):
     comparison_weights = {
         'album': 17,
         'albumartist': 6,
-        'totaltracks': 5,
+        'totaltracks': 10,
         'releasetype': 10,
         'releasecountry': 2,
         'format': 2,
