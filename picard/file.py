@@ -126,6 +126,7 @@ class File(QtCore.QObject, Item):
         "format": 2,
         "isvideo": 2,
         "date": 4,
+        "search_score": 5,
     }
 
     class PreserveTimesStatError(Exception):

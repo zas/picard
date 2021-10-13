@@ -237,7 +237,7 @@ class Metadata(MutableMapping):
         linear combination of weights that the metadata matches a certain album.
         """
         parts = self.compare_to_release_parts(release, weights)
-        sim = linear_combination_of_weights(parts) * get_score(release)
+        sim = linear_combination_of_weights(parts)
         return SimMatchRelease(similarity=sim, release=release)
 
     def compare_to_release_parts(self, release, weights):
@@ -323,6 +323,9 @@ class Metadata(MutableMapping):
                                              config.setting["release_type_scores"],
                                              weights["releasetype"])
 
+        if "search_score" in weights:
+            parts.append((get_score(release), weights["search_score"]))
+
         rg = QObject.tagger.get_release_group_by_id(release['release-group']['id'])
         if release['id'] in rg.loaded_albums:
             parts.append((1.0, 6))
@@ -353,9 +356,11 @@ class Metadata(MutableMapping):
         if "releases" in track:
             releases = track['releases']
 
-        search_score = get_score(track)
+        if "search_score" in weights:
+            parts.append((get_score(track), weights["search_score"]))
+
         if not releases:
-            sim = linear_combination_of_weights(parts) * search_score
+            sim = linear_combination_of_weights(parts)
             return SimMatchTrack(similarity=sim, releasegroup=None, release=None, track=track)
 
         if 'isvideo' in weights:
@@ -367,7 +372,7 @@ class Metadata(MutableMapping):
         result = SimMatchTrack(similarity=-1, releasegroup=None, release=None, track=None)
         for release in releases:
             release_parts = self.compare_to_release_parts(release, weights)
-            sim = linear_combination_of_weights(parts + release_parts) * search_score
+            sim = linear_combination_of_weights(parts + release_parts)
             if sim > result.similarity:
                 rg = release['release-group'] if "release-group" in release else None
                 result = SimMatchTrack(similarity=sim, releasegroup=rg, release=release, track=track)

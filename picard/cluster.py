@@ -110,6 +110,7 @@ class Cluster(FileList):
         'releasecountry': 2,
         'format': 2,
         'date': 4,
+        'search_score': 5,
     }
 
     def __init__(self, name, artist="", special=False, related_album=None, hide_if_empty=False):
