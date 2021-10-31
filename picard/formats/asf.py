@@ -39,11 +39,8 @@ from picard.coverart.image import (
     CoverArtImageError,
     TagCoverArtImage,
 )
+from picard.coverart.utils import types_from_id3
 from picard.file import File
-from picard.formats.id3 import (
-    image_type_as_id3_num,
-    types_from_id3,
-)
 from picard.formats.mutagenext import delall_ci
 from picard.metadata import Metadata
 from picard.util import encode_filename
@@ -216,7 +213,7 @@ class ASFFile(File):
             if name == 'WM/Picture':
                 for image in values:
                     try:
-                        (mime, data, type_, description) = unpack_image(image.value)
+                        (mime, data, image_type, description) = unpack_image(image.value)
                     except ValueError as e:
                         log.warning('Cannot unpack image from %r: %s',
                                     filename, e)
@@ -225,10 +222,11 @@ class ASFFile(File):
                         coverartimage = TagCoverArtImage(
                             file=filename,
                             tag=name,
-                            types=types_from_id3(type_),
+                            types=types_from_id3(image_type),
                             comment=description,
                             support_types=True,
                             data=data,
+                            id3_type=image_type,
                         )
                     except CoverArtImageError as e:
                         log.error('Cannot load image from %r: %s' %
@@ -273,8 +271,7 @@ class ASFFile(File):
                 tags['WM/Picture'] = cover
         cover = []
         for image in metadata.images.to_be_saved_to_tags():
-            tag_data = pack_image(image.mimetype, image.data,
-                                  image_type_as_id3_num(image.maintype),
+            tag_data = pack_image(image.mimetype, image.data, image.id3_type,
                                   image.comment)
             cover.append(ASFByteArrayAttribute(tag_data))
         if cover:
@@ -313,7 +310,7 @@ class ASFFile(File):
     def supports_tag(cls, name):
         return (name in cls.__TRANS
                 or name in cls.__TRANS_CI
-                or name in ('~rating', '~length', 'totaldiscs')
+                or name in ('~rating', 'totaldiscs')
                 or name.startswith('lyrics:'))
 
     def _get_tag_name(self, name):

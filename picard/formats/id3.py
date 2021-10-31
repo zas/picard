@@ -50,6 +50,7 @@ from picard.coverart.image import (
     CoverArtImageError,
     TagCoverArtImage,
 )
+from picard.coverart.utils import types_from_id3
 from picard.file import File
 from picard.formats.mutagenext import (
     compatid3,
@@ -64,23 +65,6 @@ from picard.util.tags import parse_comment_tag
 
 
 id3.GRP1 = compatid3.GRP1
-
-__IMAGE_TYPES = [
-    ("obi", 0),
-    ("tray", 0),
-    ("spine", 0),
-    ("sticker", 0),
-    ("other", 0),
-    ("front", 3),
-    ("back", 4),
-    ("booklet", 5),
-    ("track", 6),
-    ("medium", 6),
-]
-
-__ID3_IMAGE_TYPE_MAP = dict(__IMAGE_TYPES)
-
-__ID3_REVERSE_IMAGE_TYPE_MAP = dict([(v, k) for k, v in __IMAGE_TYPES])
 
 
 class Id3Encoding(IntEnum):
@@ -104,18 +88,6 @@ def id3text(text, encoding):
     if encoding == Id3Encoding.LATIN1:
         return text.encode("latin1", "replace").decode("latin1")
     return text
-
-
-def image_type_from_id3_num(id3type):
-    return __ID3_REVERSE_IMAGE_TYPE_MAP.get(id3type, "other")
-
-
-def image_type_as_id3_num(texttype):
-    return __ID3_IMAGE_TYPE_MAP.get(texttype, 0)
-
-
-def types_from_id3(id3type):
-    return [image_type_from_id3_num(id3type)]
 
 
 def _remove_people_with_role(tags, frames, role):
@@ -372,6 +344,7 @@ class ID3File(File):
                         comment=frame.desc,
                         support_types=True,
                         data=frame.data,
+                        id3_type=frame.type,
                     )
                 except CoverArtImageError as e:
                     log.error('Cannot load image from %r: %s' % (filename, e))
@@ -443,7 +416,7 @@ class ID3File(File):
             counters[desc] += 1
             tags.add(id3.APIC(encoding=Id3Encoding.LATIN1,
                               mime=image.mimetype,
-                              type=image_type_as_id3_num(image.maintype),
+                              type=image.id3_type,
                               desc=id3text(desctag, Id3Encoding.LATIN1),
                               data=image.data))
 
@@ -637,7 +610,7 @@ class ID3File(File):
     def supports_tag(cls, name):
         unsupported_tags = ['r128_album_gain', 'r128_track_gain']
         return ((name and not name.startswith("~") and name not in unsupported_tags)
-                or name in ("~rating", "~length")
+                or name == "~rating"
                 or name.startswith("~id3"))
 
     def _get_tag_name(self, name):

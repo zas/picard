@@ -44,11 +44,8 @@ from picard.coverart.image import (
     CoverArtImageError,
     TagCoverArtImage,
 )
+from picard.coverart.utils import types_from_id3
 from picard.file import File
-from picard.formats.id3 import (
-    image_type_as_id3_num,
-    types_from_id3,
-)
 from picard.formats.util import guess_format
 from picard.metadata import Metadata
 from picard.util import (
@@ -75,7 +72,7 @@ def is_valid_key(key):
     Valid characters for Vorbis comment field names are
     ASCII 0x20 through 0x7D, 0x3D ('=') excluded.
     """
-    return INVALID_CHARS.search(key) is None
+    return key and INVALID_CHARS.search(key) is None
 
 
 def flac_sort_pics_after_tags(metadata_blocks):
@@ -178,6 +175,7 @@ class VCommentFile(File):
                             comment=image.desc,
                             support_types=True,
                             data=image.data,
+                            id3_type=image.type
                         )
                     except (CoverArtImageError, TypeError, ValueError, mutagen.flac.error) as e:
                         log.error('Cannot load image from %r: %s' % (filename, e))
@@ -289,7 +287,7 @@ class VCommentFile(File):
             picture.desc = image.comment
             picture.width = image.width
             picture.height = image.height
-            picture.type = image_type_as_id3_num(image.maintype)
+            picture.type = image.id3_type
             if is_flac:
                 # See https://xiph.org/flac/format.html#metadata_block_picture
                 expected_block_size = (8 * 4 + len(picture.data)
@@ -323,7 +321,7 @@ class VCommentFile(File):
         """Remove the tags from the file that were deleted in the UI"""
         for tag in metadata.deleted_tags:
             real_name = self._get_tag_name(tag)
-            if real_name and real_name in tags:
+            if is_valid_key(real_name) and real_name in tags:
                 if real_name in ('performer', 'comment'):
                     parts = tag.split(':', 1)
                     if len(parts) == 2:
