@@ -215,8 +215,8 @@ class MP4File(File):
                     log.debug('disk is invalid, ignoring')
             elif name == "covr":
                 for value in values:
-                    if value.imageformat not in (value.FORMAT_JPEG,
-                                                 value.FORMAT_PNG):
+                    if value.imageformat not in {value.FORMAT_JPEG,
+                                                 value.FORMAT_PNG}:
                         continue
                     try:
                         coverartimage = TagCoverArtImage(
@@ -336,12 +336,12 @@ class MP4File(File):
         for tag in metadata.deleted_tags:
             real_name = self._get_tag_name(tag)
             if real_name and real_name in tags:
-                if tag not in ("totaltracks", "totaldiscs"):
+                if tag not in {"totaltracks", "totaldiscs"}:
                     del tags[real_name]
 
     @classmethod
     def supports_tag(cls, name):
-        unsupported_tags = ['r128_album_gain', 'r128_track_gain']
+        unsupported_tags = {'r128_album_gain', 'r128_track_gain'}
         return (name
                 and not name.startswith("~")
                 and name not in unsupported_tags
@@ -364,9 +364,9 @@ class MP4File(File):
             return self.__r_freeform_tags_ci[name]
         elif name == "musicip_fingerprint":
             return "----:com.apple.iTunes:fingerprint"
-        elif name in ("tracknumber", "totaltracks"):
+        elif name in {"tracknumber", "totaltracks"}:
             return "trkn"
-        elif name in ("discnumber", "totaldiscs"):
+        elif name in {"discnumber", "totaldiscs"}:
             return "disk"
         elif self.supports_tag(name) and name not in self.__other_supported_tags:
             name = self.__casemap.get(name, name)
