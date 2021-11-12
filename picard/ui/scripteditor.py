@@ -41,6 +41,7 @@ from picard.config import (
 )
 from picard.const import (
     DEFAULT_FILE_NAMING_FORMAT,
+    DEFAULT_SCRIPT_NAME,
     PICARD_URLS,
 )
 from picard.file import File
@@ -743,7 +744,9 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
         """Add a new (empty) script to the script selection combo box and script list.
         """
         if self.unsaved_changes_confirmation():
-            script_item = FileNamingScript(script=DEFAULT_FILE_NAMING_FORMAT).to_dict()
+            count = len(self.naming_scripts) + 1
+            title = "{0} ({1})".format(DEFAULT_SCRIPT_NAME, count)
+            script_item = FileNamingScript(title=title, script=DEFAULT_FILE_NAMING_FORMAT).to_dict()
             self._insert_item(script_item)
 
     def copy_script(self):
