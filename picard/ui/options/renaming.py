@@ -311,7 +311,6 @@ class RenamingOptionsPage(OptionsPage):
         config.setting["move_additional_files"] = self.ui.move_additional_files.isChecked()
         config.setting["move_additional_files_pattern"] = self.ui.move_additional_files_pattern.text()
         config.setting["delete_empty_dirs"] = self.ui.delete_empty_dirs.isChecked()
-        config.setting["file_renaming_scripts"] = self.naming_scripts
         config.setting["selected_file_naming_script_id"] = self.selected_naming_script_id
         self.tagger.window.enable_renaming_action.setChecked(config.setting["rename_files"])
         self.tagger.window.enable_moving_action.setChecked(config.setting["move_files"])

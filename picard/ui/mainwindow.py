@@ -1653,10 +1653,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
     def script_editor_save(self):
         """Process "signal_save" signal from the script editor.
         """
-        config = get_config()
-        config.setting["file_renaming_scripts"] = self.script_editor_dialog.naming_scripts
-        script_item = self.script_editor_dialog.get_selected_item()
-        config.setting["selected_file_naming_script_id"] = script_item["id"]
         self.make_script_selector_menu()
 
     def script_editor_closed(self):

@@ -739,6 +739,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
         self.update_scripts_list()
         self.select_script(skip_check=True)
         self.restore_selected_script_index = idx
+        self.save_to_config()
 
     def new_script(self):
         """Add a new (empty) script to the script selection combo box and script list.
@@ -762,7 +763,16 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
         """Sends a save signal to trigger processing in the parent.
         """
         if not self.loading:
+            self.save_to_config()
             self.signal_save.emit()
+
+    def save_to_config(self):
+        """Saves all current script information to the configuration settings.
+        """
+        config = get_config()
+        config.setting["file_renaming_scripts"] = self.naming_scripts
+        script_item = self.get_selected_item()
+        config.setting["selected_file_naming_script_id"] = script_item["id"]
 
     def update_scripts_list(self):
         """Refresh the script list in the settings based on the contents of the script selection combo box.
@@ -922,6 +932,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
             self.selected_script_index = idx
             self.update_scripts_list()
             self.select_script(skip_check=True)
+            self.save_to_config()
 
     def is_used_in_profile(self):
         """Check if the currently selected script is included in any profile settings.
