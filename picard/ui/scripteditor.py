@@ -709,7 +709,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
         """
         self.update_combo_box_item(self.ui.preset_naming_scripts.currentIndex(), self.current_item_dict)
         self.ui.script_title.setText(self.current_item_dict['title'])
-        self.script_metadata_changed = True
+        self.save_script()
 
     def _set_combobox_index(self, idx):
         """Sets the index of the script selector combo box.
