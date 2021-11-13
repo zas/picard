@@ -57,6 +57,7 @@ from picard.script.serializer import (
 )
 from picard.util import (
     icontheme,
+    unique_numbered_title,
     webbrowser2,
 )
 from picard.util.settingsoverride import SettingsOverride
@@ -741,12 +742,16 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog):
         self.restore_selected_script_index = idx
         self.save_to_config()
 
+    def new_script_name(self):
+        existing_titles = [script['title'] for script in self.naming_scripts.values()]
+        default_title = _(DEFAULT_SCRIPT_NAME)
+        return unique_numbered_title(default_title, existing_titles)
+
     def new_script(self):
         """Add a new (empty) script to the script selection combo box and script list.
         """
         if self.unsaved_changes_confirmation():
-            count = len(self.naming_scripts) + 1
-            title = "{0} ({1})".format(DEFAULT_SCRIPT_NAME, count)
+            title = self.new_script_name()
             script_item = FileNamingScript(title=title, script=DEFAULT_FILE_NAMING_FORMAT).to_dict()
             self._insert_item(script_item)
 
