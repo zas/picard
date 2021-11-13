@@ -891,3 +891,21 @@ def wildcards_to_regex_pattern(pattern):
         regex.append('\\[')
         regex.append(wildcards_to_regex_pattern(''.join(group[1:])))
     return ''.join(regex)
+
+
+def unique_numbered_title(default_title, existing_titles):
+    """Generate a new unique and numbered title
+       based on given default title and existing titles
+    """
+    escaped = re.escape(default_title)
+    regex = re.compile('^' + escaped + '(?: \\((\\d+)\\))?$')
+    count = 0
+    for title in existing_titles:
+        m = regex.match(title)
+        if m:
+            num = m.group(1)
+            if num is not None:
+                count = max(count, int(num))
+            else:
+                count += 1
+    return "{0} ({1})".format(default_title, count + 1)
