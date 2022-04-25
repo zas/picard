@@ -61,6 +61,8 @@ from PyQt5 import (
     QtWidgets,
 )
 
+from PyQt5.QtCore import QTimer
+
 from picard import (
     PICARD_APP_ID,
     PICARD_APP_NAME,
@@ -141,6 +143,33 @@ from picard.ui.mainwindow import MainWindow
 from picard.ui.searchdialog.album import AlbumSearchDialog
 from picard.ui.searchdialog.artist import ArtistSearchDialog
 from picard.ui.searchdialog.track import TrackSearchDialog
+
+
+TOUCH_FILES_DELAY_SECONDS = 3600
+
+_files_to_touch = set()
+
+
+def register_file_to_touch(filepath):
+    _files_to_touch.add(filepath)
+
+
+def unregister_file_to_touch(filepath):
+    _files_to_touch.discard(filepath)
+
+
+def _touch_files():
+    log.debug("Touch files")
+    for filepath in _files_to_touch.copy():
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'w') as f:
+                    log.debug("Touching %r" % filepath)
+                    os.utime(f.fileno(), None)
+            except FileNotFoundError:
+                pass
+        else:
+            unregister_file_to_touch(filepath)
 
 
 # A "fix" for https://bugs.python.org/issue1438480
@@ -299,6 +328,16 @@ class Tagger(QtWidgets.QApplication):
         # Load release version information
         if self.autoupdate_enabled:
             self.updatecheckmanager = UpdateCheckManager(parent=self.window)
+
+        self._setup_timers()
+
+    def _setup_timers(self):
+        # Setup a timer to touch the temp file every hour. This prevents
+        # some systems (e.g. macOS) from removing those files in case Picard
+        # is left running over a long period of time.
+        self._touch_timer = QTimer()
+        self._touch_timer.timeout.connect(_touch_files)
+        self._touch_timer.start(TOUCH_FILES_DELAY_SECONDS * 1000)
 
     def enable_menu_icons(self, enabled):
         self.setAttribute(QtCore.Qt.ApplicationAttribute.AA_DontShowIconsInMenus, not enabled)
