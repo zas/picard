@@ -178,6 +178,7 @@ def plugin_dirs():
 class ParseItemsToLoad:
 
     def __init__(self, items):
+        self.commands = []
         self.files = set()
         self.mbids = set()
         self.urls = set()
@@ -186,6 +187,9 @@ class ParseItemsToLoad:
             parsed = urlparse(item)
             if not parsed.scheme:
                 self.files.add(item)
+            elif parsed.scheme == "command":
+                for x in item.replace("command://", '').replace("; ", ';').upper().split(';'):
+                    self.commands.append(x)
             elif parsed.scheme == "file":
                 # remove file:// prefix safely
                 self.files.add(item[7:])
@@ -196,7 +200,7 @@ class ParseItemsToLoad:
                 self.urls.add(parsed.path[1:])
 
     def __bool__(self):
-        return bool(self.files or self.mbids or self.urls)
+        return bool(self.commands or self.files or self.mbids or self.urls)
 
 
 class Tagger(QtWidgets.QApplication):
@@ -352,6 +356,9 @@ class Tagger(QtWidgets.QApplication):
     def load_to_picard(self, items):
         parsed_items = ParseItemsToLoad(items)
 
+        for command in parsed_items.commands:
+            self.handle_command(command)
+
         if parsed_items.files:
             self.add_paths(parsed_items.files)
 
@@ -362,6 +369,12 @@ class Tagger(QtWidgets.QApplication):
 
         if parsed_items:
             self.bring_tagger_front()
+
+    def handle_command(self, command):
+        if command == "QUIT":
+            self.exit()
+            self.quit()
+
 
     def enable_menu_icons(self, enabled):
         self.setAttribute(QtCore.Qt.ApplicationAttribute.AA_DontShowIconsInMenus, not enabled)
