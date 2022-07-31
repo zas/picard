@@ -188,8 +188,8 @@ class ParseItemsToLoad:
             if not parsed.scheme:
                 self.files.add(item)
             elif parsed.scheme == "command":
-                for x in item.replace("command://", '').replace("; ", ';').upper().split(';'):
-                    self.commands.append(x)
+                for x in item.replace("command://", '').upper().split(';'):
+                    self.commands.append(x.strip())
             elif parsed.scheme == "file":
                 # remove file:// prefix safely
                 self.files.add(item[7:])
@@ -376,7 +376,6 @@ class Tagger(QtWidgets.QApplication):
         elif command == "QUIT":
             self.exit()
             self.quit()
-
 
     def enable_menu_icons(self, enabled):
         self.setAttribute(QtCore.Qt.ApplicationAttribute.AA_DontShowIconsInMenus, not enabled)
