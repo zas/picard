@@ -371,7 +371,9 @@ class Tagger(QtWidgets.QApplication):
             self.bring_tagger_front()
 
     def handle_command(self, command):
-        if command == "QUIT":
+        if command == "SHOW":
+            self.bring_tagger_front()
+        elif command == "QUIT":
             self.exit()
             self.quit()
 
@@ -1107,6 +1109,8 @@ If a new instance will not be spawned:
                         help="location of the configuration file (starts a stand-alone instance)")
     parser.add_argument("-d", "--debug", action='store_true',
                         help="enable debug-level logging")
+    parser.add_argument("-e", "--exec", action='store',
+                        help="send command (or ;-separated commands) to a running instance")
     parser.add_argument("-M", "--no-player", action='store_true',
                         help="disable built-in media player")
     parser.add_argument("-N", "--no-restore", action='store_true',
@@ -1161,7 +1165,7 @@ def main(localedir=None, autoupdate=True):
         picard_args.config_file is not None,
         picard_args.no_plugins,
         picard_args.stand_alone_instance,
-    }
+    } and picard_args.exec is None
 
     if not should_start:
         to_be_added = []
@@ -1169,6 +1173,10 @@ def main(localedir=None, autoupdate=True):
             if not urlparse(x).netloc:
                 x = os.path.abspath(x)
             to_be_added.append(x)
+
+        if picard_args.exec:
+            for x in picard_args.exec:
+                to_be_added.append("command://" + x)
 
         try:
             pipe_handler = pipe.Pipe(app_name=PICARD_APP_NAME, app_version=PICARD_FANCY_VERSION_STR, args=to_be_added)
