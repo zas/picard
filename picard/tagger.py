@@ -351,12 +351,14 @@ class Tagger(QtWidgets.QApplication):
         while self.pipe_handler.pipe_running:
             messages = [x for x in self.pipe_handler.read_from_pipe() if x not in IGNORED]
             if messages:
+                print(messages)
                 self.load_to_picard(messages)
 
     def load_to_picard(self, items):
         parsed_items = ParseItemsToLoad(items)
 
         for command in parsed_items.commands:
+            print(command)
             self.handle_command(command)
 
         if parsed_items.files:
@@ -375,7 +377,6 @@ class Tagger(QtWidgets.QApplication):
             self.bring_tagger_front()
         elif command == "QUIT":
             self.exit()
-            self.quit()
 
     def enable_menu_icons(self, enabled):
         self.setAttribute(QtCore.Qt.ApplicationAttribute.AA_DontShowIconsInMenus, not enabled)
@@ -1160,11 +1161,12 @@ def main(localedir=None, autoupdate=True):
         return longversion()
 
     # any of the flags that change Picard's workflow significantly should trigger creation of a new instance
+    print(picard_args.exec)
     should_start = True in {
         picard_args.config_file is not None,
         picard_args.no_plugins,
         picard_args.stand_alone_instance,
-    } and picard_args.exec is None
+    }
 
     if not should_start:
         to_be_added = []
@@ -1174,12 +1176,11 @@ def main(localedir=None, autoupdate=True):
             to_be_added.append(x)
 
         if picard_args.exec:
-            for x in picard_args.exec:
-                to_be_added.append("command://" + x)
+            to_be_added.append("command://" + picard_args.exec)
 
         try:
             pipe_handler = pipe.Pipe(app_name=PICARD_APP_NAME, app_version=PICARD_FANCY_VERSION_STR, args=to_be_added)
-            should_start = pipe_handler.is_pipe_owner
+            should_start = pipe_handler.is_pipe_owner and (picard_args.exec is None)
         except pipe.PipeErrorNoPermission as err:
             log.error(err)
             pipe_handler = None
