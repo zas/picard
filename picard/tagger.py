@@ -360,14 +360,12 @@ class Tagger(QtWidgets.QApplication):
         while self.pipe_handler.pipe_running:
             messages = [x for x in self.pipe_handler.read_from_pipe() if x not in IGNORED]
             if messages:
-                print(messages)
                 thread.to_main(self.load_to_picard, messages)
 
     def load_to_picard(self, items):
         parsed_items = ParseItemsToLoad(items)
 
         for command in parsed_items.commands:
-            print(command)
             self.handle_command(command)
 
         if parsed_items.files:
@@ -383,12 +381,9 @@ class Tagger(QtWidgets.QApplication):
 
     def handle_command(self, command):
         try:
-            print(command)
-            to_exec = command.split(" ", 1)
-            if len(to_exec) == 1:
-                to_exec.append("")
-            print(to_exec)
-            thread.to_main(self.commands[to_exec[0].upper()], to_exec[1].strip())
+            cmd, *args = command.split(' ', 1)
+            argstring = next(iter(args), "")
+            thread.to_main(self.commands[cmd.upper()], argstring.strip())
         except KeyError:
             log.error("Unknown command: %r", command)
 
@@ -1129,8 +1124,8 @@ If a new instance will not be spawned:
                         help="location of the configuration file (starts a stand-alone instance)")
     parser.add_argument("-d", "--debug", action='store_true',
                         help="enable debug-level logging")
-    parser.add_argument("-e", "--exec", action='store',
-                        help="send command (or ;-separated commands) to a running instance")
+    parser.add_argument("-e", "--exec", nargs="+", action='append',
+                        help="send command (arguments can be entered after space) to a running instance")
     parser.add_argument("-M", "--no-player", action='store_true',
                         help="disable built-in media player")
     parser.add_argument("-N", "--no-restore", action='store_true',
@@ -1181,7 +1176,6 @@ def main(localedir=None, autoupdate=True):
         return longversion()
 
     # any of the flags that change Picard's workflow significantly should trigger creation of a new instance
-    print(picard_args.exec)
     should_start = True in {
         picard_args.config_file is not None,
         picard_args.no_plugins,
@@ -1196,7 +1190,8 @@ def main(localedir=None, autoupdate=True):
             to_be_added.append(x)
 
         if picard_args.exec:
-            to_be_added.append("command://" + picard_args.exec)
+            for e in picard_args.exec:
+                to_be_added.append("command://" + " ".join(e))
 
         try:
             pipe_handler = pipe.Pipe(app_name=PICARD_APP_NAME, app_version=PICARD_FANCY_VERSION_STR, args=to_be_added)
