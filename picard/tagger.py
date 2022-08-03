@@ -188,7 +188,7 @@ class ParseItemsToLoad:
             if not parsed.scheme:
                 self.files.add(item)
             elif parsed.scheme == "command":
-                for x in item.replace("command://", '').upper().split(';'):
+                for x in item[10:].split(';'):
                     self.commands.append(x.strip())
             elif parsed.scheme == "file":
                 # remove file:// prefix safely
@@ -198,6 +198,10 @@ class ParseItemsToLoad:
             elif parsed.scheme in {"http", "https"}:
                 # .path returns / before actual link
                 self.urls.add(parsed.path[1:])
+
+    # needed to indicate whether Picard should be brought to the front
+    def non_executable_items(self):
+        return bool(self.files or self.mbids or self.urls)
 
     def __bool__(self):
         return bool(self.commands or self.files or self.mbids or self.urls)
@@ -237,6 +241,11 @@ class Tagger(QtWidgets.QApplication):
 
         # Default thread pool
         self.thread_pool = ThreadPoolExecutor()
+
+        self.commands = {
+            'SHOW': self.handle_command_show,
+            'QUIT': self.handle_command_quit,
+        }
 
         self.pipe_handler = pipe_handler
 
@@ -352,7 +361,7 @@ class Tagger(QtWidgets.QApplication):
             messages = [x for x in self.pipe_handler.read_from_pipe() if x not in IGNORED]
             if messages:
                 print(messages)
-                self.load_to_picard(messages)
+                thread.to_main(self.load_to_picard, messages)
 
     def load_to_picard(self, items):
         parsed_items = ParseItemsToLoad(items)
@@ -369,14 +378,25 @@ class Tagger(QtWidgets.QApplication):
             for item in parsed_items.mbids | parsed_items.urls:
                 thread.to_main(file_lookup.mbid_lookup, item, None, None, False)
 
-        if parsed_items:
+        if parsed_items.non_executable_items():
             self.bring_tagger_front()
 
     def handle_command(self, command):
-        if command == "SHOW":
-            self.bring_tagger_front()
-        elif command == "QUIT":
-            self.exit()
+        try:
+            print(command)
+            to_exec = command.split(" ", 1)
+            if len(to_exec) == 1:
+                to_exec.append("")
+            print(to_exec)
+            thread.to_main(self.commands[to_exec[0].upper()], to_exec[1].strip())
+        except KeyError:
+            log.error("Unknown command: %r", command)
+
+    def handle_command_show(self, argstring):
+        self.bring_tagger_front()
+
+    def handle_command_quit(self, argstring):
+        self.exit()
 
     def enable_menu_icons(self, enabled):
         self.setAttribute(QtCore.Qt.ApplicationAttribute.AA_DontShowIconsInMenus, not enabled)
