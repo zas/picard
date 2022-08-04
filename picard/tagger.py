@@ -206,6 +206,9 @@ class ParseItemsToLoad:
     def __bool__(self):
         return bool(self.commands or self.files or self.mbids or self.urls)
 
+    def __str__(self):
+        return "files: %r mbids: %r urls: %r commands: %r" % (self.files, self.mbids, self.urls, self.commands)
+
 
 class Tagger(QtWidgets.QApplication):
 
@@ -360,10 +363,12 @@ class Tagger(QtWidgets.QApplication):
         while self.pipe_handler.pipe_running:
             messages = [x for x in self.pipe_handler.read_from_pipe() if x not in IGNORED]
             if messages:
+                log.debug("pipe messages: %r", messages)
                 thread.to_main(self.load_to_picard, messages)
 
     def load_to_picard(self, items):
         parsed_items = ParseItemsToLoad(items)
+        log.debug(str(parsed_items))
 
         for command in parsed_items.commands:
             self.handle_command(command)
@@ -1193,6 +1198,10 @@ def main(localedir=None, autoupdate=True):
             for e in picard_args.exec:
                 to_be_added.append("command://" + " ".join(e))
 
+        if to_be_added:
+            # note: log level isn't defined yet, it defaults to info, log.debug() would not work here
+            log.info("Sending messages to main instance: %r" % to_be_added)
+
         try:
             pipe_handler = pipe.Pipe(app_name=PICARD_APP_NAME, app_version=PICARD_FANCY_VERSION_STR, args=to_be_added)
             should_start = pipe_handler.is_pipe_owner and (picard_args.exec is None)
@@ -1204,6 +1213,7 @@ def main(localedir=None, autoupdate=True):
         # pipe has sent its args to existing one, doesn't need to start
         if not should_start:
             # just a custom exit code to show that picard instance wasn't created
+            log.info("Exiting...")
             sys.exit(EXIT_NO_NEW_INSTANCE)
     else:
         pipe_handler = None
