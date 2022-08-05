@@ -1213,7 +1213,7 @@ def main(localedir=None, autoupdate=True):
         # pipe has sent its args to existing one, doesn't need to start
         if not should_start:
             # just a custom exit code to show that picard instance wasn't created
-            log.info("Exiting...")
+            log.info("No need for spawning a new instance, exiting...")
             sys.exit(EXIT_NO_NEW_INSTANCE)
     else:
         pipe_handler = None
