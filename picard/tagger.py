@@ -1262,8 +1262,8 @@ List of the commands available to execute in Picard from the command-line:
 
     fmt("Commands are case insensitive.")
     fmt("If there is no running instance, picard -e blocks Picards startup and does nothing.")
-    fmt("If there is an existing instance, picard -e will send all the positional arguments in the given order."
-    "Then the commands. So the files passed to the new instance with a command will be processed as well.")
+    fmt("If there is an existing instance, picard -e will send all the positional arguments in the given order "
+    "followed by the commands, so the files passed to the new instance with a command will be processed as well.")
     fmt("Arguments are optional, but some commands may require one or more arguments to actually do something.")
 
 
