@@ -99,6 +99,10 @@ In the dict declaration, keys are single-quoted but values are double-quoted.
 
 Otherwise, choose whichever limit the number of escaped characters.
 
+Note: URIs (and paths used in URIs) should be, in general, enclosed in double quotes,
+mainly because single quotes can appear in URI, unencoded, as sub-delimiters as specified
+by [RFC3986](https://www.rfc-editor.org/rfc/rfc3986#section-2.2).
+
 
 ## Git Work-flow
 
