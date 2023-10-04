@@ -179,7 +179,11 @@ from picard.webservice.api_helpers import MBAPIHelper
 from picard.ui.itemviews import BaseAction
 from picard.ui.options import OptionsPage
 
+
 class PluginApi:
+    # https://peps.python.org/pep-0440/ version format
+    __version__ = "3.0a1"
+
     @property
     def web_service(self) -> WebService:
         pass
