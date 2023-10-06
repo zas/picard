@@ -246,6 +246,7 @@ class Config(QtCore.QSettings):
         self.profiles = ConfigSection(self, 'profiles')
         self.setting = SettingConfigSection(self, 'setting')
         self.persist = ConfigSection(self, 'persist')
+        self.constants = ConfigSection(self, 'constants')
 
         if 'version' not in self.application or not self.application['version']:
             TextOption('application', 'version', '0.0.0dev0')
@@ -479,6 +480,7 @@ config = None
 setting = None
 persist = None
 profiles = None
+constants = None
 
 
 def setup_config(app, filename=None):
@@ -490,6 +492,7 @@ def setup_config(app, filename=None):
     setting = config.setting
     persist = config.persist
     profiles = config.profiles
+    constants = config.constants
 
 
 def get_config():
