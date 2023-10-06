@@ -33,8 +33,7 @@ import urllib.parse
 from picard import log
 from picard.config import get_config
 from picard.const import (
-    MUSICBRAINZ_OAUTH_CLIENT_ID,
-    MUSICBRAINZ_OAUTH_CLIENT_SECRET,
+    config_2_constants,
 )
 from picard.util import (
     build_qurl,
@@ -157,6 +156,8 @@ class OAuthManager(object):
         )
 
     def get_authorization_url(self, scopes):
+        config = get_config()
+        config_2_constants(config)
         params = {
             'response_type': 'code',
             'client_id': MUSICBRAINZ_OAUTH_CLIENT_ID,
@@ -180,6 +181,8 @@ class OAuthManager(object):
         return urllib.parse.urlencode({key: value for key, value in params.items() if key})
 
     def refresh_access_token(self, callback):
+        config = get_config()
+        config_2_constants(config)
         log.debug("OAuth: refreshing access_token with a refresh_token %s", self.refresh_token)
         params = {
             'grant_type': 'refresh_token',
@@ -215,6 +218,8 @@ class OAuthManager(object):
             callback(access_token=access_token)
 
     def exchange_authorization_code(self, authorization_code, scopes, callback):
+        config = get_config()
+        config_2_constants(config)
         log.debug("OAuth: exchanging authorization_code %s for an access_token", authorization_code)
         params = {
             'grant_type': 'authorization_code',

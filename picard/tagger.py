@@ -95,7 +95,7 @@ from picard.config import (
     setup_config,
 )
 from picard.config_upgrade import upgrade_config
-from picard.const import USER_DIR
+from picard.const import USER_DIR, constants_2_config
 from picard.const.sys import (
     IS_HAIKU,
     IS_MACOS,
@@ -244,6 +244,8 @@ class Tagger(QtWidgets.QApplication):
         self.__class__.__instance = self
         setup_config(self, picard_args.config_file)
         config = get_config()
+        constants_2_config(config)
+
         theme.setup(self)
 
         self._to_load = picard_args.processable

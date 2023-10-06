@@ -208,3 +208,19 @@ DEFAULT_NAMING_PRESET_ID = "Preset 1"
 SCRIPT_LANGUAGE_VERSION = '1.1'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+
+def constants_2_config(config):
+    if 'MUSICBRAINZ_OAUTH_CLIENT_ID' not in config.constants:
+        config.constants['MUSICBRAINZ_OAUTH_CLIENT_ID'] = MUSICBRAINZ_OAUTH_CLIENT_ID
+    if 'MUSICBRAINZ_OAUTH_CLIENT_SECRET' not in config.constants:
+        config.constants['MUSICBRAINZ_OAUTH_CLIENT_SECRET'] = MUSICBRAINZ_OAUTH_CLIENT_SECRET
+    if 'ACOUSTID_KEY' not in config.constants:
+        config.constants['ACOUSTID_KEY'] = ACOUSTID_KEY
+
+
+def config_2_constants(config):
+    global MUSICBRAINZ_OAUTH_CLIENT_ID, MUSICBRAINZ_OAUTH_CLIENT_SECRET, ACOUSTID_KEY
+    MUSICBRAINZ_OAUTH_CLIENT_ID = config.constants['MUSICBRAINZ_OAUTH_CLIENT_ID']
+    MUSICBRAINZ_OAUTH_CLIENT_SECRET = config.constants['MUSICBRAINZ_OAUTH_CLIENT_SECRET']
+    ACOUSTID_KEY = config.constants['ACOUSTID_KEY']

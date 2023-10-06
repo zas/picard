@@ -29,7 +29,6 @@ from PyQt5.QtCore import QUrl
 from picard import PICARD_VERSION_STR
 from picard.config import get_config
 from picard.const import (
-    ACOUSTID_KEY,
     ACOUSTID_URL,
     MUSICBRAINZ_SERVERS,
 )
@@ -263,11 +262,15 @@ class MBAPIHelper(APIHelper):
 
 class AcoustIdAPIHelper(APIHelper):
 
-    client_key = ACOUSTID_KEY
     client_version = PICARD_VERSION_STR
 
     def __init__(self, webservice):
         super().__init__(webservice, base_url=ACOUSTID_URL)
+
+    @property
+    def client_key(self):
+        config = get_config()
+        return config.constants['ACOUSTID_KEY']
 
     def _encode_acoustid_args(self, args):
         args['client'] = self.client_key
