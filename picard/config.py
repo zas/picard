@@ -246,6 +246,7 @@ class Config(QtCore.QSettings):
         self.profiles = ConfigSection(self, 'profiles')
         self.setting = SettingConfigSection(self, 'setting')
         self.persist = ConfigSection(self, 'persist')
+        self.constants = ConfigSection(self, 'constants')
 
         if 'version' not in self.application or not self.application['version']:
             TextOption('application', 'version', '0.0.0dev0')
@@ -479,10 +480,11 @@ config = None
 setting = None
 persist = None
 profiles = None
+constants = None
 
 
 def setup_config(app, filename=None):
-    global config, setting, persist, profiles
+    global config, setting, persist, profiles, constants
     if filename is None:
         config = Config.from_app(app)
     else:
@@ -490,6 +492,7 @@ def setup_config(app, filename=None):
     setting = config.setting
     persist = config.persist
     profiles = config.profiles
+    constants = config.constants
 
 
 def get_config():
@@ -509,3 +512,37 @@ def load_new_config(filename=None):
         return False
     setup_config(QtCore.QObject.tagger, config_file)
     return True
+
+
+def config_constants(config):
+    """Actually save specific constants as config entries
+
+    This will let the user override those if needed, just by
+    changing the value in the `constants` section of the config file.
+
+    The following code is a bit tricky, because we want to keep actual constant variable names,
+    in order to limit changes elsewhere in the code.
+
+    Basically, these are the steps:
+    - import the "constant" from the module it is declared in
+    - set it as a global, in order to be able to change its value outside the calling function
+    - declare a new matching option in the constants section of the config
+    - read from config, or default to the original value
+    - write to config (so the actual value is saved to config file)
+    """
+
+    # MUSICBRAINZ_OAUTH_CLIENT_ID
+    from picard.const import MUSICBRAINZ_OAUTH_CLIENT_ID
+
+    global MUSICBRAINZ_OAUTH_CLIENT_ID
+    TextOption('constants', 'MUSICBRAINZ_OAUTH_CLIENT_ID', MUSICBRAINZ_OAUTH_CLIENT_ID)
+    MUSICBRAINZ_OAUTH_CLIENT_ID = config.constants['MUSICBRAINZ_OAUTH_CLIENT_ID']
+    config.constants['MUSICBRAINZ_OAUTH_CLIENT_ID'] = MUSICBRAINZ_OAUTH_CLIENT_ID
+
+    # MUSICBRAINZ_OAUTH_CLIENT_SECRET
+    from picard.const import MUSICBRAINZ_OAUTH_CLIENT_SECRET
+
+    global MUSICBRAINZ_OAUTH_CLIENT_SECRET
+    TextOption('constants', 'MUSICBRAINZ_OAUTH_CLIENT_SECRET', MUSICBRAINZ_OAUTH_CLIENT_SECRET)
+    MUSICBRAINZ_OAUTH_CLIENT_SECRET = config.constants['MUSICBRAINZ_OAUTH_CLIENT_SECRET']
+    config.constants['MUSICBRAINZ_OAUTH_CLIENT_SECRET'] = MUSICBRAINZ_OAUTH_CLIENT_SECRET

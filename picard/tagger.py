@@ -91,6 +91,7 @@ from picard.cluster import (
 )
 from picard.collection import load_user_collections
 from picard.config import (
+    config_constants,
     get_config,
     setup_config,
 )
@@ -244,6 +245,7 @@ class Tagger(QtWidgets.QApplication):
         self.__class__.__instance = self
         setup_config(self, picard_args.config_file)
         config = get_config()
+        config_constants(config)
         theme.setup(self)
 
         self._to_load = picard_args.processable
