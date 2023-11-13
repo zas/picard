@@ -29,6 +29,10 @@ from PyQt6 import (
     QtGui,
     QtWidgets,
 )
+from PyQt6.QtGui import (
+    QColor,
+    QPalette,
+)
 
 from picard import log
 from picard.config import get_config
@@ -76,19 +80,19 @@ elif not IS_HAIKU:
 SyntaxTheme = namedtuple('SyntaxTheme', 'func var escape special noop')
 
 light_syntax_theme = SyntaxTheme(
-    func=QtGui.QColor(QtCore.Qt.GlobalColor.blue),
-    var=QtGui.QColor(QtCore.Qt.GlobalColor.darkCyan),
-    escape=QtGui.QColor(QtCore.Qt.GlobalColor.darkRed),
-    special=QtGui.QColor(QtCore.Qt.GlobalColor.blue),
-    noop=QtGui.QColor(QtCore.Qt.GlobalColor.darkGray),
+    func=QColor(QtCore.Qt.GlobalColor.blue),
+    var=QColor(QtCore.Qt.GlobalColor.darkCyan),
+    escape=QColor(QtCore.Qt.GlobalColor.darkRed),
+    special=QColor(QtCore.Qt.GlobalColor.blue),
+    noop=QColor(QtCore.Qt.GlobalColor.darkGray),
 )
 
 dark_syntax_theme = SyntaxTheme(
-    func=QtGui.QColor(255, 87, 160, 255),  # magenta
-    var=QtGui.QColor(252, 187, 81, 255),  # orange
-    escape=QtGui.QColor(75, 239, 31, 255),  # green
-    special=QtGui.QColor(255, 87, 160, 255),  # blue
-    noop=QtGui.QColor(4, 231, 213, 255),  # cyan
+    func=QColor(255, 87, 160, 255),  # magenta
+    var=QColor(252, 187, 81, 255),  # orange
+    escape=QColor(75, 239, 31, 255),  # green
+    special=QColor(255, 87, 160, 255),  # blue
+    noop=QColor(4, 231, 213, 255),  # cyan
 )
 
 
@@ -126,7 +130,7 @@ class BaseTheme:
         )
 
         palette = QtGui.QPalette(app.palette())
-        base_color = palette.color(QtGui.QPalette.ColorGroup.Active, QtGui.QPalette.ColorRole.Base)
+        base_color = palette.color(QPalette.ColorGroup.Active, QPalette.ColorRole.Base)
         self._dark_theme = base_color.lightness() < 128
         self.update_palette(palette, self.is_dark_theme, self.accent_color)
         app.setPalette(palette)
@@ -150,14 +154,44 @@ class BaseTheme:
 
     # pylint: disable=no-self-use
     def update_palette(self, palette, dark_theme, accent_color):
+        if dark_theme:
+            medium_grey = QColor(100, 100, 100)
+            dark_grey = QColor(75, 75, 75)
+            darker_grey = QColor(50, 50, 50)
+            black = QColor(0, 0, 0)
+            white = QColor(255, 255, 255)
+            red = QColor(255, 0, 0)
+            blue = QColor(42, 130, 218)
+
+            palette.setColor(QPalette.ColorRole.AlternateBase, dark_grey)
+            palette.setColor(QPalette.ColorRole.Base, darker_grey)
+            palette.setColor(QPalette.ColorRole.BrightText, red)
+            palette.setColor(QPalette.ColorRole.Button, dark_grey)
+            palette.setColor(QPalette.ColorRole.ButtonText, white)
+            palette.setColor(QPalette.ColorRole.Highlight, blue)
+            palette.setColor(QPalette.ColorRole.HighlightedText, black)
+            palette.setColor(QPalette.ColorRole.Link, blue)
+            palette.setColor(QPalette.ColorRole.Text, white)
+            palette.setColor(QPalette.ColorRole.ToolTipBase, medium_grey)
+            palette.setColor(QPalette.ColorRole.ToolTipText, white)
+            palette.setColor(QPalette.ColorRole.Window, dark_grey)
+            palette.setColor(QPalette.ColorRole.WindowText, white)
+
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, dark_grey)
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, dark_grey)
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, darker_grey)
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, medium_grey)
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Window, dark_grey)
+            palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, medium_grey)
+
         if accent_color:
             accent_text_color = QtCore.Qt.GlobalColor.white if accent_color.lightness() < 160 else QtCore.Qt.GlobalColor.black
-            palette.setColor(QtGui.QPalette.ColorGroup.Active, QtGui.QPalette.ColorRole.Highlight, accent_color)
-            palette.setColor(QtGui.QPalette.ColorGroup.Active, QtGui.QPalette.ColorRole.HighlightedText, accent_text_color)
+            palette.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight, accent_color)
+            palette.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, accent_text_color)
 
-            link_color = QtGui.QColor()
+            link_color = QColor()
             link_color.setHsl(accent_color.hue(), accent_color.saturation(), 160, accent_color.alpha())
-            palette.setColor(QtGui.QPalette.ColorRole.Link, link_color)
+            palette.setColor(QPalette.ColorRole.Link, link_color)
 
 
 if IS_WIN:
@@ -188,7 +222,7 @@ if IS_WIN:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\DWM") as key:
                     accent_color_dword = winreg.QueryValueEx(key, "ColorizationColor")[0]
                     accent_color_hex = '#{:06x}'.format(accent_color_dword & 0xffffff)
-                    accent_color = QtGui.QColor(accent_color_hex)
+                    accent_color = QColor(accent_color_hex)
             except OSError:
                 log.warning("Failed reading ColorizationColor from registry")
             return accent_color
@@ -197,22 +231,22 @@ if IS_WIN:
             # Adapt to Windows 10 color scheme (dark / light theme and accent color)
             super().update_palette(palette, dark_theme, accent_color)
             if dark_theme:
-                palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(51, 51, 51))
-                palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtCore.Qt.GlobalColor.white)
-                palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(31, 31, 31))
-                palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor(51, 51, 51))
-                palette.setColor(QtGui.QPalette.ColorRole.ToolTipBase, QtGui.QColor(51, 51, 51))
-                palette.setColor(QtGui.QPalette.ColorRole.ToolTipText, QtCore.Qt.GlobalColor.white)
-                palette.setColor(QtGui.QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.white)
-                palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor(51, 51, 51))
-                palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtCore.Qt.GlobalColor.white)
-                palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtCore.Qt.GlobalColor.red)
-                palette.setColor(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.darkGray)
-                palette.setColor(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.Light, QtGui.QColor(0, 0, 0, 0))
-                palette.setColor(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.ButtonText, QtCore.Qt.GlobalColor.darkGray)
-                palette.setColor(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.Base, QtGui.QColor(60, 60, 60))
-                palette.setColor(QtGui.QPalette.ColorGroup.Inactive, QtGui.QPalette.ColorRole.Highlight, QtGui.QColor(51, 51, 51))
-                palette.setColor(QtGui.QPalette.ColorGroup.Inactive, QtGui.QPalette.ColorRole.HighlightedText, QtCore.Qt.GlobalColor.white)
+                palette.setColor(QPalette.ColorRole.Window, QColor(51, 51, 51))
+                palette.setColor(QPalette.ColorRole.WindowText, QtCore.Qt.GlobalColor.white)
+                palette.setColor(QPalette.ColorRole.Base, QColor(31, 31, 31))
+                palette.setColor(QPalette.ColorRole.AlternateBase, QColor(51, 51, 51))
+                palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(51, 51, 51))
+                palette.setColor(QPalette.ColorRole.ToolTipText, QtCore.Qt.GlobalColor.white)
+                palette.setColor(QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.white)
+                palette.setColor(QPalette.ColorRole.Button, QColor(51, 51, 51))
+                palette.setColor(QPalette.ColorRole.ButtonText, QtCore.Qt.GlobalColor.white)
+                palette.setColor(QPalette.ColorRole.BrightText, QtCore.Qt.GlobalColor.red)
+                palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QtCore.Qt.GlobalColor.darkGray)
+                palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Light, QColor(0, 0, 0, 0))
+                palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QtCore.Qt.GlobalColor.darkGray)
+                palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, QColor(60, 60, 60))
+                palette.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, QColor(51, 51, 51))
+                palette.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QtCore.Qt.GlobalColor.white)
 
     theme = WindowsTheme()
 
