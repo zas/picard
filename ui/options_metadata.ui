@@ -130,6 +130,17 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="disable_date_sanitize">
+        <property name="text">
+         <string>Disable the date sanitization for selected formats</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="MultiComboBox" name="selected_formats">
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -212,6 +223,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+    <class>MultiComboBox</class>
+    <extends>QWidget</extends>
+    <header>picard.ui.widgets.multicombobox</header>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>translate_artist_names</tabstop>
   <tabstop>selected_locales</tabstop>
@@ -225,6 +243,8 @@
   <tabstop>release_ars</tabstop>
   <tabstop>track_ars</tabstop>
   <tabstop>guess_tracknumber_and_title</tabstop>
+  <tabstop>disable_date_sanitize</tabstop>
+  <tabstop>selected_formats</tabstop>
   <tabstop>va_name</tabstop>
   <tabstop>va_name_default</tabstop>
   <tabstop>nat_name</tabstop>

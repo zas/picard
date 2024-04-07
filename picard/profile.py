@@ -70,6 +70,8 @@ class UserProfileGroups():
             SettingDesc('convert_punctuation', ['convert_punctuation']),
             SettingDesc('release_ars', ['release_ars']),
             SettingDesc('track_ars', ['track_ars']),
+            SettingDesc('disable_date_sanitize', ['disable_date_sanitize']),
+            SettingDesc('formats_to_disable_date_sanitize', ['selected_formats']),
             SettingDesc('guess_tracknumber_and_title', ['guess_tracknumber_and_title']),
             SettingDesc('va_name', ['va_name']),
             SettingDesc('nat_name', ['nat_name']),

@@ -65,6 +65,8 @@ settings = {
     'replace_spaces_with_underscores': False,
     'replace_dir_separator': '_',
     'win_compat_replacements': {},
+    'disable_date_sanitize': False,
+    'formats_to_disable_date_sanitize': [],
 }
 
 

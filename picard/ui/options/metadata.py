@@ -55,6 +55,7 @@ from picard.ui.ui_exception_script_selector import Ui_ExceptionScriptSelector
 from picard.ui.ui_multi_locale_selector import Ui_MultiLocaleSelector
 from picard.ui.ui_options_metadata import Ui_MetadataOptionsPage
 from picard.ui.util import qlistwidget_items
+from picard.formats.util import formats_with_sanitize_date
 
 
 def iter_sorted_locales(locales):
@@ -92,6 +93,8 @@ class MetadataOptionsPage(OptionsPage):
         ListOption('setting', 'script_exceptions', [], title=N_("Translation script exceptions")),
         BoolOption('setting', 'release_ars', True, title=N_("Use release relationships")),
         BoolOption('setting', 'track_ars', False, title=N_("Use track and release relationships")),
+        BoolOption('setting', 'disable_date_sanitize', False, title=N_("Disable date sanitization for APE and Vorbis tags")),
+        Option('setting', 'formats_to_disable_date_sanitize', set(), title=N_("Formats to disable date sanitize")),
         BoolOption('setting', 'convert_punctuation', False, title=N_("Convert Unicode punctuation characters to ASCII")),
         BoolOption('setting', 'standardize_artists', False, title=N_("Use standardized artist names")),
         BoolOption('setting', 'standardize_instruments', True, title=N_("Use standardized instrument and vocal credits")),
@@ -108,6 +111,7 @@ class MetadataOptionsPage(OptionsPage):
         self.ui.select_scripts.clicked.connect(self.open_script_selector)
         self.ui.translate_artist_names.stateChanged.connect(self.set_enabled_states)
         self.ui.translate_artist_names_script_exception.stateChanged.connect(self.set_enabled_states)
+        self.ui.disable_date_sanitize.stateChanged.connect(self.set_enabled_states)
 
     def load(self):
         config = get_config()
@@ -117,6 +121,10 @@ class MetadataOptionsPage(OptionsPage):
         self.current_scripts = config.setting['script_exceptions']
         self.make_scripts_text()
         self.ui.translate_artist_names_script_exception.setChecked(config.setting['translate_artist_names_script_exception'])
+        self.ui.disable_date_sanitize.setChecked(config.setting['disable_date_sanitize'])
+        self.current_formats = config.setting['formats_to_disable_date_sanitize']
+        fmt_names =  sorted(fmt.NAME for fmt in formats_with_sanitize_date())
+        self.ui.selected_formats.addItems(fmt_names)
 
         self.ui.convert_punctuation.setChecked(config.setting['convert_punctuation'])
         self.ui.release_ars.setChecked(config.setting['release_ars'])
@@ -152,6 +160,8 @@ class MetadataOptionsPage(OptionsPage):
         config.setting['convert_punctuation'] = self.ui.convert_punctuation.isChecked()
         config.setting['release_ars'] = self.ui.release_ars.isChecked()
         config.setting['track_ars'] = self.ui.track_ars.isChecked()
+        config.setting['disable_date_sanitize'] = self.ui.disable_date_sanitize.isChecked()
+        config.setting['formats_to_disable_date_sanitize'] = self.current_formats
         config.setting['va_name'] = self.ui.va_name.text()
         nat_name = self.ui.nat_name.text()
         if nat_name != config.setting['nat_name']:
@@ -179,6 +189,8 @@ class MetadataOptionsPage(OptionsPage):
         select_scripts_enabled = translate_checked and translate_exception_checked
         self.ui.selected_scripts.setEnabled(select_scripts_enabled)
         self.ui.select_scripts.setEnabled(select_scripts_enabled)
+        disable_date_sanitize_checked = self.ui.disable_date_sanitize.isChecked()
+        self.ui.selected_formats.setEnabled(disable_date_sanitize_checked)
 
     def open_locale_selector(self):
         dialog = MultiLocaleSelector(self)
