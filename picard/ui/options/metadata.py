@@ -44,6 +44,7 @@ from picard.const.scripts import (
     SCRIPTS,
     scripts_sorted_by_localized_name,
 )
+from picard.formats.util import formats_with_sanitize_date
 
 from picard.ui import PicardDialog
 from picard.ui.moveable_list_view import MoveableListView
@@ -55,7 +56,6 @@ from picard.ui.ui_exception_script_selector import Ui_ExceptionScriptSelector
 from picard.ui.ui_multi_locale_selector import Ui_MultiLocaleSelector
 from picard.ui.ui_options_metadata import Ui_MetadataOptionsPage
 from picard.ui.util import qlistwidget_items
-from picard.formats.util import formats_with_sanitize_date
 
 
 def iter_sorted_locales(locales):
@@ -122,9 +122,12 @@ class MetadataOptionsPage(OptionsPage):
         self.make_scripts_text()
         self.ui.translate_artist_names_script_exception.setChecked(config.setting['translate_artist_names_script_exception'])
         self.ui.disable_date_sanitize.setChecked(config.setting['disable_date_sanitize'])
-        self.current_formats = config.setting['formats_to_disable_date_sanitize']
-        fmt_names =  sorted(fmt.NAME for fmt in formats_with_sanitize_date())
+        fmt_names = sorted(
+            (fmt.NAME, fmt.NAME in config.setting['formats_to_disable_date_sanitize'])
+            for fmt in formats_with_sanitize_date()
+        )
         self.ui.selected_formats.addItems(fmt_names)
+        self.ui.selected_formats.setPlaceholderText(_("Select formats…"))
 
         self.ui.convert_punctuation.setChecked(config.setting['convert_punctuation'])
         self.ui.release_ars.setChecked(config.setting['release_ars'])
@@ -161,7 +164,7 @@ class MetadataOptionsPage(OptionsPage):
         config.setting['release_ars'] = self.ui.release_ars.isChecked()
         config.setting['track_ars'] = self.ui.track_ars.isChecked()
         config.setting['disable_date_sanitize'] = self.ui.disable_date_sanitize.isChecked()
-        config.setting['formats_to_disable_date_sanitize'] = self.current_formats
+        config.setting['formats_to_disable_date_sanitize'] = set(self.ui.selected_formats.selectedItems())
         config.setting['va_name'] = self.ui.va_name.text()
         nat_name = self.ui.nat_name.text()
         if nat_name != config.setting['nat_name']:

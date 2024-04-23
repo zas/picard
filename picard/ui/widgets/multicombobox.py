@@ -19,12 +19,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import (
-    QStandardItemModel,
     QStandardItem,
+    QStandardItemModel,
 )
 from PyQt6.QtWidgets import QComboBox
-from PyQt6.QtCore import Qt
 
 
 class MultiComboBox(QComboBox):
@@ -34,29 +34,47 @@ class MultiComboBox(QComboBox):
         self.lineEdit().setReadOnly(True)
         self.setModel(QStandardItemModel(self))
 
-        # Connect to the dataChanged signal to update the text
-        self.model().dataChanged.connect(self.updateText)
+        model = self.model()
+        model.dataChanged.connect(self.updateText)
+        model.rowsInserted.connect(self.updateText)
+        model.rowsRemoved.connect(self.updateText)
 
-    def addItem(self, text: str, data=None):
+        self._delay_text_update = False
+
+    def setPlaceholderText(self, text: str):
+        self.lineEdit().setPlaceholderText(text)
+
+    def addItem(self, text: str, checked: bool = False):
         item = QStandardItem()
         item.setText(text)
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-        item.setData(Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+        if checked:
+            state = Qt.CheckState.Checked
+        else:
+            state = Qt.CheckState.Unchecked
+        item.setData(state, Qt.ItemDataRole.CheckStateRole)
         self.model().appendRow(item)
 
     def addItems(self, items_list: list):
-        for text in items_list:
-            self.addItem(text)
+        self._delay_text_update = True
+        for text, checked in items_list:
+            self.addItem(text, checked)
+        self._delay_text_update = False
+        self.updateText()
+
+    def text(self):
+        return self.lineEdit().text()
+
+    def selectedItems(self):
+        model = self.model()
+        for i in range(model.rowCount()):
+            item = model.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                yield item.text()
 
     def updateText(self):
-        selected_items = [self.model().item(i).text() for i in range(self.model().rowCount())
-                          if self.model().item(i).checkState() == Qt.CheckState.Checked]
-        self.lineEdit().setText(", ".join(selected_items))
-
-    def show_selected_items(self):
-        selected_items = [self.model().item(i).text() for i in range(self.model().rowCount())
-                          if self.model().item(i).checkState() == Qt.CheckState.Checked]
-        return selected_items
+        if not self._delay_text_update:
+            self.lineEdit().setText(", ".join(self.selectedItems()))
 
     def showPopup(self):
         super().showPopup()
