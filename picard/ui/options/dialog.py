@@ -142,7 +142,6 @@ class ErrorOptionsPage(OptionsPage):
         button_spacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
 
         button_layout = QtWidgets.QHBoxLayout()
-        # button_layout = QtWidgets.QButtonGroup()
         button_layout.addItem(button_spacer)
         button_layout.addWidget(copy_button)
 
