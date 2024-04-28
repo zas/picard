@@ -106,6 +106,8 @@ class ErrorOptionsPage(OptionsPage):
         self.ACTIVE = from_cls.ACTIVE
         self.HELP_URL = from_cls.HELP_URL
 
+        self.errmsg = errmsg
+
         super().__init__(parent)
 
         self.error = _("This page failed to initialize")
@@ -134,14 +136,30 @@ class ErrorOptionsPage(OptionsPage):
         )
         report_bug_widget.setOpenExternalLinks(True)
 
+        copy_button = QtWidgets.QPushButton(_('Copy error report to clipboard'))
+        copy_button.clicked.connect(self._copy_to_clipboard)
+
+        button_spacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
+
+        button_layout = QtWidgets.QHBoxLayout()
+        # button_layout = QtWidgets.QButtonGroup()
+        button_layout.addItem(button_spacer)
+        button_layout.addWidget(copy_button)
+
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(title_widget)
         layout.addWidget(error_widget)
+        layout.addLayout(button_layout)
         layout.addWidget(report_bug_widget)
         layout.addStretch()
         self.ui = layout
 
         self.dialog = dialog
+
+    def _copy_to_clipboard(self):
+        cb = QtWidgets.QApplication.clipboard()
+        cb.clear()
+        cb.setText(f'Option page loading error.\n\nTitle: {self.TITLE} (Page: {self.NAME})\nError: {self.errmsg}\n')
 
 
 class OptionsDialog(PicardDialog, SingletonDialog):
