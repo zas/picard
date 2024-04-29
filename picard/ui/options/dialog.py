@@ -56,6 +56,7 @@ from picard.profile import (
 from picard.util import restore_method
 
 from picard.ui import (
+    FONT_FAMILY_MONOSPACE,
     HashableTreeWidgetItem,
     PicardDialog,
     SingletonDialog,
@@ -116,16 +117,10 @@ class ErrorOptionsPage(OptionsPage):
         )
 
         error_widget = QtWidgets.QLabel()
-        error_widget.setTextFormat(QtCore.Qt.TextFormat.PlainText)
-        error_widget.setText(errmsg)
-        error_widget.setWordWrap(True)
-        error_widget.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        error_widget.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        error_widget.setLineWidth(1)
-        error_widget.setTextInteractionFlags(
-            QtCore.Qt.TextInteractionFlag.TextSelectableByKeyboard
-            | QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        error_widget = QtWidgets.QTextEdit()
+        error_widget.setReadOnly(True)
+        error_widget.setFontFamily(FONT_FAMILY_MONOSPACE)
+        error_widget.setPlainText(errmsg)
 
         report_bug_widget = QtWidgets.QLabel(
             _('Please see <a href="%s">Troubleshooting documentation</a>'
