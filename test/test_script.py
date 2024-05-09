@@ -43,6 +43,11 @@ from test.picardtestcase import PicardTestCase
 
 from picard.cluster import Cluster
 from picard.const.defaults import DEFAULT_FILE_NAMING_FORMAT
+from picard.extension_points.script_functions import (
+    FunctionRegistryItem,
+    register_script_function,
+    script_function,
+)
 from picard.metadata import (
     MULTI_VALUED_JOINER,
     Metadata,
@@ -60,12 +65,9 @@ from picard.script import (
     ScriptSyntaxError,
     ScriptUnicodeError,
     ScriptUnknownFunction,
-    register_script_function,
-    script_function,
     script_function_documentation,
     script_function_documentation_all,
 )
-from picard.script.functions import FunctionRegistryItem
 
 
 try:
