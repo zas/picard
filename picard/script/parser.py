@@ -38,7 +38,7 @@
 from collections.abc import MutableSequence
 from queue import LifoQueue
 
-from picard.extension_points.script_functions import ext_point_script_functions
+from picard.extension_points import script_functions
 from picard.metadata import (
     MULTI_VALUED_JOINER,
     Metadata,
@@ -361,7 +361,7 @@ Grammar:
         return (tokens, ch)
 
     def load_functions(self):
-        self.functions = dict(ext_point_script_functions)
+        self.functions = dict(script_functions.ext_point_script_functions)
 
     def parse(self, script, functions=False):
         """Parse the script."""
