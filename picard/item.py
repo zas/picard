@@ -30,6 +30,7 @@ from contextlib import contextmanager
 from PyQt6 import QtCore
 
 from picard import log
+from picard.debug_opts import DebugOpt
 from picard.i18n import ngettext
 from picard.metadata import Metadata
 
@@ -173,11 +174,17 @@ class MetadataItem(Item):
     @contextmanager
     def suspend_update_metadata_images(self):
         prev = self.update_metadata_images_enabled
+        if DebugOpt.METADATA_IMAGES.enabled:
+            log.debug("Suspend update for %r%s", self, "" if prev else " (Already suspended)")
         self.update_metadata_images_enabled = False
         yield
         self.update_metadata_images_enabled = prev
+        if DebugOpt.METADATA_IMAGES.enabled:
+            log.debug("Unsuspend update for %r (update_metadata_images_enabled=%r)", self, prev)
 
     def enable_update_metadata_images(self, enabled):
+        if DebugOpt.METADATA_IMAGES.enabled:
+            log.debug("update_metadata_images_enabled=%r for %r", enabled, self)
         self.update_metadata_images_enabled = enabled
 
     def update_metadata_images(self):
