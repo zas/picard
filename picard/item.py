@@ -25,6 +25,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
+from contextlib import contextmanager
+
 from PyQt6 import QtCore
 
 from picard import log
@@ -168,6 +170,13 @@ class MetadataItem(Item):
         self.update_children_metadata_attrs = {}
         self.iter_children_items_metadata_ignore_attrs = {}
 
+    @contextmanager
+    def suspend_update_metadata_images(self):
+        prev = self.update_metadata_images_enabled
+        self.update_metadata_images_enabled = False
+        yield
+        self.update_metadata_images_enabled = prev
+
     def enable_update_metadata_images(self, enabled):
         self.update_metadata_images_enabled = enabled
 
@@ -177,11 +186,10 @@ class MetadataItem(Item):
                 self.metadata_images_changed.emit()
 
     def keep_original_images(self):
-        self.enable_update_metadata_images(False)
-        for file in list(self.files):
-            if file.can_show_coverart:
-                file.keep_original_images()
-        self.enable_update_metadata_images(True)
+        with self.suspend_update_metadata_images():
+            for file in list(self.files):
+                if file.can_show_coverart:
+                    file.keep_original_images()
         self.update_metadata_images()
 
     def children_metadata_items(self):
