@@ -203,7 +203,9 @@ class TagVars(MutableSequence):
         if notes:
             title += f"\n\n{_(TEXT_NOTES)} {'; '.join(notes)}."
 
-        if markdown is not None:
+        if markdown is None:
+            title = '<p>' + title.replace('\n', '<br />') + '</p>'
+        else:
             title = markdown(title)
 
         if name and name.startswith('~'):
