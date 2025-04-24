@@ -862,7 +862,7 @@ ALL_TAGS = TagVars(
         'originalyear',
         shortdesc=N_('Original Year'),
         longdesc=N_(
-            'The year of the original release date in the format YYYY. By default this is set to the earliest '
+            'The year of the original release date in the format `YYYY`. By default this is set to the earliest '
             'release in the release group. This can provide, for example, the release year of the vinyl version '
             'of what you have on CD.'
         ),
