@@ -66,10 +66,10 @@ class Section(IntEnum):
 
 SectionInfo = namedtuple('Section', ('title', 'tagvar_func'))
 SECTIONS = {
-    Section.notes: SectionInfo(N_('Notes:'), 'notes'),
-    Section.options: SectionInfo(N_('Option Settings:'), 'related_options_titles'),
-    Section.links: SectionInfo(N_('Links:'), 'links'),
-    Section.see_also: SectionInfo(N_('See Also:'), 'see_alsos'),
+    Section.notes: SectionInfo(N_('Notes'), 'notes'),
+    Section.options: SectionInfo(N_('Option Settings'), 'related_options_titles'),
+    Section.links: SectionInfo(N_('Links'), 'links'),
+    Section.see_also: SectionInfo(N_('See Also'), 'see_alsos'),
 }
 
 TEXT_NO_DESCRIPTION = N_('No description available.')
@@ -199,6 +199,18 @@ class TagVar:
         for item in self.see_also:
             yield f"%{item}%"
 
+    def _gen_sections(self, fmt, include_sections):
+        for section_id in include_sections:
+            section = SECTIONS[section_id]
+            func_for_values = getattr(self, section.tagvar_func)
+            values = tuple(func_for_values())
+            if not values:
+                continue
+            yield fmt.format(
+                title=_(section.title),
+                values='; '.join(values),
+            )
+
 
 class TagVars(MutableSequence):
     """Mutable sequence for TagVar items
@@ -285,18 +297,10 @@ class TagVars(MutableSequence):
         else:
             return f"<p><em>%{name}%</em></p>{content}"
 
-    def _gen_sections(self, item, include_sections):
-        for section_id in include_sections:
-            section = SECTIONS[section_id]
-            func_for_values = getattr(item, section.tagvar_func)
-            values = tuple(func_for_values())
-            if not values:
-                continue
-            title = _(section.title)
-            yield f"<p><strong>{title}</strong> {'; '.join(values)}.</p>"
-
     def _add_sections(self, item, include_sections):
-        return ''.join(self._gen_sections(item, include_sections))
+        # Note: format has to be translatable, for languages not using left-to-right for example
+        fmt = _("<p><strong>{title}:</strong> {values}.</p>")
+        return ''.join(item._gen_sections(fmt, include_sections))
 
     def display_tooltip(self, tagname):
         # Get basic content
