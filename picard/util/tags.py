@@ -84,9 +84,9 @@ class TagVar:
         longdesc: Brief description in sentence case describing the tag/variable.  This should
                   be similar (within reasonable length constraints) to the description in the Picard User
                   Guide documentation, and will be used as a tooltip when reviewing a script.  May
-                  contain markup.
+                  contain markdown.
         additionaldesc: Additional description which might include more details or examples.  May
-                        contain markup.
+                        contain markdown.
         is_preserved: the tag is preserved (boolean, default: False)
         is_hidden: the tag is "hidden", name will be prefixed with "~" (boolean, default: False)
         is_script_variable: the tag cannot be used as script variable (boolean, default: True)
