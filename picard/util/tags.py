@@ -1169,7 +1169,7 @@ ALL_TAGS = TagVars(
     ),
     TagVar(
         'releasegroup_seriesid',
-        shortdesc=N_('RG Series ID'),
+        shortdesc=N_('RG Series MBID'),
         longdesc=N_('A multi-value variable containing the series MusicBrainz Identifiers (MBIDs) associated with the release group.'),
         is_hidden=True,
     ),
@@ -1207,7 +1207,7 @@ ALL_TAGS = TagVars(
     ),
     TagVar(
         'release_seriesid',
-        shortdesc=N_('Release Series ID'),
+        shortdesc=N_('Release Series MBID'),
         longdesc=N_('A multi-value variable containing the series MusicBrainz Identifiers (MBIDs) associated with the release.'),
         is_hidden=True,
     ),
@@ -1289,7 +1289,7 @@ ALL_TAGS = TagVars(
     ),
     TagVar(
         'sample_rate',
-        shortdesc=N_('File Sample Rate'),
+        shortdesc=N_('Sample Rate'),
         longdesc=N_('The sample rate of the audio file.'),
         is_file_info=True,
         is_hidden=True,
