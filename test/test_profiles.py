@@ -44,6 +44,7 @@ from picard.profile import (
     profile_groups_reset,
     profile_groups_settings,
     profile_groups_values,
+    profile_setting_title,
 )
 
 
@@ -358,3 +359,7 @@ class TestUserProfiles(TestPicardProfilesCommon):
         self.assertEqual(self.config.setting[self.test_setting_3], "def")
         self.config.profiles[self.PROFILES_KEY] = self.get_profiles(enabled=False)
         self.assertEqual(self.config.setting[self.test_setting_3], "abc")
+
+    def test_profile_setting_title(self):
+        self.assertEqual(profile_setting_title('opt1'), "title_group1")
+        self.assertEqual(profile_setting_title('notopt1'), None)
