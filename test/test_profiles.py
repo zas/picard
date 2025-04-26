@@ -39,9 +39,9 @@ from picard.config import (
 from picard.profile import (
     profile_groups_add_setting,
     profile_groups_all_settings,
+    profile_groups_initialize,
     profile_groups_keys,
     profile_groups_order,
-    profile_groups_reset,
     profile_groups_settings,
     profile_groups_values,
     profile_setting_title,
@@ -73,7 +73,7 @@ class TestPicardProfilesCommon(PicardTestCase):
         Option('profiles', self.SETTINGS_KEY, {})
 
         # Get valid profile option settings for testing
-        profile_groups_reset()
+        profile_groups_initialize()
         for n in range(0, 4):
             group = 'group%d' % (n % 2)
             title = 'title_' + group

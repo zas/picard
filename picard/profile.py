@@ -87,8 +87,8 @@ def profile_groups_values():
         yield _settings_groups[k]
 
 
-def profile_groups_reset():
-    """Used when testing"""
+def profile_groups_initialize():
+    """Initialize profile groups related variables"""
     global _settings_groups, _groups_order, _groups_count, _known_settings
     _settings_groups = {}
     _groups_order = defaultdict(lambda: -1)
