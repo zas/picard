@@ -31,11 +31,7 @@ from collections import (
 
 SettingDesc = namedtuple('SettingDesc', ('name', 'highlights'))
 
-_settings_groups = {}
-_groups_order = defaultdict(lambda: -1)
-_groups_count = 0
-_known_settings = set()
-_settings_titles = {}
+__initialized = False
 
 
 def profile_groups_order(group):
@@ -89,14 +85,19 @@ def profile_groups_values():
 
 def profile_groups_initialize():
     """Initialize profile groups related variables"""
-    global _settings_groups, _groups_order, _groups_count, _known_settings
+    global _settings_groups, _groups_order, _groups_count, _known_settings, _settings_titles
+
     _settings_groups = {}
     _groups_order = defaultdict(lambda: -1)
     _groups_count = 0
     _known_settings = set()
+    _settings_titles = defaultdict(lambda: None)
 
 
 def profile_setting_title(option_name):
-    if option_name not in _settings_titles:
-        return None
     return _settings_titles[option_name]
+
+
+if not __initialized:
+    profile_groups_initialize()
+    __initialized = True
