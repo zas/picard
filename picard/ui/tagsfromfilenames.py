@@ -9,7 +9,7 @@
 # Copyright (C) 2016-2017 Sambhav Kothari
 # Copyright (C) 2017 Ville Skyttä
 # Copyright (C) 2018 Vishal Choudhary
-# Copyright (C) 2018, 2020-2024 Laurent Monin
+# Copyright (C) 2018, 2020-2025 Laurent Monin
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -35,7 +35,7 @@ from PyQt6 import QtWidgets
 from picard.config import get_config
 from picard.i18n import gettext as _
 from picard.script.parser import normalize_tagname
-from picard.util.tags import display_tag_name
+from picard.tags import display_tag_name
 
 from picard.ui import PicardDialog
 from picard.ui.forms.ui_tagsfromfilenames import Ui_TagsFromFileNamesDialog

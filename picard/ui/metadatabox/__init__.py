@@ -6,7 +6,7 @@
 # Copyright (C) 2006-2007, 2012 Lukáš Lalinský
 # Copyright (C) 2011-2014 Michael Wiencek
 # Copyright (C) 2012 Nikolai Prokoschenko
-# Copyright (C) 2013-2014, 2017-2024 Laurent Monin
+# Copyright (C) 2013-2014, 2017-2025 Laurent Monin
 # Copyright (C) 2013-2014, 2021 Sophist-UK
 # Copyright (C) 2015 Ohm Patel
 # Copyright (C) 2015 Wieland Hoffmann
@@ -53,6 +53,10 @@ from picard.i18n import (
     ngettext,
 )
 from picard.metadata import MULTI_VALUED_JOINER
+from picard.tags import (
+    display_tag_name,
+    display_tag_tooltip,
+)
 from picard.track import Track
 from picard.util import (
     IgnoreUpdatesContext,
@@ -62,10 +66,6 @@ from picard.util import (
     throttle,
 )
 from picard.util.preservedtags import PreservedTags
-from picard.util.tags import (
-    display_tag_name,
-    display_tag_tooltip,
-)
 
 from .edittagdialog import (
     EditTagDialog,

@@ -11,8 +11,8 @@
 # Copyright (C) 2013-2014, 2019-2021, 2023-2025 Laurent Monin
 # Copyright (C) 2013-2015, 2017 Sophist-UK
 # Copyright (C) 2019 Zenara Daley
-# Copyright (C) 2023, 2025 Bob Swift
 # Copyright (C) 2023 certuna
+# Copyright (C) 2023, 2025 Bob Swift
 # Copyright (C) 2024 Arnab Chakraborty
 # Copyright (C) 2024 Giorgio Fontanive
 # Copyright (C) 2024 Serial

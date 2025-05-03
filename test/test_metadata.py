@@ -5,7 +5,7 @@
 # Copyright (C) 2017 Sophist-UK
 # Copyright (C) 2018, 2020 Wieland Hoffmann
 # Copyright (C) 2018-2021, 2023 Philipp Wolfer
-# Copyright (C) 2018-2024 Laurent Monin
+# Copyright (C) 2018-2025 Laurent Monin
 # Copyright (C) 2020 dukeyin
 #
 # This program is free software; you can redistribute it and/or
@@ -49,9 +49,9 @@ from picard.metadata import (
     weights_from_preferred_formats,
     weights_from_release_type_scores,
 )
+from picard.tags import preserved_tag_names
 from picard.track import Track
 from picard.util.imagelist import ImageList
-from picard.util.tags import preserved_tag_names
 
 
 settings = {

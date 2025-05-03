@@ -4,7 +4,7 @@
 #
 # Copyright (C) 2021, 2025 Bob Swift
 # Copyright (C) 2021-2022 Philipp Wolfer
-# Copyright (C) 2021-2024 Laurent Monin
+# Copyright (C) 2021-2025 Laurent Monin
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -29,7 +29,7 @@ from PyQt6 import (
 from picard.const import PICARD_URLS
 from picard.i18n import gettext as _
 from picard.script import script_function_documentation_all
-from picard.util.tags import (
+from picard.tags import (
     ALL_TAGS,
     TagVar,
 )

@@ -17,7 +17,7 @@
 # Copyright (C) 2013 Calvin Walton
 # Copyright (C) 2013-2014 Ionuț Ciocîrlan
 # Copyright (C) 2013-2014, 2017, 2021 Sophist-UK
-# Copyright (C) 2013-2014, 2017-2024 Laurent Monin
+# Copyright (C) 2013-2014, 2017-2025 Laurent Monin
 # Copyright (C) 2016 Rahul Raturi
 # Copyright (C) 2016 Ville Skyttä
 # Copyright (C) 2016-2018 Sambhav Kothari
@@ -81,6 +81,11 @@ from picard.metadata import (
 )
 from picard.plugin import PluginFunctions
 from picard.script import get_file_naming_script
+from picard.tags import (
+    calculated_tag_names,
+    file_info_tag_names,
+    preserved_tag_names,
+)
 from picard.util import (
     any_exception_isinstance,
     bytes2human,
@@ -102,11 +107,6 @@ from picard.util.filenaming import (
 )
 from picard.util.preservedtags import PreservedTags
 from picard.util.scripttofilename import script_to_filename_with_metadata
-from picard.util.tags import (
-    calculated_tag_names,
-    file_info_tag_names,
-    preserved_tag_names,
-)
 
 
 FILE_COMPARISON_WEIGHTS = {

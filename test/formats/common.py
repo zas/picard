@@ -4,7 +4,7 @@
 #
 # Copyright (C) 2019 Zenara Daley
 # Copyright (C) 2019-2024 Philipp Wolfer
-# Copyright (C) 2020-2022, 2024 Laurent Monin
+# Copyright (C) 2020-2022, 2024-2025 Laurent Monin
 # Copyright (C) 2022 Marcin Szalowicz
 #
 # This program is free software; you can redistribute it and/or
@@ -37,7 +37,7 @@ from picard.formats.mutagenext.ac3 import AC3APEv2
 from picard.formats.mutagenext.tak import TAK
 from picard.formats.util import guess_format
 from picard.metadata import Metadata
-from picard.util.tags import file_info_tag_names
+from picard.tags import file_info_tag_names
 
 
 settings = {

@@ -7,7 +7,7 @@
 # Copyright (C) 2010-2011, 2014, 2018-2025 Philipp Wolfer
 # Copyright (C) 2012, 2014, 2018 Wieland Hoffmann
 # Copyright (C) 2013 Ionuț Ciocîrlan
-# Copyright (C) 2013-2014, 2018-2024 Laurent Monin
+# Copyright (C) 2013-2014, 2018-2025 Laurent Monin
 # Copyright (C) 2014, 2017 Sophist-UK
 # Copyright (C) 2016 Frederik “Freso” S. Olesen
 # Copyright (C) 2017 Sambhav Kothari
@@ -296,21 +296,6 @@ class HiddenFileTest(PicardTestCase):
             self.assertFalse(util.is_hidden(f.name), "%s expected not to be hidden" % f.name)
             subprocess.run(('SetFile', '-a', 'V', f.name))  # nosec: B603
             self.assertTrue(util.is_hidden(f.name), "%s expected to be hidden" % f.name)
-
-
-class TagsTest(PicardTestCase):
-
-    def test_display_tag_name(self):
-        dtn = util.tags.display_tag_name
-        self.assertEqual(dtn('tag'), 'tag')
-        self.assertEqual(dtn('tag:desc'), 'tag [desc]')
-        self.assertEqual(dtn('tag:'), 'tag')
-        self.assertEqual(dtn('tag:de:sc'), 'tag [de:sc]')
-        self.assertEqual(dtn('originalyear'), 'Original Year')
-        self.assertEqual(dtn('originalyear:desc'), 'Original Year [desc]')
-        self.assertEqual(dtn('~length'), 'Length')
-        self.assertEqual(dtn('~lengthx'), '~lengthx')
-        self.assertEqual(dtn(''), '')
 
 
 class LinearCombinationTest(PicardTestCase):

@@ -3,7 +3,7 @@
 # Picard, the next-generation MusicBrainz tagger
 #
 # Copyright (C) 2019-2020 Philipp Wolfer
-# Copyright (C) 2020-2022 Laurent Monin
+# Copyright (C) 2020-2022, 2025 Laurent Monin
 # Copyright (C) 2024 Giorgio Fontanive
 # Copyright (C) 2024 Serial
 # Copyright (C) 2025 Bob Swift
@@ -22,6 +22,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
+
 import unittest.mock as mock
 
 from test.picardtestcase import PicardTestCase
@@ -32,7 +33,7 @@ from picard.options import (
     get_option_title,
 )
 from picard.profile import profile_groups_add_setting
-from picard.util.tags import (
+from picard.tags import (
     ALL_TAGS,
     DocumentLink,
     TagVar,
@@ -253,7 +254,7 @@ class TagVarsTest(PicardTestCase):
         self.assertEqual(tagvars.display_name('only_sd:'), 'only_sd_shortdesc')
         self.assertEqual(tagvars.display_name('only_sd:xxx'), 'only_sd_shortdesc [xxx]')
 
-        with mock.patch("picard.util.tags._", return_value='translated'):
+        with mock.patch("picard.tags._", return_value='translated'):
             self.assertEqual(tagvars.display_name('only_sd'), 'translated')
 
     def test_script_variable_tag_names(self):
@@ -266,7 +267,7 @@ class TagVarsTest(PicardTestCase):
         )
         self.tagvar_sd_ld.is_script_variable = False
 
-        with mock.patch('picard.util.tags.ALL_TAGS', tagvars):
+        with mock.patch('picard.tags.ALL_TAGS', tagvars):
             self.assertEqual(
                 tuple(script_variable_tag_names()),
                 ('nodesc', '_hidden', '_hidden_sd', 'only_sd'),
@@ -305,7 +306,7 @@ class TagVarsTest(PicardTestCase):
         )
         self.assertEqual(tagvars.display_tooltip('notes3'), result)
 
-    @mock.patch("picard.util.tags._", side_effect=_translate_patch)
+    @mock.patch("picard.tags._", side_effect=_translate_patch)
     def test_tagvars_display_tooltip_translate(self, mock):
         tagvars = TagVars(
             self.tagvar_nodesc,
@@ -346,6 +347,16 @@ class UtilTagsTest(PicardTestCase):
         self.assertEqual('Artist', display_tag_name('artist'))
         self.assertEqual('Lyrics', display_tag_name('lyrics:'))
         self.assertEqual('Comment [Foo]', display_tag_name('comment:Foo'))
+
+        self.assertEqual(display_tag_name('tag'), 'tag')
+        self.assertEqual(display_tag_name('tag:desc'), 'tag [desc]')
+        self.assertEqual(display_tag_name('tag:'), 'tag')
+        self.assertEqual(display_tag_name('tag:de:sc'), 'tag [de:sc]')
+        self.assertEqual(display_tag_name('originalyear'), 'Original Year')
+        self.assertEqual(display_tag_name('originalyear:desc'), 'Original Year [desc]')
+        self.assertEqual(display_tag_name('~length'), 'Length')
+        self.assertEqual(display_tag_name('~lengthx'), '~lengthx')
+        self.assertEqual(display_tag_name(''), '')
 
     def test_parse_comment_tag(self):
         self.assertEqual(('XXX', 'foo'), parse_comment_tag('comment:XXX:foo'))

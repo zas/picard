@@ -3,7 +3,7 @@
 # Picard, the next-generation MusicBrainz tagger
 #
 # Copyright (C) 2018-2025 Philipp Wolfer
-# Copyright (C) 2019-2022, 2024 Laurent Monin
+# Copyright (C) 2019-2022, 2024-2025 Laurent Monin
 # Copyright (C) 2021 Bob Swift
 # Copyright (C) 2021 Sophist-UK
 #
@@ -38,7 +38,7 @@ from picard.const.sys import (
 )
 from picard.file import File
 from picard.metadata import Metadata
-from picard.util.tags import (
+from picard.tags import (
     calculated_tag_names,
     file_info_tag_names,
 )

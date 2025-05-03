@@ -8,7 +8,7 @@
 # Copyright (C) 2012 Chad Wilson
 # Copyright (C) 2012 Johannes Weißl
 # Copyright (C) 2012-2014, 2018, 2020 Wieland Hoffmann
-# Copyright (C) 2013-2014, 2016, 2018-2024 Laurent Monin
+# Copyright (C) 2013-2014, 2016, 2018-2025 Laurent Monin
 # Copyright (C) 2013-2014, 2017 Sophist-UK
 # Copyright (C) 2016 Rahul Raturi
 # Copyright (C) 2016-2017 Sambhav Kothari
@@ -53,13 +53,13 @@ from picard.mbjson import (
 )
 from picard.plugin import PluginFunctions
 from picard.similarity import similarity2
+from picard.tags import preserved_tag_names
 from picard.util import (
     ReadWriteLockContext,
     extract_year_from_date,
     linear_combination_of_weights,
 )
 from picard.util.imagelist import ImageList
-from picard.util.tags import preserved_tag_names
 
 
 MULTI_VALUED_JOINER = '; '

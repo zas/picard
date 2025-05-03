@@ -6,7 +6,7 @@
 # Copyright (C) 2014 Sophist-UK
 # Copyright (C) 2016-2017 Sambhav Kothari
 # Copyright (C) 2017 Wieland Hoffmann
-# Copyright (C) 2017-2018, 2020-2024 Laurent Monin
+# Copyright (C) 2017-2018, 2020-2025 Laurent Monin
 # Copyright (C) 2018 Vishal Choudhary
 # Copyright (C) 2019-2022, 2024 Philipp Wolfer
 # Copyright (C) 2023 certuna
@@ -40,8 +40,8 @@ from picard.const import (
 )
 from picard.const.countries import RELEASE_COUNTRIES
 from picard.i18n import gettext as _
+from picard.tags import tag_names
 from picard.util import temporary_disconnect
-from picard.util.tags import tag_names
 
 from picard.ui import PicardDialog
 from picard.ui.forms.ui_edittagdialog import Ui_EditTagDialog
