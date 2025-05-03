@@ -293,6 +293,7 @@ class MetadataBox(QtWidgets.QTableWidget):
         result = TagDiff()
         for item in items:
             tag, value = self._get_row_info(item.row())
+            log.debug("%r %r", tag, value)
             col = item.column()
             result.add(
                 tag=tag,
@@ -702,6 +703,8 @@ class MetadataBox(QtWidgets.QTableWidget):
                     new_values = list(orig_values or [""])
 
                 removed = tag in new_metadata.deleted_tags
+                if tag == 'musicbrainz_trackid':
+                    log.debug("tag=%r old=%r new=%r", tag, orig_values, new_values)
                 tag_diff.add(tag, old=orig_values, new=new_values, removed=removed, top_tags=top_tags_set)
 
             tag_diff.add('~length', str(orig_metadata.length), str(new_metadata.length),
@@ -721,6 +724,8 @@ class MetadataBox(QtWidgets.QTableWidget):
                             orig_values = track.orig_metadata.getall(tag)
                         else:
                             orig_values = new_values
+                        if tag == 'musicbrainz_trackid':
+                            log.debug("tag=%r old=%r new=%r", tag, orig_values, new_values)
                         tag_diff.add(tag, old=orig_values, new=new_values)
 
                 length = str(track.metadata.length)

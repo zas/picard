@@ -138,6 +138,8 @@ class TagCounter(dict):
             if tag not in self:
                 self[tag] = values
             elif self[tag] != values:
+                if tag == 'musicbrainz_trackid':
+                    log.debug("self[tag]=%r values=%r", self[tag], values)
                 self.different.add(tag)
                 self[tag] = [""]
         self.counts[tag] += 1
@@ -156,6 +158,8 @@ class TagCounter(dict):
         missing = self.parent.objects - count
         is_different = tag in self.different
         is_grouped = is_different or (count > 0 and missing > 0)
+        if tag == 'musicbrainz_trackid':
+            log.debug("count=%r missing=%r is_different=%r is_grouped=%r", count, missing, is_different, is_grouped)
         return TagCounterStatus(is_grouped, count, is_different, missing)
 
     def display_value(self, tag):
@@ -246,7 +250,10 @@ class TagDiff:
         Returns:
             True if the tag values are not equal, False otherwise.
         """
-        return self.tag_ne_handlers[tag](old, new)
+        v = self.tag_ne_handlers[tag](old, new)
+        if tag == 'musicbrainz_trackid':
+            log.debug("__tag_ne=%r tag=%r old=%r new=%r", v, tag, old, new)
+        return v
 
     def is_readonly(self, tag):
         """
@@ -273,10 +280,16 @@ class TagDiff:
             readonly (bool): Whether the tag is read-only.
             top_tags (set): Set of top level tags
         """
+        if tag == 'musicbrainz_trackid':
+            log.debug("old=%r new=%r", old, new)
         if old:
+            if tag == 'musicbrainz_trackid':
+                log.debug("add tag=%r old=%r to self.old=%r", tag, old, self.old)
             self.old.add(tag, old)
 
         if new:
+            if tag == 'musicbrainz_trackid':
+                log.debug("add tag=%r new=%r to self.new=%r", tag, new, self.new)
             self.new.add(tag, new)
 
         if not top_tags:
@@ -314,6 +327,8 @@ class TagDiff:
             The tag's TagStatus.
         """
         status = self.status[tag]
+        if tag == 'musicbrainz_trackid':
+            log.debug("status=%r", status)
         for s in (TagStatus.CHANGED, TagStatus.ADDED,
                   TagStatus.REMOVED, TagStatus.EMPTY):
             if status & s == s:
