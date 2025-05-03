@@ -3,7 +3,7 @@
 # Picard, the next-generation MusicBrainz tagger
 #
 # Copyright (C) 2020 Philipp Wolfer
-# Copyright (C) 2020-2022 Laurent Monin
+# Copyright (C) 2020-2022, 2025 Laurent Monin
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
 from test.picardtestcase import PicardTestCase
 
 from picard import config
-from picard.util.preservedtags import PreservedTags
+from picard.tags.preserved import PreservedTags
 
 
 class PreservedTagsTest(PicardTestCase):

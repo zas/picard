@@ -57,6 +57,7 @@ from picard.tags import (
     display_tag_name,
     display_tag_tooltip,
 )
+from picard.tags.preserved import PreservedTags
 from picard.track import Track
 from picard.util import (
     IgnoreUpdatesContext,
@@ -65,7 +66,6 @@ from picard.util import (
     thread,
     throttle,
 )
-from picard.util.preservedtags import PreservedTags
 
 from .edittagdialog import (
     EditTagDialog,

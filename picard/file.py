@@ -86,6 +86,7 @@ from picard.tags import (
     file_info_tag_names,
     preserved_tag_names,
 )
+from picard.tags.preserved import PreservedTags
 from picard.util import (
     any_exception_isinstance,
     bytes2human,
@@ -105,7 +106,6 @@ from picard.util.filenaming import (
     make_short_filename,
     move_ensure_casing,
 )
-from picard.util.preservedtags import PreservedTags
 from picard.util.scripttofilename import script_to_filename_with_metadata
 
 
