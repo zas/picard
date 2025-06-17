@@ -30,6 +30,17 @@ from picard.util import build_qurl
 ServerTuple = namedtuple('ServerTuple', ('host', 'port'))
 
 
+def official_servers(config=None):
+    """Returns a tuple of all official servers"""
+    try:
+        if config is None:
+            config = get_config()
+        extra = list(config.setting['additional_mb_servers'])
+    except KeyError:
+        extra = []
+    return MUSICBRAINZ_SERVERS + extra
+
+
 def is_official_server(host):
     """Returns True, if host is an official MusicBrainz server for the primary database.
 
@@ -38,7 +49,7 @@ def is_official_server(host):
 
     Returns: True, if host is an official MusicBrainz server, False otherwise
     """
-    return host in MUSICBRAINZ_SERVERS
+    return host in official_servers()
 
 
 def get_submission_server():

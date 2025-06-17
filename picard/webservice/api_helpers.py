@@ -31,9 +31,9 @@ from picard.config import get_config
 from picard.const import (
     ACOUSTID_KEY,
     ACOUSTID_URL,
-    MUSICBRAINZ_SERVERS,
 )
 from picard.util import encoded_queryargs
+from picard.util.mbserver import official_servers
 from picard.webservice import (
     CLIENT_STRING,
     ratecontrol,
@@ -124,7 +124,7 @@ class MBAPIHelper(APIHelper):
         host = config.setting['server_host']
         # FIXME: We should get rid of this hard coded exception and move the
         #        configuration to use proper URLs everywhere.
-        port = 443 if host in MUSICBRAINZ_SERVERS else config.setting['server_port']
+        port = 443 if host in official_servers() else config.setting['server_port']
         self._base_url = host_port_to_url(host, port)
         self._base_url.setPath('/ws/2')
         return self._base_url

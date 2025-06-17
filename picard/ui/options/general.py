@@ -34,10 +34,7 @@ from PyQt6 import (
 )
 
 from picard.config import get_config
-from picard.const import (
-    MUSICBRAINZ_SERVERS,
-    PROGRAM_UPDATE_LEVELS,
-)
+from picard.const import PROGRAM_UPDATE_LEVELS
 from picard.const.defaults import DEFAULT_PROGRAM_UPDATE_LEVEL
 from picard.extension_points.options_pages import register_options_page
 from picard.i18n import (
@@ -45,7 +42,10 @@ from picard.i18n import (
     gettext as _,
     gettext_constants,
 )
-from picard.util.mbserver import is_official_server
+from picard.util.mbserver import (
+    is_official_server,
+    official_servers,
+)
 
 from picard.ui.forms.ui_options_general import Ui_GeneralOptionsPage
 from picard.ui.options import OptionsPage
@@ -77,7 +77,7 @@ class GeneralOptionsPage(OptionsPage):
         super().__init__(parent=parent)
         self.ui = Ui_GeneralOptionsPage()
         self.ui.setupUi(self)
-        self.ui.server_host.addItems(MUSICBRAINZ_SERVERS)
+        self.ui.server_host.addItems(official_servers())
         self.ui.server_host.currentTextChanged.connect(self.update_server_host)
         self.ui.login.clicked.connect(self.login)
         self.ui.logout.clicked.connect(self.logout)

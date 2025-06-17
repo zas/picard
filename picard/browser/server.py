@@ -31,7 +31,6 @@ from http.server import (
     HTTPServer,
 )
 from itertools import chain
-import re
 import threading
 from urllib.parse import (
     parse_qs,
@@ -51,6 +50,7 @@ from picard.config import get_config
 from picard.const import BROWSER_INTEGRATION_LOCALIP
 from picard.oauth import OAuthInvalidStateError
 from picard.util import mbid_validate
+from picard.util.mbserver import official_servers
 from picard.util.thread import to_main
 
 
@@ -64,7 +64,6 @@ except ImportError:
 
 
 SERVER_VERSION = '%s-%s/%s' % (PICARD_ORG_NAME, PICARD_APP_NAME, PICARD_VERSION_STR)
-RE_VALID_ORIGINS = re.compile(r'^(?:[^\.]+\.)*musicbrainz\.org$')
 LOG_PREFIX = "Browser Integration"
 
 
@@ -76,10 +75,11 @@ def _is_valid_origin(origin):
     hostname = url.hostname
     if not hostname:
         return False
-    if RE_VALID_ORIGINS.match(hostname):
-        return True
     config = get_config()
-    return config.setting['server_host'] == hostname
+    for origin in official_servers(config=config) + config.setting['server_host']:
+        if origin == hostname:
+            return True
+    return False
 
 
 class BrowserIntegration(QtCore.QObject):

@@ -313,6 +313,7 @@ TextOption('setting', 'va_name', "Various Artists", title=N_("Various Artists na
 
 # picard/ui/options/network.py
 # Network
+ListOption('setting', 'additional_mb_servers', [], title=N_("Additional MusicBrainz Servers"))
 BoolOption('setting', 'browser_integration', True, title=N_("Browser integration"))
 BoolOption('setting', 'browser_integration_localhost_only', True, title=N_("Listen only on localhost"))
 IntOption('setting', 'browser_integration_port', 8000, title=N_("Default listening port"))

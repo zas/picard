@@ -74,7 +74,6 @@ from PyQt6 import QtCore
 from PyQt6.QtGui import QDesktopServices
 
 from picard import log
-from picard.const import MUSICBRAINZ_SERVERS
 from picard.const.sys import (
     FROZEN_TEMP_PATH,
     IS_FROZEN,
@@ -766,7 +765,13 @@ def build_qurl(host, port=80, path=None, queryargs=None):
     url = QtCore.QUrl()
     url.setHost(host)
 
-    if port == 443 or host in MUSICBRAINZ_SERVERS:
+    def is_https(host, port):
+        if port == 443:
+            return True
+        from .mbserver import official_servers
+        return host in official_servers()
+
+    if is_https(host, port):
         url.setScheme('https')
     elif port == 80:
         url.setScheme('http')
