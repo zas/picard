@@ -904,12 +904,17 @@ def format_with_ruff(file_path):
 
 def regenerate_ui_file(ui_file, output_py):
     """Regenerate .py file from .ui using pyuic6."""
+    import re
     import subprocess
 
     try:
-        subprocess.run(['pyuic6', str(ui_file), '-o', str(output_py)], capture_output=True, check=True, text=True)
+        result = subprocess.run(['pyuic6', str(ui_file)], stdout=subprocess.PIPE, check=True, text=True)
+        source = re.sub(r'^(from PyQt6 import.*)$', r'\1  # noqa: F401', result.stdout, flags=re.MULTILINE)
+        with open(output_py, "w", encoding='utf8') as f:
+            f.write(source)
+            f.close()
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, IOError, PermissionError):
         return False
 
 
