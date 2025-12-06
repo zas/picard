@@ -48,6 +48,10 @@ from picard.const.sys import (
     IS_WIN,
 )
 from picard.util import sanitize_filename
+from picard.util.instanceinfo import (
+    InstanceInfo,
+    get_instance_info_path,
+)
 
 
 if IS_WIN:
@@ -172,6 +176,9 @@ class AbstractPipe(metaclass=ABCMeta):
 
         self.__thread_pool = concurrent.futures.ThreadPoolExecutor()
 
+        # Initialize instance info (will be written by owner)
+        self.instance_info: Optional[InstanceInfo] = None
+
         for path in self._paths:
             self.path = path
             for arg in self._args:
@@ -180,6 +187,8 @@ class AbstractPipe(metaclass=ABCMeta):
                     break
             if self.path:
                 log.debug("Using pipe: %r", self.path)
+                # Create instance info manager with path based on pipe path
+                self.instance_info = InstanceInfo(get_instance_info_path(self.path))
                 break
 
     def _remove_temp_attributes(self) -> None:
@@ -294,6 +303,38 @@ class AbstractPipe(metaclass=ABCMeta):
         self.pipe_running = False
         self.send_to_pipe(self.MESSAGE_TO_IGNORE)
         self.__thread_pool.shutdown(wait=True, cancel_futures=True)
+        if self.instance_info and self.is_pipe_owner:
+            self.instance_info.remove()
+
+    def write_instance_info(
+        self,
+        instance_type: str = "gui",
+        http_port: Optional[int] = None,
+        http_host: str = "127.0.0.1",
+    ) -> bool:
+        """Write instance information to file.
+
+        Args:
+            instance_type: Type of instance ("gui" or "cli")
+            http_port: HTTP server port if enabled
+            http_host: HTTP server host if enabled
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if self.instance_info:
+            return self.instance_info.write(instance_type, http_port, http_host)
+        return False
+
+    def read_instance_info(self) -> Optional[dict]:
+        """Read instance information from file.
+
+        Returns:
+            Dictionary with instance info, or None if not available
+        """
+        if self.instance_info:
+            return self.instance_info.read()
+        return None
 
 
 class UnixPipe(AbstractPipe):

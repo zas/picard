@@ -303,6 +303,9 @@ class Tagger(QtWidgets.QApplication):
             self.register_cleanup(self.pipe_handler.stop)
             self._command_thread_running = False
             self.pipe_handler.pipe_running = True
+            # Write instance info if we own the pipe
+            if self.pipe_handler.is_pipe_owner:
+                self.pipe_handler.write_instance_info(instance_type="gui")
             thread.run_task(self.pipe_server, self._pipe_server_finished)
 
     def _init_signal_handling(self):
@@ -560,6 +563,9 @@ class Tagger(QtWidgets.QApplication):
     def on_listen_port_changed(self, port):
         self.webservice.oauth_manager.redirect_uri = self._mb_login_redirect_uri()
         self.listen_port_changed.emit(port)
+        # Update instance info with HTTP port
+        if self.pipe_handler and self.pipe_handler.is_pipe_owner and port:
+            self.pipe_handler.write_instance_info(instance_type="gui", http_port=port)
 
     def _mb_login_dialog(self, parent):
         if not parent:
@@ -1632,7 +1638,11 @@ def main(localedir=None, autoupdate=True):
     if cmdline_args.processable:
         log.info("Sending messages to main instance: %r", cmdline_args.processable)
 
-    pipe_status = setup_pipe_handler(cmdline_args)
+    # Skip pipe for plugin subcommand - it needs its own instance
+    if cmdline_args.subcommand == 'plugins':
+        pipe_status = PipeStatus(handler=None, is_remote=False)
+    else:
+        pipe_status = setup_pipe_handler(cmdline_args)
 
     # pipe has sent its args to existing one, doesn't need to start
     if pipe_status.is_remote:
