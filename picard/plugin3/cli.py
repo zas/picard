@@ -98,6 +98,37 @@ class PluginCLI:
         """Check if debug mode is enabled."""
         return getattr(self._args, 'debug', False)
 
+    def _get_running_instance_plugins(self):
+        """Get plugins from running Picard instance via HTTP API.
+
+        Returns:
+            List of plugin dicts from API, or None if not available
+        """
+        from picard.util.cli_comm import CLIComm
+
+        # Try to get pipe path from manager's primary plugin dir
+        # The pipe path follows the pattern used in pipe.py
+        try:
+            import os
+
+            from picard import (
+                PICARD_APP_NAME,
+                PICARD_FANCY_VERSION_STR,
+            )
+            from picard.util import sanitize_filename
+
+            # Use XDG_RUNTIME_DIR or fallback
+            pipe_dir = os.getenv('XDG_RUNTIME_DIR') or os.path.expanduser('~/.config/MusicBrainz/Picard/pipes/')
+            pipe_name = sanitize_filename(f"{PICARD_APP_NAME}_v{PICARD_FANCY_VERSION_STR}_main_pipe_file")
+            pipe_path = os.path.join(pipe_dir, pipe_name)
+
+            comm = CLIComm(pipe_path)
+            return comm.get_plugins()
+        except Exception as e:
+            if self._is_debug_mode():
+                self._out.error(f'Failed to get running instance plugins: {e}')
+            return None
+
     def _handle_exception(self, e, message=None):
         """Handle exception with optional traceback in debug mode.
 
@@ -332,6 +363,12 @@ class PluginCLI:
 
     def _cmd_list(self):
         """List all installed plugins with details."""
+        # Try to get actual state from running instance
+        running_plugins = self._get_running_instance_plugins()
+        running_states = {}
+        if running_plugins:
+            running_states = {p['uuid']: p['state'] for p in running_plugins if 'uuid' in p}
+
         if not self._manager.plugins:
             if not self._manager._failed_plugins:
                 self._out.print('No plugins installed')
@@ -378,8 +415,12 @@ class PluginCLI:
                     if registry_id:
                         self._out.info(f'  Registry ID: {self._out.d_id(registry_id)}')
 
-                    # State
-                    self._out.info(f'  State: {plugin.state.value}')
+                    # State - use running instance state if available
+                    if plugin_uuid in running_states:
+                        state_display = running_states[plugin_uuid]
+                        self._out.info(f'  State: {state_display}')
+                    else:
+                        self._out.info(f'  State: {plugin.state.value}')
 
                     # Version with git info
                     metadata = self._manager._get_plugin_metadata(plugin_uuid) if plugin_uuid else {}
