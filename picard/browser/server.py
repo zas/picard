@@ -31,6 +31,7 @@ from http.server import (
     HTTPServer,
 )
 from itertools import chain
+import json
 import re
 import threading
 from urllib.parse import (
@@ -188,6 +189,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             log.error('%s: failed handling request', LOG_PREFIX, exc_info=True)
             self._response(500, 'Unexpected request error')
 
+    def do_POST(self):
+        try:
+            self._handle_post()
+        except Exception:
+            log.error('%s: failed handling request', LOG_PREFIX, exc_info=True)
+            self._response(500, 'Unexpected request error')
+
     def _log(self, log_func, fmt, args):
         log_func(
             "%s: %s %s",
@@ -209,6 +217,21 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         if action == '/':
             self._response(200, SERVER_VERSION)
+        elif action in ('/api', '/api/', '/api/v1', '/api/v1/', '/api/v1/help'):
+            self._api_help()
+        elif action == '/api/v1/status':
+            self._api_status()
+        elif action.startswith('/api/v1/plugins/'):
+            plugin_id = action[16:]  # Remove '/api/v1/plugins/' prefix
+            self._api_plugin_detail(plugin_id)
+        elif action == '/api/v1/plugins':
+            self._api_plugins()
+        elif action == '/api/v1/albums':
+            self._api_albums()
+        elif action == '/api/v1/files':
+            self._api_files()
+        elif action == '/api/v1/clusters':
+            self._api_clusters()
         elif action == '/openalbum':
             self._load_mbid('album', args)
         elif action == '/opennat':
@@ -217,6 +240,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._add_release(args)
         elif action == '/auth':
             self._auth(args)
+        else:
+            self._response(404, 'Unknown action.')
+
+    def _handle_post(self):
+        parsed = urlparse(self.path)
+        action = parsed.path
+
+        if action == '/api/v1/command':
+            self._api_command()
         else:
             self._response(404, 'Unknown action.')
 
@@ -263,6 +295,318 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._response(200, "Authentication successful, you can close this window now.", 'text/html')
         else:
             self._response(400, 'Missing parameter "code".')
+
+    def _api_status(self):
+        """Return API status information as JSON."""
+        status = {
+            'version': PICARD_VERSION_STR,
+            'server': SERVER_VERSION,
+            'running': True,
+        }
+        self._json_response(200, status)
+
+    def _get_tagger(self):
+        """Get tagger instance.
+
+        Returns:
+            Tagger instance or None
+        """
+        return QtCore.QCoreApplication.instance()
+
+    def _extract_metadata(self, obj, *keys):
+        """Safely extract metadata fields from an object.
+
+        Args:
+            obj: Object with metadata attribute
+            *keys: Metadata keys to extract
+
+        Returns:
+            dict: Dictionary with extracted metadata (only non-None values)
+        """
+        result = {}
+        if not hasattr(obj, 'metadata'):
+            return result
+
+        metadata = obj.metadata
+        for key in keys:
+            value = metadata.get(key)
+            if value:
+                result[key] = value
+        return result
+
+    def _api_help(self):
+        """Return API documentation as JSON."""
+        # Get the actual port from the server
+        port = self.server.server_address[1]
+        base_url = f'http://localhost:{port}'
+
+        help_data = {
+            'api_version': '1.0',
+            'base_url': base_url,
+            'endpoints': {
+                'GET /api': 'This help message',
+                'GET /api/v1': 'This help message',
+                'GET /api/v1/help': 'This help message',
+                'GET /api/v1/status': 'Server version and status',
+                'GET /api/v1/plugins': 'List all plugins with their state',
+                'GET /api/v1/plugins/{id}': 'Get detailed information for a specific plugin (by ID or UUID)',
+                'GET /api/v1/albums': 'List currently loaded albums',
+                'GET /api/v1/files': 'List currently loaded files',
+                'GET /api/v1/clusters': 'List file clusters and unclustered files count',
+                'POST /api/v1/command': 'Execute a remote command (JSON body: {"command": "COMMAND", "args": [...]})',
+            },
+            'examples': {
+                'Get plugin list': f'curl {base_url}/api/v1/plugins',
+                'Get plugin details': f'curl {base_url}/api/v1/plugins/88a16689-663b-4d78-bc1c-2fd7698e51b0',
+                'Show Picard window': f'curl -X POST {base_url}/api/v1/command -H "Content-Type: application/json" -d \'{{"command": "SHOW"}}\'',
+                'Load a file': f'curl -X POST {base_url}/api/v1/command -H "Content-Type: application/json" -d \'{{"command": "LOAD", "args": ["/path/to/file.mp3"]}}\'',
+            },
+        }
+        self._json_response(200, help_data)
+
+    def _api_plugins(self):
+        """Return list of plugins with their state as JSON."""
+        tagger = self._get_tagger()
+
+        if not hasattr(tagger, 'pluginmanager3') or not tagger.pluginmanager3:
+            self._json_response(200, {'plugins': [], 'count': 0})
+            return
+
+        plugins = []
+        for plugin in tagger.pluginmanager3.plugins:
+            plugin_info = {
+                'id': plugin.plugin_id,
+                'state': plugin.state.name.lower(),
+            }
+
+            if hasattr(plugin, 'manifest') and plugin.manifest:
+                plugin_info['name'] = plugin.manifest.name()
+                plugin_info['uuid'] = plugin.manifest.uuid
+                plugin_info['version'] = str(plugin.manifest.version)
+                plugin_info['description'] = plugin.manifest.description('en')
+                plugin_info['authors'] = plugin.manifest.authors
+
+            plugins.append(plugin_info)
+
+        self._json_response(200, {'plugins': plugins, 'count': len(plugins)})
+
+    def _api_albums(self):
+        """Return list of loaded albums as JSON."""
+        tagger = self._get_tagger()
+
+        if not hasattr(tagger, 'albums'):
+            self._json_response(200, {'albums': [], 'count': 0})
+            return
+
+        albums = []
+        for album_id, album in tagger.albums.items():
+            album_info = {
+                'id': album_id,
+                'loaded': album.loaded,
+            }
+
+            # Add metadata if available
+            metadata = self._extract_metadata(
+                album, 'album', 'albumartist', 'date', '~releasegroup', 'musicbrainz_albumid'
+            )
+            if metadata.get('album'):
+                album_info['title'] = metadata['album']
+            if metadata.get('albumartist'):
+                album_info['artist'] = metadata['albumartist']
+            if metadata.get('date'):
+                album_info['date'] = metadata['date']
+            if metadata.get('~releasegroup'):
+                album_info['release_group_id'] = metadata['~releasegroup']
+            if metadata.get('musicbrainz_albumid'):
+                album_info['release_id'] = metadata['musicbrainz_albumid']
+
+            # Track count
+            if hasattr(album, 'tracks'):
+                album_info['track_count'] = len(album.tracks)
+
+            albums.append(album_info)
+
+        self._json_response(200, {'albums': albums, 'count': len(albums)})
+
+    def _api_files(self):
+        """Return list of loaded files as JSON."""
+        tagger = self._get_tagger()
+
+        if not hasattr(tagger, 'files'):
+            self._json_response(200, {'files': [], 'count': 0})
+            return
+
+        files = []
+        for file_id, file_obj in tagger.files.items():
+            file_info = {
+                'id': file_id,
+                'filename': file_obj.filename,
+            }
+
+            # Add metadata if available
+            metadata = self._extract_metadata(file_obj, 'title', 'artist', 'album', '~length')
+            if metadata.get('title'):
+                file_info['title'] = metadata['title']
+            if metadata.get('artist'):
+                file_info['artist'] = metadata['artist']
+            if metadata.get('album'):
+                file_info['album'] = metadata['album']
+            if metadata.get('~length'):
+                file_info['length'] = metadata['~length']
+
+            # Parent album/track info
+            if hasattr(file_obj, 'parent'):
+                parent = file_obj.parent
+                if parent:
+                    file_info['parent_id'] = parent.id if hasattr(parent, 'id') else None
+
+            files.append(file_info)
+
+        self._json_response(200, {'files': files, 'count': len(files)})
+
+    def _api_clusters(self):
+        """Return list of file clusters as JSON."""
+        tagger = self._get_tagger()
+
+        if not hasattr(tagger, 'clusters'):
+            self._json_response(200, {'clusters': [], 'count': 0, 'unclustered_files': 0})
+            return
+
+        clusters = []
+        for cluster in tagger.clusters:
+            cluster_info = {
+                'id': cluster.id if hasattr(cluster, 'id') else None,
+                'file_count': len(cluster.files) if hasattr(cluster, 'files') else 0,
+            }
+
+            # Add metadata if available
+            metadata = self._extract_metadata(cluster, 'album', 'albumartist')
+            if metadata.get('album'):
+                cluster_info['album'] = metadata['album']
+            if metadata.get('albumartist'):
+                cluster_info['artist'] = metadata['albumartist']
+
+            # Lookup status
+            if hasattr(cluster, 'lookup_task'):
+                cluster_info['lookup_in_progress'] = cluster.lookup_task is not None
+
+            clusters.append(cluster_info)
+
+        # Add unclustered files count
+        unclustered_count = 0
+        if hasattr(tagger, 'unclustered_files') and hasattr(tagger.unclustered_files, 'files'):
+            unclustered_count = len(tagger.unclustered_files.files)
+
+        self._json_response(200, {'clusters': clusters, 'count': len(clusters), 'unclustered_files': unclustered_count})
+
+    def _api_plugin_detail(self, plugin_id):
+        """Return detailed information for a specific plugin."""
+        tagger = self._get_tagger()
+
+        if not hasattr(tagger, 'pluginmanager3') or not tagger.pluginmanager3:
+            self._json_response(404, {'error': 'Plugin manager not available'})
+            return
+
+        # Find plugin by ID or UUID
+        plugin = None
+        for p in tagger.pluginmanager3.plugins:
+            if p.plugin_id == plugin_id:
+                plugin = p
+                break
+            if hasattr(p, 'manifest') and p.manifest and p.manifest.uuid == plugin_id:
+                plugin = p
+                break
+
+        if not plugin:
+            self._json_response(404, {'error': f'Plugin not found: {plugin_id}'})
+            return
+
+        # Build detailed response
+        detail = {
+            'id': plugin.plugin_id,
+            'state': plugin.state.name.lower(),
+            'path': str(plugin.local_path),
+        }
+
+        if hasattr(plugin, 'manifest') and plugin.manifest:
+            manifest = plugin.manifest
+            detail['name'] = manifest.name()
+            detail['uuid'] = manifest.uuid
+            detail['version'] = str(manifest.version)
+            detail['description'] = manifest.description('en')
+            detail['authors'] = manifest.authors
+            detail['license'] = manifest.license
+            detail['license_url'] = manifest.license_url
+            detail['api_versions'] = manifest.api_versions
+
+            # Optional fields from manifest data
+            if hasattr(manifest, '_data'):
+                data = manifest._data
+                if 'categories' in data:
+                    detail['categories'] = data['categories']
+                if 'homepage' in data:
+                    detail['homepage'] = data['homepage']
+                if 'min_python_version' in data:
+                    detail['min_python_version'] = data['min_python_version']
+
+        # Add metadata if available
+        if hasattr(tagger.pluginmanager3, '_get_plugin_metadata'):
+            metadata = tagger.pluginmanager3._get_plugin_metadata(detail.get('uuid'))
+            if metadata:
+                detail['source_url'] = metadata.url
+                detail['ref'] = metadata.ref
+                detail['commit'] = metadata.commit
+
+        self._json_response(200, detail)
+
+    def _api_command(self):
+        """Execute a remote command via HTTP POST."""
+        try:
+            # Read and parse JSON body
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self._json_response(400, {'error': 'Empty request body'})
+                return
+
+            body = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(body)
+
+            command = data.get('command', '').upper()
+            args = data.get('args', [])
+
+            if not command:
+                self._json_response(400, {'error': 'Missing command parameter'})
+                return
+
+            # Log the received command
+            log.info('%s: Received API command: %s %s', LOG_PREFIX, command, args if args else '')
+
+            # Get remote command handlers
+            from picard.remotecommands import RemoteCommands
+
+            commands = RemoteCommands.commands()
+
+            if command not in commands:
+                self._json_response(400, {'error': f'Unknown command: {command}'})
+                return
+
+            # Execute command
+            handler = commands[command]
+            for arg in args or ['']:
+                handler(arg)
+
+            self._json_response(200, {'status': 'success', 'command': command})
+
+        except json.JSONDecodeError as e:
+            self._json_response(400, {'error': f'Invalid JSON: {e}'})
+        except Exception as e:
+            log.error('%s: command execution failed', LOG_PREFIX, exc_info=True)
+            self._json_response(500, {'error': f'Command execution failed: {e}'})
+
+    def _json_response(self, code, data):
+        """Send JSON response."""
+        content = json.dumps(data, indent=2)
+        self._response(code, content, 'application/json')
 
     def _response(self, code, content='', content_type='text/plain'):
         self.server_version = SERVER_VERSION
