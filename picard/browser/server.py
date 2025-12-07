@@ -32,6 +32,7 @@ from http.server import (
 )
 from itertools import chain
 import json
+import os
 import re
 import threading
 from urllib.parse import (
@@ -48,6 +49,7 @@ from picard import (
     log,
 )
 from picard.browser import addrelease
+from picard.browser.auth import TokenAuth
 from picard.config import get_config
 from picard.const import BROWSER_INTEGRATION_LOCALIP
 from picard.oauth import OAuthInvalidStateError
@@ -89,6 +91,7 @@ class BrowserIntegration(QtCore.QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.server = None
+        self.token_auth = None
 
     @property
     def host_address(self):
@@ -121,10 +124,18 @@ class BrowserIntegration(QtCore.QObject):
         else:
             host_address = LISTEN_ALL
 
+        # Initialize token auth
+        from picard.const import USER_DIR
+
+        token_file = os.path.join(USER_DIR, 'browser_token.json')
+        self.token_auth = TokenAuth(token_file)
+        self.token_auth.initialize()
+
         try:
             for port in range(MIN_PORT, MAX_PORT):
                 try:
                     self.server = OurHTTPServer((host_address, port), RequestHandler)
+                    self.server.token_auth = self.token_auth
                 except OSError:
                     continue
                 log.info("%s: Starting, listening on address %s and port %d", LOG_PREFIX, host_address, port)
@@ -156,6 +167,10 @@ class BrowserIntegration(QtCore.QObject):
         else:
             log.debug("%s: inactive, no need to stop", LOG_PREFIX)
 
+        if self.token_auth:
+            self.token_auth.cleanup()
+            self.token_auth = None
+
 
 # From https://github.com/python/cpython/blob/f474264b1e3cd225b45cf2c0a91226d2a9d3ee9b/Lib/http/server.py#L570C1-L573C43
 # https://en.wikipedia.org/wiki/List_of_Unicode_characters#Control_codes
@@ -168,6 +183,19 @@ def safe_message(message):
 
 
 class RequestHandler(BaseHTTPRequestHandler):
+    def _check_auth(self):
+        """Check JWT token authentication.
+
+        Returns:
+            True if authenticated, False otherwise
+        """
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return False
+
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
+        return self.server.token_auth.verify(token)
+
     def do_OPTIONS(self):
         origin = self.headers['origin']
         if _is_valid_origin(origin):
@@ -215,9 +243,18 @@ class RequestHandler(BaseHTTPRequestHandler):
         args = parse_qs(parsed.query)
         action = parsed.path
 
+        # Public endpoints
         if action == '/':
             self._response(200, SERVER_VERSION)
-        elif action in ('/api', '/api/', '/api/v1', '/api/v1/', '/api/v1/help'):
+            return
+
+        # API endpoints require authentication
+        if action.startswith('/api'):
+            if not self._check_auth():
+                self._response(401, 'Unauthorized')
+                return
+
+        if action in ('/api', '/api/', '/api/v1', '/api/v1/', '/api/v1/help'):
             self._api_help()
         elif action == '/api/v1/status':
             self._api_status()
@@ -248,6 +285,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         action = parsed.path
 
         if action == '/api/v1/command':
+            if not self._check_auth():
+                self._response(401, 'Unauthorized')
+                return
             self._api_command()
         else:
             self._response(404, 'Unknown action.')

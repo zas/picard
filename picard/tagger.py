@@ -563,9 +563,10 @@ class Tagger(QtWidgets.QApplication):
     def on_listen_port_changed(self, port):
         self.webservice.oauth_manager.redirect_uri = self._mb_login_redirect_uri()
         self.listen_port_changed.emit(port)
-        # Update instance info with HTTP port
+        # Update instance info with HTTP port and token
         if self.pipe_handler and self.pipe_handler.is_pipe_owner and port:
-            self.pipe_handler.write_instance_info(instance_type="gui", http_port=port)
+            token = self.browser_integration.token_auth.token if self.browser_integration.token_auth else None
+            self.pipe_handler.write_instance_info(instance_type="gui", http_port=port, http_token=token)
 
     def _mb_login_dialog(self, parent):
         if not parent:

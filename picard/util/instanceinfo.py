@@ -59,6 +59,7 @@ class InstanceInfo:
         instance_type: str = "gui",
         http_port: Optional[int] = None,
         http_host: str = "127.0.0.1",
+        http_token: Optional[str] = None,
     ) -> bool:
         """Write instance information to file.
 
@@ -66,6 +67,7 @@ class InstanceInfo:
             instance_type: Type of instance ("gui" or "cli")
             http_port: HTTP server port if enabled
             http_host: HTTP server host if enabled
+            http_token: JWT token for HTTP authentication
 
         Returns:
             True if successful, False otherwise
@@ -78,10 +80,13 @@ class InstanceInfo:
 
         if http_port:
             info["http"] = {"host": http_host, "port": http_port}
+            if http_token:
+                info["http"]["token"] = http_token
 
         try:
             self.info_path.parent.mkdir(parents=True, exist_ok=True)
             self.info_path.write_text(json.dumps(info, indent=2))
+            self.info_path.chmod(0o600)
             log.debug("Instance info written to %s", self.info_path)
             return True
         except Exception as e:

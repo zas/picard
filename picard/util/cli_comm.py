@@ -83,15 +83,30 @@ class CLIComm:
         Returns:
             JSON response as dict, or None if request failed
         """
-        url = self.get_http_url(endpoint)
-        if not url:
+        info = self.detect_instance()
+        if not info or 'http' not in info:
             log.debug("No HTTP server available")
             return None
 
+        http_info = info['http']
+        host = http_info.get('host', '127.0.0.1')
+        port = http_info.get('port')
+        token = http_info.get('token')
+
+        if not port:
+            return None
+
+        url = f"http://{host}:{port}{endpoint}"
+
         try:
             import json
+            from urllib.request import Request
 
-            with urlopen(url, timeout=5) as response:
+            req = Request(url)
+            if token:
+                req.add_header('Authorization', f'Bearer {token}')
+
+            with urlopen(req, timeout=5) as response:
                 return json.loads(response.read().decode())
         except URLError as e:
             log.debug("HTTP request failed: %s", e)

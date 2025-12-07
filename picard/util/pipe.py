@@ -311,6 +311,7 @@ class AbstractPipe(metaclass=ABCMeta):
         instance_type: str = "gui",
         http_port: Optional[int] = None,
         http_host: str = "127.0.0.1",
+        http_token: Optional[str] = None,
     ) -> bool:
         """Write instance information to file.
 
@@ -318,12 +319,13 @@ class AbstractPipe(metaclass=ABCMeta):
             instance_type: Type of instance ("gui" or "cli")
             http_port: HTTP server port if enabled
             http_host: HTTP server host if enabled
+            http_token: JWT token for HTTP authentication
 
         Returns:
             True if successful, False otherwise
         """
         if self.instance_info:
-            return self.instance_info.write(instance_type, http_port, http_host)
+            return self.instance_info.write(instance_type, http_port, http_host, http_token)
         return False
 
     def read_instance_info(self) -> Optional[dict]:
