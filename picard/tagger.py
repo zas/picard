@@ -104,6 +104,7 @@ from picard.config import (
     get_config,
     setup_config,
 )
+from picard.config_downgrade import downgrade_config
 from picard.config_upgrade import upgrade_config
 from picard.const import (
     BROWSER_INTEGRATION_LOCALHOST,
@@ -259,6 +260,7 @@ class Tagger(QtWidgets.QApplication):
         self._init_gettext(config, localedir)
 
         upgrade_config(config)
+        downgrade_config(config)
 
         self._qt_translators = Translators(self)
 

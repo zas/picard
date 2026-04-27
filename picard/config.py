@@ -184,6 +184,10 @@ class ConfigUpgradeError(Exception):
     pass
 
 
+class ConfigDowngradeError(Exception):
+    pass
+
+
 class ConfigSection(QtCore.QObject):
     """Configuration section."""
 
@@ -469,11 +473,6 @@ class Config(QtCore.QSettings):
         if not hooks:
             return
         if self._version >= PICARD_VERSION:
-            if self._version > PICARD_VERSION:
-                print(
-                    "Warning: config file %s was created by a more recent "
-                    "version of Picard (current is %s)" % (self._version, PICARD_VERSION)
-                )
             return
         for version in list(hooks):
             hook = hooks[version]
@@ -510,8 +509,46 @@ class Config(QtCore.QSettings):
             # all hooks were executed, ensure config is marked with latest version
             self._write_version(PICARD_VERSION)
 
+    def run_downgrade_hooks(self, hooks):
+        """Executes passed hooks to downgrade config from a newer version"""
+        if not hooks:
+            return
+        if self._version <= PICARD_VERSION:
+            return
+        for version in list(hooks):
+            hook = hooks[version]
+            if self._version >= version > PICARD_VERSION:
+                try:
+                    if hook.__doc__:
+                        log.debug(
+                            "Config downgrade %s -> %s: %s"
+                            % (
+                                self._version,
+                                version,
+                                hook.__doc__.strip(),
+                            )
+                        )
+                    hook(self)
+                except BaseException as e:
+                    raise ConfigDowngradeError(
+                        "Error during config downgrade from version %s to %s "
+                        "using %s()"
+                        % (
+                            self._version,
+                            version,
+                            hook.__name__,
+                        )
+                    ) from e
+                else:
+                    del hooks[version]
+            else:
+                del hooks[version]
+
+        if not hooks:
+            self._write_version(PICARD_VERSION)
+
     def _backup_settings(self):
-        if Version(0, 0, 0) < self._version < PICARD_VERSION:
+        if Version(0, 0, 0) < self._version and self._version != PICARD_VERSION:
             backup_path = self._versioned_config_filename()
             self._save_backup(backup_path)
 

@@ -35,12 +35,10 @@ from picard.config import (
     Option,
     TextOption,
 )
-import picard.config_upgrade
-from picard.config_upgrade import (
+import picard.config_changes
+from picard.config_changes import (
     OLD_DEFAULT_FILE_NAMING_FORMAT_v1_3,
     OLD_DEFAULT_FILE_NAMING_FORMAT_v2_1,
-    UpgradeHooksAutodetectError,
-    autodetect_upgrade_hooks,
     upgrade_to_v1_0_0final0,
     upgrade_to_v1_3_0dev1,
     upgrade_to_v1_3_0dev2,
@@ -73,6 +71,10 @@ from picard.config_upgrade import (
     upgrade_to_v3_0_0dev7,
     upgrade_to_v3_0_0dev8,
     upgrade_to_v3_0_0dev10,
+)
+from picard.config_upgrade import (
+    UpgradeHooksAutodetectError,
+    autodetect_upgrade_hooks,
 )
 from picard.const.cover_processing import ImageFormat
 from picard.const.defaults import (
@@ -423,9 +425,9 @@ class TestPicardConfigUpgrades(TestPicardConfigCommon):
     def test_upgrade_to_v2_6_0dev1_frozen(self):
         TextOption("setting", "acoustid_fpcalc", "")
         self.config.setting["acoustid_fpcalc"] = r"C:\Program Files\MusicBrainz Picard\fpcalc.exe"
-        picard.config_upgrade.IS_FROZEN = True
+        picard.config_changes.IS_FROZEN = True
         upgrade_to_v2_6_0dev1(self.config)
-        picard.config_upgrade.IS_FROZEN = False
+        picard.config_changes.IS_FROZEN = False
         self.assertEqual("", self.config.setting["acoustid_fpcalc"])
 
     def test_upgrade_to_v2_6_0beta2(self):
@@ -585,7 +587,7 @@ class TestPicardConfigUpgrades(TestPicardConfigCommon):
         from PyQt6 import QtCore
 
         from picard.config import ListOption, Option
-        from picard.config_upgrade import upgrade_to_v3_0_0dev9
+        from picard.config_changes import upgrade_to_v3_0_0dev9
 
         # Add old plugin options that should be removed
         Option('persist', 'plugins_list_sort_order', QtCore.Qt.SortOrder.AscendingOrder)
