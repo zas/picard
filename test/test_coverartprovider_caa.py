@@ -23,6 +23,7 @@
 
 from test.picardtestcase import PicardTestCase
 
+from picard.coverart.processing.filters import size_metadata_filter
 from picard.coverart.providers.caa import caa_url_fallback_list
 
 
@@ -90,3 +91,40 @@ class CoverArtImageProviderCaaTest(PicardTestCase):
 
         with self.assertRaises(AttributeError):
             caa_url_fallback_list(250, 666)
+
+    def test_size_metadata_filter_with_thumbnail_width(self):
+        """PICARD-3276: Metadata filter should not discard images based on thumbnail size.
+
+        When caa_image_size is set to a thumbnail (e.g. 500px) and the minimum
+        size filter is set higher (e.g. 1200px), the metadata filter incorrectly
+        compares the thumbnail width against the minimum, discarding the image
+        before it's even downloaded — even though the full-size image would pass.
+        """
+        # User settings: discard images below 1200px
+        self.set_config_values(
+            {
+                'filter_cover_by_size': True,
+                'cover_minimum_width': 1200,
+                'cover_minimum_height': 1200,
+            }
+        )
+
+        # Simulate what the CAA provider does: it passes thumbnail width to the filter
+        # with height=-1 (unknown). With caa_image_size=500 (default), the thumbnail
+        # is 500px wide, but the actual full image could be much larger (e.g. 1500px).
+        thumbnail_metadata = {'width': 500, 'height': -1}
+
+        # BUG: This returns False, silently discarding the image.
+        # The filter should not reject images based on thumbnail dimensions alone,
+        # since the actual image will be resized after download anyway.
+        result = size_metadata_filter(thumbnail_metadata)
+
+        # Currently this FAILS — the image is incorrectly discarded.
+        # Once fixed, the thumbnail should not be rejected by the size filter
+        # because the height is unknown (-1) and the width represents a thumbnail,
+        # not the actual image.
+        self.assertTrue(
+            result,
+            "Image incorrectly discarded: thumbnail width (500) compared "
+            "against minimum size (1200), but actual image may be larger",
+        )

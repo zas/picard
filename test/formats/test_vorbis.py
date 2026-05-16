@@ -476,6 +476,51 @@ class FlacCoverArtTest(CommonCoverArtTests.CoverArtTestCase):
         # Images with more than 16 MB cannot be saved to FLAC
         self.assertEqual(0, len(raw_metadata.pictures))
 
+    def test_save_jfif_jpeg_after_resize(self):
+        """JFIF JPEG (ffd8ffe0, no EXIF) must embed in FLAC after processing.
+
+        Regression test for PICARD-3276: JFIF images were silently not embedded
+        into FLAC files after being processed (resized) by the cover art pipeline.
+        """
+        from picard.const.cover_processing import ImageFormat
+        from picard.extension_points.cover_art_processors import ProcessingImage
+
+        jfif_data = self.jpegdata
+        # Verify it's actually JFIF
+        self.assertEqual(jfif_data[:4], b'\xff\xd8\xff\xe0')
+
+        # Simulate the processing pipeline: identify, load into QImage, resize, re-encode
+        from picard.util import imageinfo
+
+        info = imageinfo.identify(jfif_data)
+        processing_image = ProcessingImage(jfif_data, info)
+        self.assertFalse(processing_image.get_qimage().isNull(), "QImage failed to load JFIF JPEG")
+
+        # Resize (simulating what ResizeImage processor does)
+        qimage = processing_image.get_qimage()
+        scaled = qimage.scaled(500, 500)
+        self.assertFalse(scaled.isNull(), "Scaled QImage is null")
+        processing_image.set_result(scaled)
+        processing_image.info.width = scaled.width()
+        processing_image.info.height = scaled.height()
+
+        # Re-encode (simulating get_result in the processing pipeline)
+        result_data = processing_image.get_result(image_format=ImageFormat.JPEG, quality=90)
+        self.assertGreater(len(result_data), 0, "Re-encoded image is empty")
+
+        # Create CoverArtImage with the processed data and save to FLAC
+        image = CoverArtImage(data=result_data)
+        self.assertEqual(image.mimetype, 'image/jpeg')
+        file_save_image(self.format_registry, self.filename, image)
+
+        # Verify the picture block is present in the saved file
+        raw_metadata = load_raw(self.filename)
+        self.assertEqual(1, len(raw_metadata.pictures), "JFIF JPEG picture block not found in FLAC after resize")
+        pic = raw_metadata.pictures[0]
+        self.assertEqual(pic.mime, 'image/jpeg')
+        self.assertEqual(pic.width, 500)
+        self.assertEqual(pic.height, 500)
+
 
 class OggAudioVideoFileTest(PicardTestCase):
     def setUp(self):
