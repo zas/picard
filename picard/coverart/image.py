@@ -396,9 +396,10 @@ class CoverArtImage:
         except OSError as e:
             raise CoverArtImageIOError(e) from e
 
-    def set_external_file_data(self, data: bytes):
-        self.external_file_coverart = CoverArtImage(
-            data=data,
+    def clone(self, data: bytes | None = None) -> 'CoverArtImage':
+        """Create a copy of this image, optionally with different image data."""
+        return __class__(
+            data=data if data is not None else self.data,
             url=self.url,
             comment=self.comment,
             types=self.types,
@@ -406,6 +407,9 @@ class CoverArtImage:
             support_multi_types=self.support_multi_types,
             id3_type=self.id3_type,
         )
+
+    def set_external_file_data(self, data: bytes):
+        self.external_file_coverart = self.clone(data)
 
     @property
     def maintype(self):

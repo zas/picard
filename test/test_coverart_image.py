@@ -336,6 +336,23 @@ class CoverArtImageTest(PicardTestCase):
             self.assertEqual(len(image2.data), os.path.getsize(expected_filename_2))
             self.assertEqual(2, counters[counter_filename])
 
+    def test_clone_with_data(self):
+        data = create_fake_png(b'\x01')
+        image = CoverArtImage(data=data, comment='Foo', types=['back'], support_types=True)
+        new_data = create_fake_png(b'\x02')
+        clone = image.clone(new_data)
+        self.assertEqual(clone.data, new_data)
+        self.assertEqual(clone.comment, image.comment)
+        self.assertEqual(clone.types, image.types)
+
+    def test_clone_without_data(self):
+        data = create_fake_png(b'\x01')
+        image = CoverArtImage(data=data, comment='Bar', types=['front'], support_types=True)
+        clone = image.clone()
+        self.assertEqual(clone.data, image.data)
+        self.assertEqual(clone.comment, image.comment)
+        self.assertEqual(clone.types, image.types)
+
     def test_set_external_file_data(self):
         image = CoverArtImage(comment='Foo', types=['back', 'spine'], support_types=True, support_multi_types=True)
         self.assertIsNone(image.external_file_coverart)
