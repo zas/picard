@@ -110,3 +110,4 @@ class DebugOpt(DebugOptEnum):
     GIT_BACKEND = 4, N_('Git Backend'), N_('Log git backend method calls')
     PLUGIN_TRANSLATIONS = 5, N_('Plugin Translations'), N_('Log plugin translation lookups and fallbacks')
     PLUGIN_UPDATES = 6, N_('Plugin Updates'), N_('Log detailed plugin version checking and update detection')
+    MATCHING = 7, N_('Matching'), N_('Log similarity scores and match decisions')
