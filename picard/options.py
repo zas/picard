@@ -23,8 +23,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 
-import logging
-
 from PyQt6 import QtCore
 
 from picard.config import (
@@ -133,10 +131,6 @@ BoolOption('persist', 'album_view_header_locked', False)
 #
 Option('persist', 'file_view_header_columns', {})
 BoolOption('persist', 'file_view_header_locked', False)
-
-# picard/ui/logview.py
-#
-IntOption('setting', 'log_verbosity', logging.WARNING)
 
 # picard/ui/mainwindow.py
 #

@@ -245,7 +245,7 @@ class Tagger(QtWidgets.QApplication):
 
         self.autoupdate_enabled = autoupdate
 
-        self._init_logging(config)
+        self._init_logging()
         self._init_threads()
         self._init_pipe_server(pipe_handler)
         self._init_remote_commands()
@@ -290,9 +290,9 @@ class Tagger(QtWidgets.QApplication):
         self._no_restore = cmdline_args.no_restore
         self._to_load = cmdline_args.processable
 
-    def _init_logging(self, config):
+    def _init_logging(self):
         """Initialize logging & audit"""
-        log.set_verbosity(logging.DEBUG if self._debug else config.setting['log_verbosity'])
+        log.set_verbosity(logging.DEBUG if self._debug else logging.INFO)
 
         setup_audit(self._audit)
 

@@ -631,3 +631,9 @@ class TestPicardConfigUpgrades(TestPicardConfigCommon):
         hooks.upgrade_to_v3_0_0b3(self.config)
         self.assertNotIn('file_lookup_threshold', self.config.setting)
         self.assertNotIn('cluster_lookup_threshold', self.config.setting)
+
+    def test_upgrade_to_v3_0_0b4(self):
+        IntOption('setting', 'log_verbosity', 2)
+        self.config.setting['log_verbosity'] = 3
+        hooks.upgrade_to_v3_0_0b4(self.config)
+        self.assertNotIn('log_verbosity', self.config.setting)
