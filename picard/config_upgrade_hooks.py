@@ -680,12 +680,3 @@ def upgrade_to_v3_0_0b3(config):
     """
     config.setting.remove('file_lookup_threshold')
     config.setting.remove('cluster_lookup_threshold')
-
-
-def upgrade_to_v3_0_0b4(config):
-    """Remove obsolete log_verbosity option.
-
-    Picard now starts with the default verbosity level 'Info' unless the
-    command line option '--debug' is specified.
-    """
-    config.setting.remove('log_verbosity')
