@@ -183,6 +183,14 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>check_rtd_updates</tabstop>
+  <tabstop>check_plugin_updates</tabstop>
+  <tabstop>check_for_updates</tabstop>
+  <tabstop>update_check_days</tabstop>
+  <tabstop>update_level</tabstop>
+  <tabstop>starting_log_level</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

@@ -115,6 +115,11 @@ class Ui_StartupOptionsPage(object):
 
         self.retranslateUi(StartupOptionsPage)
         QtCore.QMetaObject.connectSlotsByName(StartupOptionsPage)
+        StartupOptionsPage.setTabOrder(self.check_rtd_updates, self.check_plugin_updates)
+        StartupOptionsPage.setTabOrder(self.check_plugin_updates, self.check_for_updates)
+        StartupOptionsPage.setTabOrder(self.check_for_updates, self.update_check_days)
+        StartupOptionsPage.setTabOrder(self.update_check_days, self.update_level)
+        StartupOptionsPage.setTabOrder(self.update_level, self.starting_log_level)
 
     def retranslateUi(self, StartupOptionsPage):
         self.update_check_group.setTitle(_("Update Checking"))
