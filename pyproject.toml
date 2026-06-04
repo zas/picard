@@ -63,6 +63,9 @@ plugins = [
     "opencc>=1.1.9",
     "zstandard>=0.25.0",
 ]
+rapidfuzz = [
+    "rapidfuzz>=3.0.0",
+]
 
 [dependency-groups]
 build = [

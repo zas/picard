@@ -36,10 +36,21 @@ def astrcmp_py(a, b):
 
 
 try:
-    from picard.util._astrcmp import astrcmp as astrcmp_c  # type: ignore[unresolved-import,import-not-found]
+    from rapidfuzz.distance import OSA
 
-    astrcmp = astrcmp_c
-    astrcmp_implementation = "C"
+    def astrcmp(a, b):
+        # The C extension returns 0.0 for empty strings
+        if not a or not b:
+            return 0.0
+        return OSA.normalized_similarity(a, b)
+
+    astrcmp_implementation = "rapidfuzz"
 except ImportError:
-    astrcmp = astrcmp_py
-    astrcmp_implementation = "Python"
+    try:
+        from picard.util._astrcmp import astrcmp as astrcmp_c  # type: ignore[unresolved-import,import-not-found]
+
+        astrcmp = astrcmp_c
+        astrcmp_implementation = "C"
+    except ImportError:
+        astrcmp = astrcmp_py
+        astrcmp_implementation = "Python"
