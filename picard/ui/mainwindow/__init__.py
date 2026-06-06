@@ -963,8 +963,11 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             MainAction.PLAYER_TOOLBAR_TOGGLE if self.player else None,
         )
 
-        self.script_quick_selector_menu = QtWidgets.QMenu(_("&Select file naming script"))
-        self.script_quick_selector_menu.setIcon(icontheme.lookup('document-open'))
+        self.file_naming_scripts_menu = QtWidgets.QMenu(_("&File naming scripts"))
+        self.file_naming_scripts_menu.setIcon(icontheme.lookup('document-open'))
+        self.script_selector_menu = QtWidgets.QMenu(_("Select &active script"))
+        self.file_naming_scripts_menu.addMenu(self.script_selector_menu)
+        self.file_naming_scripts_menu.addAction(self.action_map[MainAction.SHOW_SCRIPT_EDITOR])
         self._make_script_selector_menu()
 
         self.profile_quick_selector_menu = QtWidgets.QMenu(_("&Enable/disable profiles"))
@@ -979,8 +982,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             MainAction.ENABLE_MOVING,
             MainAction.ENABLE_TAG_SAVING,
             '-',
-            self.script_quick_selector_menu,
-            MainAction.SHOW_SCRIPT_EDITOR,
+            self.file_naming_scripts_menu,
             '-',
             self.profile_quick_selector_menu,
             '-',
@@ -2148,21 +2150,46 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             naming_scripts = self.script_editor_dialog.naming_scripts
             selected_script_id = self.script_editor_dialog.selected_script_id
 
-        self.script_quick_selector_menu.clear()
+        self.script_selector_menu.clear()
+        self.script_selector_menu.setToolTipsVisible(True)
 
-        group = QtGui.QActionGroup(self.script_quick_selector_menu)
+        group = QtGui.QActionGroup(self.script_selector_menu)
         group.setExclusive(True)
 
-        def _add_menu_item(title, id):
-            script_action = QtGui.QAction(title, self.script_quick_selector_menu)
+        examples = ScriptEditorExamples(tagger=self.tagger)
+
+        def _add_menu_item(title, id, script_text):
+            script_action = QtGui.QAction(title, self.script_selector_menu)
             script_action.triggered.connect(partial(self._select_new_naming_script, id))
             script_action.setCheckable(True)
             script_action.setChecked(id == selected_script_id)
-            self.script_quick_selector_menu.addAction(script_action)
+            tooltip = self._script_example_tooltip(examples, script_text)
+            if tooltip:
+                script_action.setToolTip(tooltip)
+            self.script_selector_menu.addAction(script_action)
             group.addAction(script_action)
 
         for id, naming_script in sorted(naming_scripts.items(), key=lambda item: item[1]['title']):
-            _add_menu_item(naming_script['title'], id)
+            _add_menu_item(naming_script['title'], id, naming_script['script'])
+
+    def _script_example_tooltip(self, examples, script_text):
+        """Generate a tooltip showing example output filenames for a script.
+
+        Args:
+            examples (ScriptEditorExamples): Examples instance with sample files
+            script_text (str): The file naming script text
+
+        Returns:
+            str: Tooltip text with example filenames, or empty string
+        """
+        examples.update_examples(script_text=script_text)
+        lines = []
+        for _before, after in examples.get_examples()[:3]:
+            if after:
+                lines.append(after)
+        if lines:
+            return _("Examples:") + "\n" + "\n".join(lines)
+        return ""
 
     def _select_new_naming_script(self, id):
         """Update the currently selected naming script ID in the settings.

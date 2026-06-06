@@ -749,7 +749,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         if self.is_options_ui():
             self.parent().ui.naming_script_selector.setEnabled(save_enabled)
         elif self.is_main_ui():
-            self.parent().script_quick_selector_menu.setEnabled(save_enabled)
+            self.parent().script_selector_menu.setEnabled(save_enabled)
 
     def set_button_states(self, save_enabled=True):
         """Set the button states based on the readonly and deletable attributes of the currently selected
