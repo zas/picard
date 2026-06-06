@@ -355,9 +355,6 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         for script_item in get_file_naming_script_presets():
             _add_menu_item(script_item['title'], script_item['script'])
 
-    def is_options_ui(self):
-        return self.parent().__class__.__name__ == 'RenamingOptionsPage'
-
     def is_main_ui(self):
         return self.parent().__class__.__name__ == 'MainWindow'
 
@@ -373,12 +370,6 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
             self.examples.settings = config.setting
             self.original_script_id = self.selected_script_id
             self.original_script_title = self.all_scripts()[self.original_script_id]['title']
-        if self.is_options_ui():
-            selector = self.parent().ui.naming_script_selector
-            idx = selector.currentIndex()
-            sel_id = selector.itemData(idx)['id']
-            if sel_id in self.all_scripts():
-                self.selected_script_id = sel_id
         self.selected_script_index = 0
         self.populate_script_selector()
         if not self.loading:
@@ -746,9 +737,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
             save_enabled (bool, optional): Allow selection of different script item. Defaults to True.
         """
         self.ui.preset_naming_scripts.setEnabled(save_enabled)
-        if self.is_options_ui():
-            self.parent().ui.naming_script_selector.setEnabled(save_enabled)
-        elif self.is_main_ui():
+        if self.is_main_ui():
             self.parent().script_selector_menu.setEnabled(save_enabled)
 
     def set_button_states(self, save_enabled=True):

@@ -1306,10 +1306,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
 
     def show_options(self, page=None):
         ReadTheDocs.update_documentation_items()  # Retry updates if required
-        if self.script_editor_dialog is not None:
-            # Disable signal processing to avoid saving changes not processed with "Make It So!"
-            for signal in self.script_editor_signals:
-                signal.disconnect()
         options_dialog = OptionsDialog.show_instance(page, self)
         options_dialog.finished.connect(self._options_closed)
         if not modal_options():
@@ -1318,11 +1314,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         return options_dialog
 
     def _options_closed(self):
-        if self.script_editor_dialog is not None:
-            self.open_file_naming_script_editor()
-            self.script_editor_dialog.show()
-        else:
-            self.enable_action(MainAction.SHOW_SCRIPT_EDITOR, True)
         self._make_profile_selector_menu()
         self._make_script_selector_menu()
         self._make_settings_selector_menu()
@@ -2215,14 +2206,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         self.script_editor_dialog.signal_selection_changed.connect(self._update_selector_from_script_editor)
         self.script_editor_dialog.signal_index_changed.connect(self._script_editor_index_changed)
         self.script_editor_dialog.finished.connect(self._script_editor_closed)
-        # Create list of signals to disconnect when opening Options dialog.
-        # Do not include `finished` because that is still used to clean up
-        # locally when the editor is closed from the Options dialog.
-        self.script_editor_signals = [
-            self.script_editor_dialog.signal_save,
-            self.script_editor_dialog.signal_selection_changed,
-            self.script_editor_dialog.signal_index_changed,
-        ]
         self.enable_action(MainAction.SHOW_SCRIPT_EDITOR, False)
 
     def _script_editor_save(self):
