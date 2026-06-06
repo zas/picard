@@ -642,12 +642,33 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
     def make_it_so(self):
         """Save the scripts and settings to configuration and exit."""
         script_item = self.get_selected_item()
-        self.selected_script_id = script_item['id']
         self.naming_scripts = self.get_scripts_dict()
         config = get_config()
         config.setting['file_renaming_scripts'] = self.naming_scripts
-        config.setting['selected_file_naming_script_id'] = script_item['id']
+        active_script_id = config.setting['selected_file_naming_script_id']
+        if script_item['id'] != active_script_id:
+            if self._ask_activate_script(script_item['title']):
+                config.setting['selected_file_naming_script_id'] = script_item['id']
+        self.selected_script_id = script_item['id']
         self.close()
+
+    def _ask_activate_script(self, script_title):
+        """Ask the user if they want to make the edited script the active one.
+
+        Args:
+            script_title (str): Title of the script being saved
+
+        Returns:
+            bool: True if user wants to activate the script
+        """
+        result = QtWidgets.QMessageBox.question(
+            self,
+            _("Activate script?"),
+            _("The script \"%s\" is not the active file naming script. Do you want to make it active?") % script_title,
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        return result == QtWidgets.QMessageBox.StandardButton.Yes
 
     def get_scripts_dict(self):
         """Get dictionary of scripts from the combo box items suitable for saving to the configuration settings.
