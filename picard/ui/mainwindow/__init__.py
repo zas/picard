@@ -2181,13 +2181,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             str: Tooltip text with example filenames, or empty string
         """
         examples.update_examples(script_text=script_text, override={'rename_files': True})
-        lines = []
-        for _before, after in examples.get_examples()[:3]:
-            if after:
-                lines.append(after)
-        if lines:
-            return _("Examples:") + "\n" + "\n".join(lines)
-        return ""
+        return examples.get_examples_tooltip()
 
     def _select_new_naming_script(self, id):
         """Update the currently selected naming script ID in the settings.

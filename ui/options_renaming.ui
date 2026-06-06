@@ -19,7 +19,7 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_5" stretch="0,0,0">
+  <layout class="QVBoxLayout" name="verticalLayout_5" stretch="0,0,0,0">
    <item>
     <widget class="QGroupBox" name="move_files">
      <property name="title">
@@ -93,6 +93,16 @@
     <widget class="QCheckBox" name="rename_files">
      <property name="text">
       <string>Rename files when saving</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="script_help_label">
+     <property name="text">
+      <string>To select or edit the file naming script, use the Options › File naming scripts menu.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
      </property>
     </widget>
    </item>
