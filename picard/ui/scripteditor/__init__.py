@@ -355,9 +355,6 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         for script_item in get_file_naming_script_presets():
             _add_menu_item(script_item['title'], script_item['script'])
 
-    def is_main_ui(self):
-        return self.parent().__class__.__name__ == 'MainWindow'
-
     def load(self, reload=False):
         """Load initial configuration."""
         config = get_config()
@@ -758,8 +755,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
             save_enabled (bool, optional): Allow selection of different script item. Defaults to True.
         """
         self.ui.preset_naming_scripts.setEnabled(save_enabled)
-        if self.is_main_ui():
-            self.parent().script_selector_menu.setEnabled(save_enabled)
+        self.parent().script_selector_menu.setEnabled(save_enabled)
 
     def set_button_states(self, save_enabled=True):
         """Set the button states based on the readonly and deletable attributes of the currently selected
