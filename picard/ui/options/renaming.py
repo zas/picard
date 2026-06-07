@@ -39,16 +39,10 @@ from PyQt6 import QtWidgets
 
 from picard.config import get_config
 from picard.extension_points.options_pages import register_options_page
-from picard.i18n import (
-    N_,
-    gettext as _,
-)
+from picard.i18n import N_
 
 from picard.ui.forms.ui_options_renaming import Ui_RenamingOptionsPage
-from picard.ui.options import (
-    OptionsCheckError,
-    OptionsPage,
-)
+from picard.ui.options import OptionsPage
 from picard.ui.util import FileDialog
 
 
@@ -61,13 +55,11 @@ class RenamingOptionsPage(OptionsPage):
     HELP_URL = "/config/options_filerenaming.html"
 
     OPTIONS = (
-        ('move_files', ['move_files']),
         ('move_files_to', ['move_files_to']),
         ('move_overwrite_existing_files', ['move_overwrite_existing_files']),
         ('move_additional_files', ['move_additional_files']),
         ('move_additional_files_pattern', ['move_additional_files_pattern']),
         ('delete_empty_dirs', ['delete_empty_dirs']),
-        ('rename_files', ['rename_files']),
     )
 
     def __init__(self, parent=None):
@@ -80,10 +72,12 @@ class RenamingOptionsPage(OptionsPage):
         self.ui.move_files_to_browse.setIcon(icon)
         self.ui.move_files_to_browse.clicked.connect(self.move_files_to_browse)
 
+        # Set tip icon for the help label
+        tip_icon = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MessageBoxInformation)
+        self.ui.script_help_icon.setPixmap(tip_icon.pixmap(16, 16))
+
     def load(self):
         config = get_config()
-        self.ui.rename_files.setChecked(config.setting['rename_files'])
-        self.ui.move_files.setChecked(config.setting['move_files'])
         self.ui.move_files_to.setText(config.setting['move_files_to'])
         self.ui.move_files_to.setCursorPosition(0)
         self.ui.move_additional_files.setChecked(config.setting['move_additional_files'])
@@ -92,13 +86,10 @@ class RenamingOptionsPage(OptionsPage):
         self.ui.move_overwrite_existing_files.setChecked(config.setting['move_overwrite_existing_files'])
 
     def check(self):
-        if self.ui.move_files.isChecked() and not self.ui.move_files_to.text().strip():
-            raise OptionsCheckError(_("Error"), _("The location to move files to must not be empty."))
+        pass
 
     def save(self):
         config = get_config()
-        config.setting['rename_files'] = self.ui.rename_files.isChecked()
-        config.setting['move_files'] = self.ui.move_files.isChecked()
         config.setting['move_files_to'] = os.path.normpath(self.ui.move_files_to.text())
         config.setting['move_additional_files'] = self.ui.move_additional_files.isChecked()
         config.setting['move_additional_files_pattern'] = self.ui.move_additional_files_pattern.text()
