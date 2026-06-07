@@ -301,6 +301,12 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         self.delete_action.triggered.connect(self.delete_script)
         script_menu.addAction(self.delete_action)
 
+        self.reset_current_script_action = QtGui.QAction(_("Rese&t current script"), self)
+        self.reset_current_script_action.setToolTip(_("Discard changes and reset to the last saved version"))
+        self.reset_current_script_action.setIcon(icontheme.lookup('view-refresh'))
+        self.reset_current_script_action.triggered.connect(self.revert_script)
+        script_menu.addAction(self.reset_current_script_action)
+
         # Display menu settings
         display_menu = main_menu.addMenu(_("&View"))
         display_menu.setToolTipsVisible(True)
@@ -382,8 +388,25 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
 
     def reload_from_config(self):
         """Reload the scripts and selected script from the configuration."""
+        if not confirmation_dialog(self, _("Reset all scripts to their last saved versions?")):
+            return
         if self.unsaved_changes_in_profile_confirmation():
             self.load(reload=True)
+
+    def revert_script(self):
+        """Revert the current script to its last saved version from config."""
+        if not confirmation_dialog(self, _("Reset the current script to its last saved version?")):
+            return
+        config = get_config()
+        saved_scripts = config.setting['file_renaming_scripts']
+        script_id = self.selected_script_id
+        if script_id in saved_scripts:
+            saved = saved_scripts[script_id]
+            idx = self.ui.preset_naming_scripts.currentIndex()
+            self.ui.preset_naming_scripts.setItemData(idx, saved)
+            self.ui.preset_naming_scripts.setItemText(idx, saved['title'])
+            self.naming_scripts[script_id] = saved
+            self.select_script(save=False)
 
     def docs_browser(self):
         """Open the scriping documentation in a browser."""
@@ -717,7 +740,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         self._set_combobox_index(idx)
         self.select_script()
 
-    def select_script(self, update_last_selected=True):
+    def select_script(self, update_last_selected=True, save=True):
         """Load the current script from the combo box into the editor."""
         self.selected_script_index, script_item = self.get_selected_index_and_item()
         self.ui.script_title.setText(script_item['title'])
@@ -725,7 +748,7 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         self.selected_script_id = script_item['id']
         if update_last_selected:
             self.last_selected_id = self.selected_script_id
-        if not self.loading:
+        if not self.loading and save:
             self.save_script()
             self.signal_save.emit()
         self.set_button_states()
@@ -780,6 +803,9 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         self.delete_action.setEnabled(save_enabled and self.ui.preset_naming_scripts.count() > 1)
         self.import_action.setEnabled(save_enabled)
         self.export_action.setEnabled(save_enabled)
+        self.reset_current_script_action.setEnabled(
+            save_enabled and self.selected_script_id in get_config().setting['file_renaming_scripts']
+        )
 
     def match_after_to_before(self):
         """Sets the selected item in the 'after' list to the corresponding item in the 'before' list."""
