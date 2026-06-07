@@ -360,6 +360,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         elif name == 'enable_tag_saving':
             self.action_map[MainAction.ENABLE_TAG_SAVING].setChecked(new_value)
         elif name in {'file_renaming_scripts', 'selected_file_naming_script_id'}:
+            self._check_and_repair_naming_scripts()
             self._make_script_selector_menu()
 
         # Also update items in quick settings if needed
@@ -2100,6 +2101,11 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         naming_script_ids = list(config.setting[script_key])
         script_id_key = 'selected_file_naming_script_id'
         if config.setting[script_id_key] not in naming_script_ids:
+            log.warning(
+                "Active file naming script '%s' not found, falling back to '%s'",
+                config.setting[script_id_key],
+                naming_script_ids[0],
+            )
             config.setting[script_id_key] = naming_script_ids[0]
 
     def _check_and_repair_profiles(self):

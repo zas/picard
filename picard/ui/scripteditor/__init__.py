@@ -665,6 +665,8 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
         self.naming_scripts = self.get_scripts_dict()
         config = get_config()
         config.setting['file_renaming_scripts'] = self.naming_scripts
+        # Re-read active ID after save, as it may have been repaired if the
+        # previously active script was deleted.
         active_script_id = config.setting['selected_file_naming_script_id']
         if script_item['id'] != active_script_id:
             if self._ask_activate_script(script_item['title']):
