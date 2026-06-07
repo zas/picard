@@ -967,10 +967,10 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
 
         self.file_naming_scripts_menu = QtWidgets.QMenu(_("&File naming scripts"))
         self.file_naming_scripts_menu.setIcon(icontheme.lookup('document-open'))
-        self.script_selector_menu = QtWidgets.QMenu(_("Select &active script"))
-        self.file_naming_scripts_menu.addMenu(self.script_selector_menu)
-        self.file_naming_scripts_menu.addAction(self.action_map[MainAction.SHOW_SCRIPT_EDITOR])
+        self._script_actions = []
         self._make_script_selector_menu()
+        self.file_naming_scripts_menu.addSeparator()
+        self.file_naming_scripts_menu.addAction(self.action_map[MainAction.SHOW_SCRIPT_EDITOR])
 
         self.profile_quick_selector_menu = QtWidgets.QMenu(_("&Enable/disable profiles"))
         self._make_profile_selector_menu()
@@ -2135,23 +2135,29 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         config.profiles[SettingConfigSection.SETTINGS_KEY] = profile_settings
 
     def _make_script_selector_menu(self):
-        """Update the sub-menu of available file naming scripts."""
+        """Update the file naming scripts menu with available scripts."""
         config = get_config()
         naming_scripts = config.setting['file_renaming_scripts']
         selected_script_id = config.setting['selected_file_naming_script_id']
 
-        self.script_selector_menu.clear()
-        self.script_selector_menu.setToolTipsVisible(True)
+        # Remove only the script actions, keep the separator and editor action
+        for action in self._script_actions:
+            self.file_naming_scripts_menu.removeAction(action)
+        self._script_actions = []
+        self.file_naming_scripts_menu.setToolTipsVisible(True)
 
-        group = QtGui.QActionGroup(self.script_selector_menu)
+        group = QtGui.QActionGroup(self.file_naming_scripts_menu)
         group.setExclusive(True)
 
         # Tooltips require ScriptEditorExamples which accesses tagger.window;
         # skip on the initial build since the window isn't assigned yet.
         examples = ScriptEditorExamples(tagger=self.tagger) if self._menus_created else None
 
+        # Insert script actions before the separator
+        insert_before = self.file_naming_scripts_menu.actions()[0] if self.file_naming_scripts_menu.actions() else None
+
         def _add_menu_item(title, id, script_text):
-            script_action = QtGui.QAction(title, self.script_selector_menu)
+            script_action = QtGui.QAction(title, self.file_naming_scripts_menu)
             script_action.triggered.connect(partial(self._select_new_naming_script, id))
             script_action.setCheckable(True)
             script_action.setChecked(id == selected_script_id)
@@ -2159,8 +2165,9 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
                 tooltip = self._script_example_tooltip(examples, script_text)
                 if tooltip:
                     script_action.setToolTip(tooltip)
-            self.script_selector_menu.addAction(script_action)
+            self.file_naming_scripts_menu.insertAction(insert_before, script_action)
             group.addAction(script_action)
+            self._script_actions.append(script_action)
 
         for id, naming_script in sorted(naming_scripts.items(), key=lambda item: item[1]['title']):
             _add_menu_item(naming_script['title'], id, naming_script['script'])
