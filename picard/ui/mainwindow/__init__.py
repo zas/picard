@@ -197,6 +197,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         self.action_map = {}
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_NativeWindow)
         self.__shown = False
+        self._menus_created = False
         self.tagger = tagger_instance()
         self._is_wayland = self.tagger.is_wayland
         self.selected_objects = []
@@ -410,6 +411,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         if not self.__shown:
             self.ready_for_display.emit()
             self.__shown = True
+            self._make_script_selector_menu()
         super().showEvent(event)
 
     def closeEvent(self, event):
@@ -1028,6 +1030,8 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             MainAction.DONATE,
             MainAction.ABOUT,
         )
+
+        self._menus_created = True
 
     def update_toolbar_style(self):
         config = get_config()
@@ -2147,16 +2151,19 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         group = QtGui.QActionGroup(self.script_selector_menu)
         group.setExclusive(True)
 
-        examples = ScriptEditorExamples(tagger=self.tagger)
+        # Tooltips require ScriptEditorExamples which accesses tagger.window;
+        # skip on the initial build since the window isn't assigned yet.
+        examples = ScriptEditorExamples(tagger=self.tagger) if self._menus_created else None
 
         def _add_menu_item(title, id, script_text):
             script_action = QtGui.QAction(title, self.script_selector_menu)
             script_action.triggered.connect(partial(self._select_new_naming_script, id))
             script_action.setCheckable(True)
             script_action.setChecked(id == selected_script_id)
-            tooltip = self._script_example_tooltip(examples, script_text)
-            if tooltip:
-                script_action.setToolTip(tooltip)
+            if examples:
+                tooltip = self._script_example_tooltip(examples, script_text)
+                if tooltip:
+                    script_action.setToolTip(tooltip)
             self.script_selector_menu.addAction(script_action)
             group.addAction(script_action)
 
