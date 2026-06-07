@@ -2200,6 +2200,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         ReadTheDocs.update_documentation_items()  # Retry updates if required
         examples = ScriptEditorExamples(tagger=self.tagger)
         self.script_editor_dialog = ScriptEditorDialog.show_instance(parent=self, examples=examples)
+        self.script_editor_dialog.load(reload=True)
         self.script_editor_dialog.finished.connect(self._script_editor_closed)
         self.enable_action(MainAction.SHOW_SCRIPT_EDITOR, False)
 
