@@ -2180,7 +2180,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         Returns:
             str: Tooltip text with example filenames, or empty string
         """
-        examples.update_examples(script_text=script_text)
+        examples.update_examples(script_text=script_text, override={'rename_files': True})
         lines = []
         for _before, after in examples.get_examples()[:3]:
             if after:
