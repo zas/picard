@@ -755,7 +755,6 @@ class ScriptEditorDialog(PicardDialog, SingletonDialog, HasDisplayTitle):
             save_enabled (bool, optional): Allow selection of different script item. Defaults to True.
         """
         self.ui.preset_naming_scripts.setEnabled(save_enabled)
-        self.parent().script_selector_menu.setEnabled(save_enabled)
 
     def set_button_states(self, save_enabled=True):
         """Set the button states based on the readonly and deletable attributes of the currently selected

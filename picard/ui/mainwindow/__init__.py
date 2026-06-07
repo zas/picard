@@ -1319,7 +1319,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
 
     def _options_closed(self):
         self._make_profile_selector_menu()
-        self._make_script_selector_menu()
         self._make_settings_selector_menu()
 
     def _disable_while_dialog_shown(self, dialog):
@@ -2137,13 +2136,9 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
 
     def _make_script_selector_menu(self):
         """Update the sub-menu of available file naming scripts."""
-        if self.script_editor_dialog is None or not isinstance(self.script_editor_dialog, ScriptEditorDialog):
-            config = get_config()
-            naming_scripts = config.setting['file_renaming_scripts']
-            selected_script_id = config.setting['selected_file_naming_script_id']
-        else:
-            naming_scripts = self.script_editor_dialog.naming_scripts
-            selected_script_id = self.script_editor_dialog.selected_script_id
+        config = get_config()
+        naming_scripts = config.setting['file_renaming_scripts']
+        selected_script_id = config.setting['selected_file_naming_script_id']
 
         self.script_selector_menu.clear()
         self.script_selector_menu.setToolTipsVisible(True)
@@ -2192,23 +2187,14 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         config = get_config()
         log.debug("Setting naming script to: %s", id)
         config.setting['selected_file_naming_script_id'] = id
-        if self.script_editor_dialog:
-            self.script_editor_dialog.set_selected_script_id(id)
 
     def open_file_naming_script_editor(self):
         """Open the file naming script editor / manager in a new window."""
         ReadTheDocs.update_documentation_items()  # Retry updates if required
         examples = ScriptEditorExamples(tagger=self.tagger)
         self.script_editor_dialog = ScriptEditorDialog.show_instance(parent=self, examples=examples)
-        self.script_editor_dialog.signal_save.connect(self._script_editor_save)
-        self.script_editor_dialog.signal_selection_changed.connect(self._update_selector_from_script_editor)
-        self.script_editor_dialog.signal_index_changed.connect(self._script_editor_index_changed)
         self.script_editor_dialog.finished.connect(self._script_editor_closed)
         self.enable_action(MainAction.SHOW_SCRIPT_EDITOR, False)
-
-    def _script_editor_save(self):
-        """Process "signal_save" signal from the script editor."""
-        self._make_script_selector_menu()
 
     def _script_editor_closed(self):
         """Process "finished" signal from the script editor."""
@@ -2233,14 +2219,6 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             }
             script_editor_dialog.examples.update_examples(override=override)
             script_editor_dialog.display_examples()
-
-    def _script_editor_index_changed(self):
-        """Process "signal_index_changed" signal from the script editor."""
-        self._script_editor_save()
-
-    def _update_selector_from_script_editor(self):
-        """Process "signal_selection_changed" signal from the script editor."""
-        self._script_editor_save()
 
     def _make_profile_selector_menu(self):
         """Update the sub-menu of available option profiles."""
