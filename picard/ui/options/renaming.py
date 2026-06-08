@@ -60,6 +60,10 @@ class RenamingOptionsPage(OptionsPage):
         ('move_additional_files', ['move_additional_files']),
         ('move_additional_files_pattern', ['move_additional_files_pattern']),
         ('delete_empty_dirs', ['delete_empty_dirs']),
+        # Included items not directly entered from the options page, but required to appear in the profile settings.
+        ('move_files', []),
+        ('rename_files', []),
+        ('selected_file_naming_script_id', []),
     )
 
     def __init__(self, parent=None):
