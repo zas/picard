@@ -160,7 +160,7 @@ class MockCliArgs(Mock):
     def __init__(self, **kwargs):
         # Name has special meaning in Mock
         name = kwargs.get('name', None)
-        if name:
+        if name is not None:
             del kwargs['name']
         defaults = {
             'verb': None,
