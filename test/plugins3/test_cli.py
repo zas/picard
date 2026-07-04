@@ -1512,7 +1512,6 @@ class TestPluginCLIInitInteractive(PicardTestCase):
             exit_code, stdout, stderr = run_cli(MockPluginManager(), verb='init', target_dir=str(target))
         self.assertEqual(ExitCode.SUCCESS, exit_code)
         manifest = (target / 'MANIFEST.toml').read_text(encoding='utf-8')
-        print(manifest)
         self.assertNotIn('categories', manifest)
 
     def test_interactive_multiple_categories(self):
