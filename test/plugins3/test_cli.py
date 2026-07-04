@@ -228,8 +228,8 @@ class TestPluginCLI(PicardTestCase):
         self.assertEqual(exit_code, 0)
         manager.check_updates.assert_called_once()
 
-        # Test check-updates --all
-        exit_code, _, _ = run_cli(manager, verb='update', all=True)
+        # Test update --all
+        exit_code, _, _ = run_cli(manager, verb='update', update_all=True)
         self.assertEqual(exit_code, 0)
         manager.update_all_plugins.assert_called_once()
 
