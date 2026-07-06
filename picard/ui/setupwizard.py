@@ -49,19 +49,9 @@ class WizardCheckbox(QtWidgets.QWidget):
         style = QtWidgets.QApplication.style()
         assert style
 
-        palette = self.palette()
-        highlight_bg = palette.color(QtGui.QPalette.ColorRole.Highlight)
-        highlight_text = palette.color(QtGui.QPalette.ColorRole.HighlightedText)
-
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(f"""
-            WizardCheckbox:hover {{
-                background-color: {highlight_bg.name()};
-            }}
-            * {{
-                color: {highlight_text.name()};
-            }}
-        """)
+        self._updating_stylesheet = False
+        self._update_stylesheet()
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -94,11 +84,34 @@ class WizardCheckbox(QtWidgets.QWidget):
     def add_extra_layout(self, layout: QtWidgets.QLayout) -> None:
         self._inner_layout.addLayout(layout)
 
+    def changeEvent(self, event: QtCore.QEvent | None) -> None:
+        if event and event.type() == QtCore.QEvent.Type.PaletteChange:
+            self._update_stylesheet()
+        super().changeEvent(event)
+
     def mousePressEvent(self, event: QtGui.QMouseEvent | None) -> None:
         if event is None:
             return
         self._checkbox.toggle()
         event.accept()
+
+    def _update_stylesheet(self) -> None:
+        if self._updating_stylesheet:
+            return
+        self._updating_stylesheet = True
+        palette = self.palette()
+        text_color = palette.color(QtGui.QPalette.ColorRole.WindowText)
+        highlight_bg = palette.color(QtGui.QPalette.ColorRole.Highlight)
+        highlight_bg.setAlpha(40)
+        self.setStyleSheet(f"""
+            WizardCheckbox {{
+                color: {text_color.name()};
+            }}
+            WizardCheckbox:hover {{
+                background-color: rgba({highlight_bg.red()}, {highlight_bg.green()}, {highlight_bg.blue()}, {highlight_bg.alpha()});
+            }}
+        """)
+        self._updating_stylesheet = False
 
     def set_checked(self, checked: bool) -> None:
         self._checkbox.setChecked(checked)
