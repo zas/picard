@@ -92,6 +92,9 @@ class WizardCheckbox(QtWidgets.QWidget):
     def mousePressEvent(self, event: QtGui.QMouseEvent | None) -> None:
         if event is None:
             return
+        child = self.childAt(event.position().toPoint())
+        if isinstance(child, (QtWidgets.QLineEdit, QtWidgets.QToolButton, QtWidgets.QCheckBox)):
+            return
         self._checkbox.toggle()
         event.accept()
 
