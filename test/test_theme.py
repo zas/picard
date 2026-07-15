@@ -167,7 +167,6 @@ def test_detect_linux_dark_mode_integration(
         patch("picard.ui.theme_detect.gsettings_get") as mock_gsettings,
         patch("picard.ui.theme_detect.get_dbus_detector") as mock_get_detector,
         patch("picard.ui.theme_detect.detect_freedesktop_color_scheme_dbus", return_value=False),
-        patch("picard.ui.theme_detect.detect_gnome_color_scheme_dbus", return_value=False),
     ):
         # Mock D-Bus detector to return None (force fallback to subprocess)
         mock_detector = Mock()
