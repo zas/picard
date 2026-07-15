@@ -171,7 +171,6 @@ def test_detect_linux_dark_mode_integration(
         # Mock D-Bus detector to return None (force fallback to subprocess)
         mock_detector = Mock()
         mock_detector.freedesktop_portal_color_scheme_is_dark.return_value = None
-        mock_detector.gnome_color_scheme_is_dark.return_value = None
         mock_get_detector.return_value = mock_detector
 
         def gsettings_get_side_effect(key):
