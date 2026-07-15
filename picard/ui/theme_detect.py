@@ -54,7 +54,6 @@ def gsettings_get(key: str) -> str | None:
 
 def detect_gnome_color_scheme_dark() -> bool:
     """Detect if GNOME color-scheme is set to dark."""
-    # Fallback to subprocess method (legacy support)
     value = gsettings_get("color-scheme")
     if value and "dark" in value.lower():
         log.debug("Detected GNOME color-scheme: dark")
