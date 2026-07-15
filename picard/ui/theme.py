@@ -182,7 +182,7 @@ def apply_dark_theme_to_palette(palette: QtGui.QPalette) -> None:
         apply_dark_palette_colors(palette)
 
 
-def get_accent_color_from_palette(palette: QtGui.QPalette) -> QtGui.QColor | None:
+def get_accent_color_from_palette(palette: QtGui.QPalette) -> QtGui.QColor:
     """Returns the accent color from the palette."""
     if hasattr(QtGui.QPalette.ColorRole, 'Accent'):
         accent_color = palette.color(QtGui.QPalette.ColorGroup.Active, QtGui.QPalette.ColorRole.Accent)
