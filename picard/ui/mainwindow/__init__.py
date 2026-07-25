@@ -86,6 +86,7 @@ from picard.const.sys import (
     IS_MACOS,
     IS_WIN,
 )
+from picard.debug_opts import DebugOpt
 from picard.extension_points.plugin_tools_menu import (
     ext_point_plugin_tools_items,
     signaler,
@@ -747,6 +748,11 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
                 break
         if not isrc:
             return
+        log.debug_if(
+            DebugOpt.ISRC,
+            "ISRC lookup: searching for ISRC %s",
+            isrc,
+        )
         self.tagger.mb_api.find_tracks(
             partial(self._on_lookup_isrc_finished, source_metadata),
             search=True,
@@ -767,6 +773,11 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         if not recordings:
             self.set_statusbar_message(N_("No recordings found for this ISRC"), echo=None, timeout=3000)
             return
+        log.debug_if(
+            DebugOpt.ISRC,
+            "ISRC lookup: found %d recording(s)",
+            len(recordings),
+        )
         # Collect all releases from all recordings
         releases = []
         for recording in recordings:
@@ -782,6 +793,12 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             return
         # Pick the best release using file metadata for disambiguation
         release_id = best_release_from_isrc_results(releases, source_metadata)
+        log.debug_if(
+            DebugOpt.ISRC,
+            "ISRC lookup: %d releases found, selected %s",
+            len(releases),
+            release_id,
+        )
         self.tagger.load_album(release_id)
 
     def _create_actions(self):
