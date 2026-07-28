@@ -128,11 +128,9 @@ from picard.util.cdrom import (
     discid,
     get_cdrom_drives,
 )
-from picard.util.isrc import (
-    best_release_from_isrc_results,
-    valid_isrc,
-)
+from picard.util.isrc import valid_isrc
 from picard.util.readthedocs import ReadTheDocs
+from picard.webservice.api_helpers import escape_lucene_query
 
 from picard.ui import (
     PicardDialog,
@@ -735,71 +733,30 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         if not objects:
             return
         # Find the first valid ISRC from selected files
-        source_metadata = None
+        source_file = None
         isrc = None
         for obj in objects:
             if hasattr(obj, 'metadata'):
                 for value in obj.metadata.getall('isrc'):
                     isrc = valid_isrc(value)
                     if isrc:
-                        source_metadata = obj.metadata
+                        source_file = obj
                         break
             if isrc:
                 break
-        if not isrc:
+        else:
+            log.debug_if(DebugOpt.ISRC, "ISRC lookup: no ISRC found in selected files")
             return
+
         log.debug_if(
             DebugOpt.ISRC,
             "ISRC lookup: searching for ISRC %s",
             isrc,
         )
-        self.tagger.mb_api.find_tracks(
-            partial(self._on_lookup_isrc_finished, source_metadata),
-            search=True,
-            advanced_search=True,
-            query=f'isrc:{isrc}',
-            limit=25,
-        )
-        self.set_statusbar_message(
-            N_("Looking up ISRC %(isrc)s …"),
-            {'isrc': isrc},
-        )
-
-    def _on_lookup_isrc_finished(self, source_metadata, document, http, error):
-        if error:
-            self.set_statusbar_message(N_("ISRC lookup failed"), echo=None, timeout=3000)
-            return
-        recordings = document.get('recordings', [])
-        if not recordings:
-            self.set_statusbar_message(N_("No recordings found for this ISRC"), echo=None, timeout=3000)
-            return
-        log.debug_if(
-            DebugOpt.ISRC,
-            "ISRC lookup: found %d recording(s)",
-            len(recordings),
-        )
-        # Collect all releases from all recordings
-        releases = []
-        for recording in recordings:
-            for release in recording.get('releases', []):
-                if release.get('id'):
-                    releases.append(release)
-        if not releases:
-            self.set_statusbar_message(
-                N_("Found %(count)d recording(s) but no associated release"),
-                {'count': len(recordings)},
-                timeout=3000,
-            )
-            return
-        # Pick the best release using file metadata for disambiguation
-        release_id = best_release_from_isrc_results(releases, source_metadata)
-        log.debug_if(
-            DebugOpt.ISRC,
-            "ISRC lookup: %d releases found, selected %s",
-            len(releases),
-            release_id,
-        )
-        self.tagger.load_album(release_id)
+        dialog = TrackSearchDialog(self, force_advanced_search=True)
+        dialog.file_ = source_file
+        dialog.search(f'isrc:{escape_lucene_query(isrc)}')
+        dialog.exec()
 
     def _create_actions(self):
         self.action_map = dict(create_actions(self))
