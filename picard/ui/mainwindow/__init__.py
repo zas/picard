@@ -753,8 +753,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
             "ISRC lookup: searching for ISRC %s",
             isrc,
         )
-        dialog = TrackSearchDialog(self, force_advanced_search=True)
-        dialog.file_ = source_file
+        dialog = TrackSearchDialog(self, force_advanced_search=True, matched_file=source_file)
         dialog.search(f'isrc:{escape_lucene_query(isrc)}')
         dialog.exec()
 
