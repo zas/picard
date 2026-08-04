@@ -973,9 +973,6 @@ class Album(MetadataItem):
             self.error_append(reason)
         self._finalize_loading(error=True)
 
-    def emit_album_updated_signal(self):
-        self.album_updated.emit(self)
-
     def update(self, update_tracks=True, update_selection=True):
         if self.ui_item:
             self.ui_item.update(update_tracks, update_selection=update_selection)

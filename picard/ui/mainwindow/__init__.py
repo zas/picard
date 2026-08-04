@@ -1393,7 +1393,7 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
 
     def _remove_completed_album(self, obj: Album):
         if obj.is_complete() and obj.get_num_unsaved_files() == 0:
-            obj.album_updated.disconnect()
+            obj.album_updated.disconnect(self._remove_completed_album)
             self.panel.remove([obj])
 
     def save(self):
@@ -1413,7 +1413,10 @@ class MainWindow(QtWidgets.QMainWindow, PreserveGeometry):
         if config.setting['remove_complete_albums_after_save']:
             for obj in self.selected_objects:
                 if isinstance(obj, Album):
-                    obj.album_updated.connect(self._remove_completed_album)
+                    obj.album_updated.connect(
+                        self._remove_completed_album,
+                        QtCore.Qt.ConnectionType.UniqueConnection,
+                    )
 
         self.tagger.save(self.selected_objects)
 
