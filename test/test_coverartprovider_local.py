@@ -56,6 +56,10 @@ def testdir():
         (r"^artwork/.*\.png$", ['artwork/cover.png', 'artwork/back.png']),
         (r"^artwork/.*\.gif$", []),
         (r"^artwork/back\.png$", ['artwork/back.png']),
+        # Anchored pattern without / only matches at root level
+        (r"^cover\.jpg$", ['cover.jpg']),
+        # Use (^|/) prefix to match filename at any level (upgrade compatibility)
+        (r"(^|/)cover\.jpg$", ['cover.jpg', 'artwork/cover.jpg']),
     ],
 )
 def test_find_local_images(testdir, pattern, expected_paths):

@@ -135,13 +135,11 @@ class CoverArtProviderLocal(CoverArtProvider):
     def find_local_images(self, current_dir: str, match_re: re.Pattern[str]) -> Iterator[LocalFileCoverArtImage]:
         for root, _dirs, files in os.walk(current_dir):
             for filename in files:
-                m = match_re.search(filename)
+                subpath = os.path.relpath(os.path.join(root, filename), current_dir)
+                subpath = subpath.replace('\\', '/')
+                m = match_re.search(subpath)
                 if not m:
-                    subpath = os.path.relpath(os.path.join(root, filename), current_dir)
-                    subpath = subpath.replace('\\', '/')
-                    m = match_re.search(subpath)
-                    if not m:
-                        continue
+                    continue
                 filepath = os.path.join(root, filename)
                 if not os.path.exists(filepath):
                     continue
