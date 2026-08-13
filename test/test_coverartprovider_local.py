@@ -62,7 +62,8 @@ def test_find_local_images(testdir, pattern, expected_paths):
     provider = CoverArtProviderLocal(Mock())
     images = list(provider.find_local_images(testdir, re.compile(pattern)))
     assert all(isinstance(image, LocalFileCoverArtImage) for image in images)
-    found_paths = set(os.path.normpath(image.url.toLocalFile()) for image in images if image.url)
+    assert all(image.url is not None for image in images)
+    found_paths = set(os.path.normpath(image.url.toLocalFile()) for image in images)
     expected_paths = set(os.path.normpath(os.path.join(testdir, path)) for path in expected_paths)
     assert found_paths == expected_paths
 
