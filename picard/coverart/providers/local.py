@@ -116,8 +116,6 @@ class CoverArtProviderLocal(CoverArtProvider):
         config = get_config()
         regex = config.setting['local_cover_regex']
         if regex:
-            # Normalize backslashes to forward slashes as path separator
-            regex = regex.replace('\\\\', '/')
             _match_re = re.compile(regex, re.IGNORECASE)
             dirs_done = set()
 
