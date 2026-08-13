@@ -144,7 +144,7 @@ class CoverArtProviderLocal(CoverArtProvider):
                     m = match_re.search(subpath)
                     if not m:
                         continue
-                filepath = os.path.join(current_dir, root, filename)
+                filepath = os.path.join(root, filename)
                 if not os.path.exists(filepath):
                     continue
                 try:
