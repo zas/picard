@@ -132,7 +132,7 @@ class CoverArtProviderLocal(CoverArtProvider):
         found = {x.lower() for x in self._types_split_re.split(string) if x}
         return list(found.intersection(self._known_types))
 
-    def find_local_images(self, current_dir: str, match_re: re.Pattern) -> Iterator[LocalFileCoverArtImage]:
+    def find_local_images(self, current_dir: str, match_re: re.Pattern[str]) -> Iterator[LocalFileCoverArtImage]:
         for root, _dirs, files in os.walk(current_dir):
             for filename in files:
                 m = match_re.search(filename)
