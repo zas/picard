@@ -110,18 +110,67 @@ come from reducing object *overhead* or count in ways that do not add hot-path
 CPU (e.g. interning repeated tag-value strings/keys, or a lighter internal
 representation), not from compressing this specific field.
 
-## Next candidate: string interning of tag keys/values (unverified direction)
+## String interning of tag keys/values (investigated, benchmarked — low value)
 
-`Metadata` stores tag keys and values as plain Python strings. Across a
-collection the same values repeat massively (album name, album artist, genre,
-date, release type, media). A quick measurement over 510 synthetic tracks
-found 8,670 string slots but only 69 distinct strings — i.e. the string
-payload is ~99% duplicated content held as distinct objects.
+`Metadata` stores tag keys and values as plain Python strings, and the same
+values repeat massively across a collection (album, album artist, genre, date,
+release type, media) — and every `copy()` (e.g. metadata → orig_metadata)
+creates fresh string objects. So interning at the `Metadata._set` chokepoint
+(which both direct sets and copies go through) looked promising.
 
-Interning at the `Metadata._set` boundary (e.g. `sys.intern` for keys plus a
-bounded dedup cache for values) would dedupe these without changing read/write
-semantics. This is promising because it reduces real bytes without adding
-hot-path CPU on the *read* side. It is not yet implemented or benchmarked:
-`_set` is itself a hot path, so the interning lookup cost must be measured, and
-the value-cache must be bounded to avoid unbounded growth / retaining freed
-values. Treat as a separate, benchmarked work item.
+Benchmarking told a more sober story. Attribution of a realistic 16-tag
+`Metadata` object:
+
+| component | share |
+|-----------|------:|
+| containers (store dict + per-tag lists) | ~52% |
+| keys (strings) | ~24% |
+| values (strings) | ~26% |
+
+Only the strings (~48%) are dedupable; the containers are not (every `Metadata`
+needs its own dict + per-tag lists). And an isolated build/retain benchmark of
+interning keys (`sys.intern`) + values (bounded dedup cache) measured:
+
+- memory saved: **~4-15%** (far less than the raw "duplicated content" figure,
+  because container overhead dominates and CPython already stores short strings
+  compactly)
+- time cost: **~+55%** on the build/`_set` path
+
+That is a bad trade: a small memory win for a large CPU cost on the exact
+per-file/per-track path PICARD-2530 flags as slow. **Not recommended as-is.**
+
+If pursued later, the only defensible variant is interning *keys only*
+(`sys.intern` on the tag name in `_set`): the tag vocabulary is small and
+bounded, so the cache cannot grow unbounded, and it removes the ~24% key
+duplication at minimal lookup cost. Values should not be interned on the hot
+path. This still leaves the ~52% container cost untouched.
+
+## Where the memory actually goes, and the realistic levers
+
+The dominant cost at scale is the **number of `Metadata` objects** (2 per file
+plus 3 per track) and their **container overhead** (dict + per-tag lists), not
+the string payload. The two structural sources the user identified:
+
+- **copy() duplicating everything (metadata → orig_metadata).** This creates a
+  second full set of containers. It cannot be shared/COW-ed trivially because
+  `orig_metadata` (on-disk values) and `metadata` (edited values) must diverge
+  independently.
+- **tracks/albums sharing strings.** Real but small in realized bytes (the ~26%
+  value share), and interning it costs hot-path CPU (above).
+
+Realistic future levers, in rough order of value vs risk, all needing their own
+benchmarking:
+
+1. Reduce container overhead per `Metadata` (e.g. avoid a separate list object
+   for single-valued tags, which is the common case) — attacks the ~52%.
+   Measured: in a realistic 16-tag object, **15 tags are single-valued and
+   their 1-element list wrappers are 94% of all list overhead** (~24% of the
+   whole object). Storing single values without a list wrapper is therefore the
+   largest non-hot-path-CPU memory lever, but it is a representation change with
+   wide blast radius (`getall`, `rawitems`, `_set`, `_update_from_metadata`, and
+   every consumer that assumes a list), so it needs its own careful,
+   benchmarked change.
+2. Intern tag keys only (bounded, cheap) — attacks ~24%.
+3. Avoid materializing `Metadata` copies that are never diverged from
+   (structural sharing with copy-on-write) — attacks container count; higher
+   design risk.
