@@ -51,6 +51,8 @@ from collections.abc import (
     Iterable,
 )
 from enum import IntEnum
+import gzip
+import json
 import time
 import traceback
 from typing import Any
@@ -207,6 +209,12 @@ class Album(MetadataItem):
         self._discids = set()
         self._disc_isrcs: dict[int, str] = disc_isrcs or {}
         self._recordings_map = {}
+        # Compressed (gzipped JSON) form of the raw MB release node, retained
+        # only for session export. Access via the _release_node_cache property,
+        # which (de)serializes on demand. Storing it compressed instead of as a
+        # live dict tree cuts its resident size dramatically (~75x measured),
+        # which matters a lot for large collections (see PICARD-2172).
+        self._release_node_cache_blob: bytes | None = None
         if discid:
             self._discids.add(discid)
         self._after_load_callbacks: list[tuple[Callable[[], Any], bool]] = []
@@ -219,6 +227,25 @@ class Album(MetadataItem):
 
     def __repr__(self):
         return '<Album %s %r>' % (self.id, self.metadata['album'])
+
+    @property
+    def _release_node_cache(self) -> dict[str, Any] | None:
+        """The raw MB release node retained for session export.
+
+        Stored internally as a gzipped-JSON blob to minimize resident memory
+        (a live dict tree is ~75x larger). Deserialized on access, which only
+        happens when a session is exported.
+        """
+        if self._release_node_cache_blob is None:
+            return None
+        return json.loads(gzip.decompress(self._release_node_cache_blob).decode('utf-8'))
+
+    @_release_node_cache.setter
+    def _release_node_cache(self, node: dict[str, Any] | None):
+        if node is None:
+            self._release_node_cache_blob = None
+        else:
+            self._release_node_cache_blob = gzip.compress(json.dumps(node).encode('utf-8'), compresslevel=6)
 
     def add_task(
         self,

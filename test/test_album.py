@@ -17,6 +17,8 @@
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
 
+import gzip
+import json
 from unittest.mock import (
     Mock,
 )
@@ -41,6 +43,32 @@ class TrackTest(PicardTestCase):
         self.album.metadata['test'] = 'foo'
         self.assertEqual(self.album.column('test'), 'foo')
         self.assertEqual(self.album.column('unknown'), '')
+
+    def test_release_node_cache_roundtrip(self):
+        # The property stores the node compressed but returns an equal dict.
+        node = {
+            'id': 'abc',
+            'media': [{'tracks': [{'title': f'T{i}'} for i in range(12)]}],
+            'artist-credit': [{'name': 'X', 'joinphrase': ''}],
+        }
+        self.album._release_node_cache = node
+        self.assertEqual(self.album._release_node_cache, node)
+
+    def test_release_node_cache_none(self):
+        self.album._release_node_cache = None
+        self.assertIsNone(self.album._release_node_cache)
+        self.assertIsNone(self.album._release_node_cache_blob)
+
+    def test_release_node_cache_is_compressed(self):
+        # Stored blob must be smaller than the raw JSON for repetitive data.
+        node = {'media': [{'tracks': [{'title': 'Song', 'length': 210000} for _ in range(30)]}]}
+        self.album._release_node_cache = node
+        blob = self.album._release_node_cache_blob
+        self.assertIsInstance(blob, bytes)
+        raw = json.dumps(node).encode('utf-8')
+        self.assertLess(len(blob), len(raw))
+        # And it round-trips.
+        self.assertEqual(json.loads(gzip.decompress(blob).decode('utf-8')), node)
 
     def test_column_title(self):
         self.assertEqual(self.album.column('title'), '')
