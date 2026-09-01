@@ -64,6 +64,7 @@ from datetime import (
     date,
     datetime,
 )
+from functools import wraps
 from itertools import chain
 import json
 import ntpath
@@ -565,6 +566,55 @@ def parse_amazon_url(url: str) -> dict[str, str] | None:
     if match_ is not None:
         return match_.groupdict()
     return None
+
+
+def cancel_on_destroyed(
+    qobject: QtCore.QObject,
+    callback: Callable,
+    on_destroyed: Callable | None = None,
+) -> Callable:
+    """Wrap a callback so it is disarmed when ``qobject`` is destroyed.
+
+    Addresses the root cause of use-after-free in deferred callbacks: instead of
+    checking liveness at call time, it connects to the watched QObject's
+    ``destroyed`` signal and, once destroyed, permanently turns the returned
+    callable into a no-op. Useful for async callbacks bound (e.g. via
+    ``functools.partial``) to a widget that may be closed and deleted before
+    the callback fires.
+
+    If ``on_destroyed`` is given, it is called (once) when the object is
+    destroyed. Use it to release the resource that keeps the deferred callback
+    alive — e.g. aborting the pending web-service request — so the captured
+    objects are freed immediately instead of only when the request completes.
+
+    The cancellation flag is a plain list cell (not a bound method of the
+    watched object), so the connection does not keep the QObject alive.
+    ``on_destroyed`` must likewise not hold a strong reference back to it.
+
+    Usage::
+
+        wrapped = cancel_on_destroyed(menu, partial(populate, menu, data),
+                                      on_destroyed=request.abort)
+        request = async_load(wrapped)
+    """
+    cancelled = [False]
+
+    def _cancel(*_args):
+        if cancelled[0]:
+            return
+        cancelled[0] = True
+        if on_destroyed is not None:
+            on_destroyed()
+
+    qobject.destroyed.connect(_cancel)
+
+    @wraps(callback)
+    def wrapper(*args, **kwargs):
+        if cancelled[0]:
+            return None
+        return callback(*args, **kwargs)
+
+    return wrapper
 
 
 def throttle(interval: float | int) -> Callable:

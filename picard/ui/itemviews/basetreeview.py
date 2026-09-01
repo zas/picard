@@ -85,6 +85,7 @@ from picard.track import (
     Track,
 )
 from picard.util import (
+    cancel_on_destroyed,
     icontheme,
     iter_files_from_objects,
     normpath,
@@ -327,8 +328,21 @@ class BaseTreeView(QtWidgets.QTreeWidget):
                 if album.release_group.loaded:
                     _add_other_versions(releases_menu, album, action_loading)
                 else:
-                    callback = partial(_add_other_versions, releases_menu, album, action_loading)
-                    album.release_group.load_versions(callback)
+                    # If the menu is destroyed before the async version lookup
+                    # completes, disarm the callback and abort the pending
+                    # request so its captured objects are freed immediately.
+                    versions_request = None
+
+                    def _abort_versions_request():
+                        if versions_request is not None:
+                            self.tagger.webservice.abort_task(versions_request)
+
+                    callback = cancel_on_destroyed(
+                        releases_menu,
+                        partial(_add_other_versions, releases_menu, album, action_loading),
+                        on_destroyed=_abort_versions_request,
+                    )
+                    versions_request = album.release_group.load_versions(callback)
                 releases_menu.setEnabled(True)
 
         if config.setting['enable_ratings'] and len(self.window.selected_objects) == 1 and isinstance(obj, Track):
@@ -392,6 +406,11 @@ class BaseTreeView(QtWidgets.QTreeWidget):
         add_actions(self.select_all_action)
         menu.exec(event.globalPos())
         event.accept()
+        # The menu is parented to this (session-lived) tree view, so it would
+        # otherwise persist until app exit, keeping its QActions and their
+        # partial() callbacks — and every album/track/file those capture —
+        # alive. Delete it now to break that retention chain.
+        menu.deleteLater()
 
     @restore_method
     def restore_state(self):
