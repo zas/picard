@@ -101,6 +101,10 @@ from picard.util import (
     mbid_validate,
 )
 from picard.util.isrc import normalized_isrcs
+from picard.util.memprofile import (
+    analyze_album_footprint,
+    log_session_footprint_throttled,
+)
 from picard.util.textencoding import asciipunct
 from picard.webservice import PendingRequest
 
@@ -795,6 +799,14 @@ class Album(MetadataItem):
             self.status = AlbumStatus.LOADED
             self.match_files(unmatched_files + self.unmatched_files.files)
         self.update()
+
+        # Runtime memory footprint breakdown (only when --debug-opts=memory).
+        # Attributes retained bytes to album/track components so we can spot
+        # data kept but unused later (notably the raw release node).
+        analyze_album_footprint(self)
+        # And a throttled session-wide total, since the reported problems are
+        # about whole collections (thousands of tracks/files), not one album.
+        log_session_footprint_throttled(self.tagger)
 
         # Trigger re-sort after album is fully loaded to ensure accurate match quality sorting
         # See the module: picard/ui/itemviews/match_quality_column.py

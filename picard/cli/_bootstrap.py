@@ -86,6 +86,12 @@ def init_logging(args):
 
     if debug_opts:
         DebugOpt.from_string(debug_opts)
+        # Start memory tracing early if the MEMORY option was enabled, so that
+        # allocations from the very start of the session are attributable.
+        if DebugOpt.MEMORY.enabled:
+            from picard.util.memprofile import ensure_tracing
+
+            ensure_tracing()
 
     # Enabling any debug option implies debug-level logging, otherwise its
     # log.debug() output would be silently discarded.

@@ -71,6 +71,10 @@ from picard.util import (
     thread,
     throttle,
 )
+from picard.util.memprofile import (
+    log_object_counts,
+    memory_snapshot,
+)
 
 from .edittagdialog import (
     EditTagDialog,
@@ -799,10 +803,12 @@ class MetadataBox(QtWidgets.QTableWidget):
         menu.addAction(lookup_action)
 
     def _apply_update_funcs(self, funcs):
-        with self.tagger.window.ignore_selection_changes:
-            for f in funcs:
-                f()
-        self.tagger.window.update_selection(new_selection=False, drop_album_caches=True)
+        with memory_snapshot("metadatabox._apply_update_funcs", n=len(funcs)):
+            with self.tagger.window.ignore_selection_changes:
+                for f in funcs:
+                    f()
+            self.tagger.window.update_selection(new_selection=False, drop_album_caches=True)
+        log_object_counts("after _apply_update_funcs")
 
     def _use_orig_tags(self, obj, tag, extra_objects=None):
         orig_values = list(obj.orig_metadata.getall(tag)) or [""]
@@ -849,12 +855,13 @@ class MetadataBox(QtWidgets.QTableWidget):
         self._update_objects(self._set_tag_values_delayed_updates(tag, values, objects=objects))
 
     def _remove_tags(self, tags):
-        objects_to_update = set()
-        with self.tagger.window.ignore_selection_changes:
-            for tag in tags:
-                objects_to_update.update(self._set_tag_values_delayed_updates(tag, []))
-        self._update_objects(objects_to_update)
-        self.tagger.window.update_selection(new_selection=False, drop_album_caches=True)
+        with memory_snapshot("metadatabox._remove_tags", n=len(tags)):
+            objects_to_update = set()
+            with self.tagger.window.ignore_selection_changes:
+                for tag in tags:
+                    objects_to_update.update(self._set_tag_values_delayed_updates(tag, []))
+            self._update_objects(objects_to_update)
+            self.tagger.window.update_selection(new_selection=False, drop_album_caches=True)
 
     def remove_selected_tags(self):
         self._remove_tags(self._selected_tags(filter_func=self._tag_is_removable))

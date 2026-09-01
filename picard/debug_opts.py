@@ -182,3 +182,8 @@ class DebugOpt(DebugOptEnum):
     ISRC = 11, N_('ISRC'), N_('Log ISRC processing, submission, and lookup details')
     RATECONTROL = 12, N_('Rate Control'), N_('Log request throttling, congestion window, and backoff details')
     THEME = 13, N_('Theme'), N_('Log theme switching diagnostics, palette colors, and color scheme details')
+    MEMORY = (
+        14,
+        N_('Memory'),
+        N_('Log memory allocation, retention, and object counts for profiling (uses tracemalloc)'),
+    )
