@@ -176,6 +176,20 @@ benchmarking:
    the memory (PICARD-2172) and CPU (PICARD-2530) axes, because the faster copy
    path more than offsets the small getall list-wrapping cost. Verified by the
    full test suite (5935 passed).
+
+   **Verified on a real session** (31 albums, ~575 tracks, 583 files, same
+   collection as the tables above): the per-`Metadata` average dropped from
+   ~8.9 KiB to ~4.2 KiB and the session metadata total from **25.8 MiB to
+   12.2 MiB (−53%)**, with file-side metadata 10.9 → 5.4 MiB. The real-data win
+   (~53%) exceeds the 16-tag microbenchmark (~24%) because real files/tracks
+   carry more tags and a higher proportion of them are single-valued, so more
+   1-element list wrappers are eliminated. The `Metadata` object *count* is
+   unchanged (same collection); this is purely the per-object shrink. No errors
+   or decode failures in the real load path.
+
+   Combined with the release-node compression fix, the two measured components
+   for this collection went from ~35 MiB (25.8 metadata + 9.7 release nodes) to
+   ~12.6 MiB (12.2 + 0.44), both scaling linearly with collection size.
 2. Intern tag keys only (bounded, cheap) — attacks ~24%. Not yet done.
 3. Avoid materializing `Metadata` copies that are never diverged from
    (structural sharing with copy-on-write) — attacks container count; higher
