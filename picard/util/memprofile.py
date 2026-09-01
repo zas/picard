@@ -240,6 +240,22 @@ def _metadata_size(md, seen: set) -> int:
     return deep_getsizeof(md, seen)
 
 
+def _release_node_size(album, seen: set) -> int:
+    """Resident size of an album's retained raw release node.
+
+    Prefers the compressed blob (``_release_node_cache_blob``); falls back to a
+    live ``_release_node`` dict tree that may still be present during loading.
+    Returns 0 if neither is present.
+    """
+    blob = getattr(album, '_release_node_cache_blob', None)
+    if blob is not None:
+        return deep_getsizeof(blob, seen)
+    node = getattr(album, '_release_node', None)
+    if node is not None:
+        return deep_getsizeof(node, seen)
+    return 0
+
+
 def analyze_album_footprint(album, *, log_result: bool = True) -> dict[str, int]:
     """Walk a loaded Album's object graph and return a size breakdown in bytes.
 
@@ -278,14 +294,10 @@ def analyze_album_footprint(album, *, log_result: bool = True) -> dict[str, int]
     seen: set = set()
     breakdown: dict[str, int] = {}
 
-    # 1. Raw MB release node. After loading, Album moves it from
-    #    ``_release_node`` to ``_release_node_cache`` (kept for session export),
-    #    so the raw JSON is retained under one name or the other for the whole
-    #    album lifetime. Measure whichever is present.
-    release_node = getattr(album, '_release_node', None)
-    if release_node is None:
-        release_node = getattr(album, '_release_node_cache', None)
-    breakdown['release_node'] = deep_getsizeof(release_node, seen) if release_node is not None else 0
+    # 1. Raw MB release node retained for session export. Now stored compressed
+    #    (gzipped JSON); measure the resident blob (or a live node still present
+    #    during loading). See _release_node_size.
+    breakdown['release_node'] = _release_node_size(album, seen)
 
     # 2. Cached recordings map, per-medium metadata.
     breakdown['recordings_map'] = deep_getsizeof(getattr(album, '_recordings_map', {}), seen)
@@ -434,12 +446,8 @@ def analyze_session_footprint(tagger, *, log_result: bool = True) -> dict[str, i
     for album in albums:
         tracks = getattr(album, 'tracks', []) or []
         track_count += len(tracks)
-        # Retained raw release node (either attribute name).
-        node = getattr(album, '_release_node', None)
-        if node is None:
-            node = getattr(album, '_release_node_cache', None)
-        if node is not None:
-            release_node_bytes += deep_getsizeof(node, seen)
+        # Retained raw release node (compressed blob, or live node fallback).
+        release_node_bytes += _release_node_size(album, seen)
         c, b = _count_metadata_objects(album, seen)
         metadata_obj_count += c
         metadata_bytes += b

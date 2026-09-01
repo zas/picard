@@ -17,6 +17,8 @@
 
 
 from collections import Counter
+import gzip
+import json
 import tracemalloc
 
 from test.picardtestcase import PicardTestCase
@@ -147,15 +149,16 @@ class MemProfileTestCase(PicardTestCase):
                 self._recordings_map = {}
                 self.per_medium_metadata = {}
                 self.tracks = [FakeTrack(i) for i in range(n_tracks)]
-                # Simulate the retained raw release node. After loading Picard
-                # moves it to _release_node_cache; support both.
+                # Simulate the retained raw release node. During loading it is a
+                # live dict in _release_node; after loading Picard stores it
+                # compressed in _release_node_cache_blob (gzipped JSON).
                 node = {
                     'id': 'x',
                     'media': [{'tracks': [{'title': f'T{i}'} for i in range(n_tracks)]}],
                     'blob': 'x' * 5000,
                 }
                 if use_cache_attr:
-                    self._release_node_cache = node
+                    self._release_node_cache_blob = gzip.compress(json.dumps(node).encode('utf-8'))
                 else:
                     self._release_node = node
 
@@ -185,14 +188,17 @@ class MemProfileTestCase(PicardTestCase):
         self.assertEqual(result['total'], expected_total)
 
     def test_analyze_album_footprint_measures_release_node_cache(self):
-        # After loading, Picard moves the raw node to _release_node_cache; the
-        # analyzer must still measure it there.
+        # After loading, Picard stores the raw node compressed in
+        # _release_node_cache_blob; the analyzer measures the resident blob.
         DebugOpt.MEMORY.enabled = True
         FakeAlbum = self._make_fake_album(n_tracks=2)
         album = FakeAlbum(use_cache_attr=True)
         self.assertFalse(hasattr(album, '_release_node'))
         result = memprofile.analyze_album_footprint(album, log_result=False)
-        self.assertGreater(result['release_node'], 5000)
+        # The compressed blob is measured (non-zero) and, being gzipped, is much
+        # smaller than the ~5 KiB of raw repetitive data it encodes.
+        self.assertGreater(result['release_node'], 0)
+        self.assertLess(result['release_node'], 5000)
 
     def _make_fake_tagger(self, n_albums=2, n_tracks=3, n_files=5):
         FakeAlbum = self._make_fake_album(n_tracks=n_tracks)
