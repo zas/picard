@@ -190,7 +190,14 @@ benchmarking:
    Combined with the release-node compression fix, the two measured components
    for this collection went from ~35 MiB (25.8 metadata + 9.7 release nodes) to
    ~12.6 MiB (12.2 + 0.44), both scaling linearly with collection size.
-2. Intern tag keys only (bounded, cheap) — attacks ~24%. Not yet done.
+2. Intern tag keys only (bounded, cheap) — **investigated, not worthwhile.**
+   Although 24,000 distinct key string *objects* exist across 3,000 Metadata
+   objects (each has its own 'title', 'artist', etc.), CPython's compact dict
+   key-sharing mechanism (PEP 412) already deduplicates at the C level when
+   dicts are created with the same key names. An isolated benchmark (3,000
+   objects with fresh, non-literal keys) showed **no measurable memory
+   difference** with explicit `sys.intern` on the key. Not worth the code
+   change.
 3. Avoid materializing `Metadata` copies that are never diverged from
    (structural sharing with copy-on-write) — attacks container count; higher
    design risk.
