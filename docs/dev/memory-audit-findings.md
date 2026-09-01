@@ -161,16 +161,22 @@ the string payload. The two structural sources the user identified:
 Realistic future levers, in rough order of value vs risk, all needing their own
 benchmarking:
 
-1. Reduce container overhead per `Metadata` (e.g. avoid a separate list object
-   for single-valued tags, which is the common case) — attacks the ~52%.
-   Measured: in a realistic 16-tag object, **15 tags are single-valued and
-   their 1-element list wrappers are 94% of all list overhead** (~24% of the
-   whole object). Storing single values without a list wrapper is therefore the
-   largest non-hot-path-CPU memory lever, but it is a representation change with
-   wide blast radius (`getall`, `rawitems`, `_set`, `_update_from_metadata`, and
-   every consumer that assumes a list), so it needs its own careful,
-   benchmarked change.
-2. Intern tag keys only (bounded, cheap) — attacks ~24%.
+1. **Reduce container overhead per `Metadata` — IMPLEMENTED.** In a realistic
+   16-tag object, 15 tags are single-valued and their 1-element list wrappers
+   were 94% of all list overhead (~24% of the whole object). `Metadata` now
+   stores a single value as a bare `str` internally (multiple values still as a
+   `list[str]`); all public accessors (`getall`, `getraw`, `rawitems`, `items`,
+   `get`) keep presenting values as lists, so the external contract is
+   unchanged. The `copy()`/`_update_from_metadata` path was optimized to copy
+   the internal store directly, sharing immutable bare strings instead of
+   copying 1-element lists.
+
+   Measured on a 16-tag object: **deep size 5559 B → 4239 B (−24%)**, and a
+   build+read+copy cycle went **984 → 883 ms (−10% CPU)** — a rare win on both
+   the memory (PICARD-2172) and CPU (PICARD-2530) axes, because the faster copy
+   path more than offsets the small getall list-wrapping cost. Verified by the
+   full test suite (5935 passed).
+2. Intern tag keys only (bounded, cheap) — attacks ~24%. Not yet done.
 3. Avoid materializing `Metadata` copies that are never diverged from
    (structural sharing with copy-on-write) — attacks container count; higher
    design risk.
