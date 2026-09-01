@@ -81,6 +81,15 @@ also flattened from a runaway 2.2 → 6.0 → 8.2 → 9.7 MiB to a gentle
 20 → 96 → 242 → 375 → 433 KiB. No errors, decode failures, or regressions in
 the real load path (223 album-load events succeeded).
 
+**Future improvement: offload to disk.** The compressed blob could be written
+to a temp file instead of held in RAM, making the resident cost zero per album.
+The pattern is already proven in the codebase: `coverart.image.DataHash` stores
+binary data in temp files with cleanup on `__del__` and periodic touch for
+macOS. The `_release_node_cache` property interface would stay identical; only
+the backing storage changes from `bytes` to a filename. This would eliminate
+the remaining ~433 KiB (and more at collection scale) at the cost of a disk
+read on the rare session-export path.
+
 ## Secondary target analysis: `scripted_metadata` (investigated — do NOT compress)
 
 `Track.scripted_metadata` is a third full `Metadata` copy per track. At the
