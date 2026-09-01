@@ -81,10 +81,47 @@ also flattened from a runaway 2.2 → 6.0 → 8.2 → 9.7 MiB to a gentle
 20 → 96 → 242 → 375 → 433 KiB. No errors, decode failures, or regressions in
 the real load path (223 album-load events succeeded).
 
-## Secondary target
+## Secondary target analysis: `scripted_metadata` (investigated — do NOT compress)
 
 `Track.scripted_metadata` is a third full `Metadata` copy per track. At the
 fully-loaded state above, per-track metadata is ~15 MiB (3 copies) and
-file-side metadata ~10.9 MiB (2 copies/file). Dropping or lazily deriving
-`scripted_metadata` would cut per-track `Metadata` object count by a third.
-Needs an investigation of its consumers before changing.
+file-side metadata ~10.9 MiB (2 copies/file), so on paper it looks like a large
+target. Investigation shows it is **not** a safe compression/lazy-derivation
+target, unlike the release node:
+
+- **It is semantically load-bearing.** `scripted_metadata` is the snapshot of a
+  track's metadata right after the tagger scripts ran, before user edits.
+  `track.metadata.diff(track.scripted_metadata)` therefore equals *the user's
+  manual UI edits*. That diff is used to (a) re-apply user edits on top of
+  freshly-scripted metadata when a file is matched to the track
+  (`track.py` `add_file`), and (b) persist per-track overrides on session
+  export (`session_exporter`). It cannot simply be dropped.
+
+- **It is on the CPU-sensitive hot path.** The `add_file` diff runs once per
+  file-to-track match, i.e. once per file across a whole collection — exactly
+  the kind of per-recording operation PICARD-2530 reports as slow. Storing it
+  compressed (as we did for the release node) or lazily re-deriving it by
+  re-running scripts would trade memory for CPU *on the path that is already a
+  performance complaint*. Wrong trade-off here.
+
+Recommendation: leave `scripted_metadata` as a live `Metadata`. Memory
+reduction for the per-track/per-file `Metadata` objects, if pursued, should
+come from reducing object *overhead* or count in ways that do not add hot-path
+CPU (e.g. interning repeated tag-value strings/keys, or a lighter internal
+representation), not from compressing this specific field.
+
+## Next candidate: string interning of tag keys/values (unverified direction)
+
+`Metadata` stores tag keys and values as plain Python strings. Across a
+collection the same values repeat massively (album name, album artist, genre,
+date, release type, media). A quick measurement over 510 synthetic tracks
+found 8,670 string slots but only 69 distinct strings — i.e. the string
+payload is ~99% duplicated content held as distinct objects.
+
+Interning at the `Metadata._set` boundary (e.g. `sys.intern` for keys plus a
+bounded dedup cache for values) would dedupe these without changing read/write
+semantics. This is promising because it reduces real bytes without adding
+hot-path CPU on the *read* side. It is not yet implemented or benchmarked:
+`_set` is itself a hot path, so the interning lookup cost must be measured, and
+the value-cache must be bounded to avoid unbounded growth / retaining freed
+values. Treat as a separate, benchmarked work item.
