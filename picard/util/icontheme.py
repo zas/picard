@@ -49,7 +49,20 @@ ICON_SIZE_TOOLBAR = ('22x22',)
 ICON_SIZE_ALL = ('22x22', '16x16')
 
 
-def lookup(name: str, size: tuple[str, ...] = ICON_SIZE_ALL) -> QtGui.QIcon:
+# Opt-in flag to prefer the Qt/freedesktop icon theme (QIcon.fromTheme) over the
+# legacy manual theme scan and bundled resource icons. When enabled, icons match
+# the system icon theme resolved by Qt (the same source QFileIconProvider uses),
+# which unifies e.g. the folder icons between the file browser and the cluster
+# view. Defaults to off to preserve the historical behavior; set the environment
+# variable PICARD_SYSTEM_ICONS to a truthy value ("1", "true", "yes", "on") to
+# enable it.
+def use_system_icon_theme() -> bool:
+    value = os.environ.get('PICARD_SYSTEM_ICONS', '').strip().lower()
+    return value in {'1', 'true', 'yes', 'on'}
+
+
+def _lookup_legacy(name: str, size: tuple[str, ...]) -> QtGui.QIcon:
+    """Historical lookup: manual scan of the detected theme, then bundled resources."""
     icon = QtGui.QIcon()
     if _current_theme:
         for path in _search_paths:
@@ -63,3 +76,21 @@ def lookup(name: str, size: tuple[str, ...] = ICON_SIZE_ALL) -> QtGui.QIcon:
     for s in size:
         icon.addFile('/'.join([':', 'images', s, name]) + '.png')
     return icon
+
+
+def lookup(name: str, size: tuple[str, ...] = ICON_SIZE_ALL) -> QtGui.QIcon:
+    if use_system_icon_theme():
+        # Prefer the icon theme resolved by Qt (freedesktop / platform theme).
+        # This is the same source QFileIconProvider uses, so icons stay in sync
+        # with the system theme. Fall back to the legacy lookup (which also
+        # provides Picard's bundled icons for names absent from system themes,
+        # e.g. 'media-optical-modified', 'fingerprint-gray', 'plugin-update').
+        #
+        # Use hasThemeIcon() rather than fromTheme(...).isNull() to decide: for
+        # a name the theme does not provide (e.g. Picard-specific icons like
+        # 'picard-cluster'), fromTheme() may still return a non-null *generic*
+        # fallback icon, which would render as a wrong/placeholder image. Only
+        # hasThemeIcon() reliably reports whether the theme actually has it.
+        if QtGui.QIcon.hasThemeIcon(name):
+            return QtGui.QIcon.fromTheme(name)
+    return _lookup_legacy(name, size)

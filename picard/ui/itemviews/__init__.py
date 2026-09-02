@@ -210,7 +210,14 @@ class MainPanel(QtWidgets.QSplitter):
             view.save_state()
 
     def create_icons(self):
-        if hasattr(QtWidgets.QStyle, 'SP_DirIcon'):
+        # When the system icon theme is preferred (PICARD_SYSTEM_ICONS), use the
+        # themed 'folder' icon so the cluster view matches the file browser
+        # (QFileIconProvider). icontheme.lookup() already falls back to Picard's
+        # bundled icon when the theme has no 'folder'. Otherwise keep the
+        # historical behavior of using the widget style's standard directory icon.
+        if icontheme.use_system_icon_theme():
+            ClusterItem.icon_dir = icontheme.lookup('folder', icontheme.ICON_SIZE_MENU)
+        elif hasattr(QtWidgets.QStyle, 'SP_DirIcon'):
             ClusterItem.icon_dir = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirIcon)
         else:
             ClusterItem.icon_dir = icontheme.lookup('folder', icontheme.ICON_SIZE_MENU)
