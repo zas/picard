@@ -608,8 +608,8 @@ class Plugin:
         )
 
         self.uuid = None
+        manifest_path = self.local_path.joinpath('MANIFEST.toml') if self.local_path else None
         try:
-            manifest_path = self.local_path.joinpath('MANIFEST.toml')
             with open(manifest_path, 'rb') as manifest_file:
                 self.manifest = PluginManifest(self.plugin_id, manifest_file)
         except Exception as e:

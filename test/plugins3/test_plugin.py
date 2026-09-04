@@ -42,7 +42,10 @@ from picard.git.factory import (
     git_backend,
     has_git_backend,
 )
-from picard.plugin3.manager import PluginManifestInvalidError
+from picard.plugin3.manager import (
+    PluginManifestInvalidError,
+    PluginManifestReadError,
+)
 from picard.plugin3.plugin import (
     Plugin,
     PluginAlreadyDisabledError,
@@ -99,6 +102,21 @@ class TestPluginManifestReading(PicardTestCase):
 
                 self.assertIn('Invalid MANIFEST.toml', str(context.exception))
                 self.assertIn('Error 1', str(context.exception))
+
+    def test_read_manifest_local_path_none_raises_read_error(self):
+        """read_manifest() must raise PluginManifestReadError, not crash, when local_path is None.
+
+        Regression test: previously ``manifest_path`` was assigned inside the ``try``
+        block, so if ``self.local_path`` was None the ``joinpath`` call raised before
+        ``manifest_path`` was bound. The ``except`` handler then referenced an unbound
+        ``manifest_path``, raising a confusing ``UnboundLocalError`` that masked the real
+        cause instead of the expected ``PluginManifestReadError``.
+        """
+        plugin = Plugin(Path('/tmp'), 'test-plugin')
+        plugin.local_path = None
+
+        with self.assertRaises(PluginManifestReadError):
+            plugin.read_manifest()
 
 
 class TestPluginSource(PicardTestCase):
