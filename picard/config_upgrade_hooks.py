@@ -865,3 +865,13 @@ def upgrade_scripts_lyrics_comments(settings):
         return [(pos, name, enabled, convert_script(content)) for pos, name, enabled, content in scripts]
 
     upgrade_option_value(settings, 'list_of_scripts', convert_list_of_scripts)
+
+
+@upgrade_settings('3.0.0rc4')
+def remove_release_type_scores_and_rating_steps(settings):
+    """Remove obsolete settings 'release_type_scores' and 'rating_steps'."""
+    if 'release_type_scores' in settings:
+        remove_option(settings, 'release_type_scores')
+
+    if 'rating_steps' in settings:
+        remove_option(settings, 'rating_steps')

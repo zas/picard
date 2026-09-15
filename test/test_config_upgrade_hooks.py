@@ -887,3 +887,14 @@ class TestPicardConfigUpgrades(TestPicardConfigCommon):
             (15, 's16', True, '$copymerge(lyrics::foo,comment::lyrics)'),
         ]
         self.assertEqual(expected_settings, settings['list_of_scripts'])
+
+    def test_remove_release_type_scores_and_rating_steps(self):
+        ListOption('setting', 'release_type_scores', [])
+        self.config.setting['release_type_scores'] = [('Album', 0.5), ('Single', 0.5)]
+
+        IntOption('setting', 'rating_steps', 6)
+        self.config.setting['rating_steps'] = 6
+
+        hooks.remove_release_type_scores_and_rating_steps(self.config.setting)
+        self.assertNotIn('release_type_scores', self.config.setting)
+        self.assertNotIn('rating_steps', self.config.setting)
