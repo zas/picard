@@ -57,6 +57,13 @@ class FormattedTextDelegate(QStyledItemDelegate):
         # Initialize the style option
         self.initStyleOption(option, index)
 
+        # initStyleOption does not clear HasCheckIndicator / checkState when
+        # a column has no check state, so stale flags from a previously-drawn
+        # column bleed through when the view reuses the same option object.
+        # Guard against ghost check indicators by asking the model directly.
+        if index.data(Qt.ItemDataRole.CheckStateRole) is None:
+            option.features &= ~QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+
         # Draw the background
         if option.state & QStyle.StateFlag.State_Selected:
             fill_brush = option.palette.highlight()
