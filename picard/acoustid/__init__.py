@@ -243,6 +243,10 @@ class AcoustIDClient(QtCore.QObject):
         if IS_WIN:
             file_path = win_prefix_longpath(file_path)
         self._fpcalc_runner.set_max_concurrent(self.get_max_processes())
+        # The runner may queue this behind the concurrency limit; it logs the
+        # actual process start ("Running external command"). Here we only note
+        # that the file was queued for fingerprinting.
+        log.debug("Queued fingerprint calculation for %r", task.file.filename)
         self._fpcalc_runner.run(
             [self._fpcalc, '-json', '-length', '120', file_path],
             partial(self._on_fpcalc_success, task),
@@ -251,7 +255,6 @@ class AcoustIDClient(QtCore.QObject):
             timeout=FPCALC_TIMEOUT,
             key=task.file,
         )
-        log.debug("Starting fingerprint calculator %r %r", self._fpcalc, task.file.filename)
 
     def analyze(self, file, next_func):
         fpcalc_next = partial(self._lookup_fingerprint, AcoustIDTask(file, next_func))
