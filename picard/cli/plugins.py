@@ -160,6 +160,17 @@ class PluginsSubcommand(Subcommand):
         p_refs.add_argument('plugin', metavar='PLUGIN', help="plugin name, ID, URL, or UUID")
         p_refs.set_defaults(run_command=_run_plugins)
 
+        # --- migrate (Picard 2 -> 3 plugin migration) ---
+        p_migrate = verb_parsers.add_parser('migrate', help='migrate your Picard 2 plugin selection to Picard 3')
+        p_migrate.add_argument(
+            '--install', action='store_true', help="install the Picard 3 equivalents (non-interactive)"
+        )
+        p_migrate.add_argument(
+            '--clear', action='store_true', help="clear the stored Picard 2 plugin list (non-interactive)"
+        )
+        p_migrate.add_argument('--yes', action='store_true', help="run non-interactively using --install/--clear")
+        p_migrate.set_defaults(run_command=_run_plugins)
+
         # --- switch-ref ---
         p_switch_ref = verb_parsers.add_parser('switch-ref', help='switch plugin to a different git ref')
         p_switch_ref.add_argument('plugin', metavar='PLUGIN', help="plugin name, ID, or UUID")

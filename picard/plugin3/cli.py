@@ -57,6 +57,12 @@ from picard.plugin3.init_templates import (
     write_plugin_project,
 )
 from picard.plugin3.installable import UrlInstallablePlugin
+from picard.plugin3.legacy_migration import (
+    clear_legacy_list,
+    has_pending_legacy_migration,
+    install_resolved_plugins,
+    plan_legacy_migration,
+)
 from picard.plugin3.manager import (
     PluginAlreadyInstalledError,
     PluginBlacklistedError,
@@ -339,6 +345,8 @@ class PluginCLI(BaseCLI):
             return self._cmd_init(self._args.name)
         elif cmd == 'compile-ui':
             return self._cmd_compile_ui(self._args.ui_file, self._args.force)
+        elif cmd == 'migrate':
+            return self._cmd_migrate()
         else:
             self._out.error('No action specified')
             return ExitCode.ERROR
@@ -1755,6 +1763,57 @@ class PluginCLI(BaseCLI):
         except Exception as e:
             self._handle_exception(e, 'Failed to check blacklist')
             return ExitCode.ERROR
+
+    def _cmd_migrate(self):
+        """Migrate a user's Picard v1/v2 plugin selection to v3.
+
+        Offers two independent choices (install v3 equivalents, clear the old
+        list). In non-interactive mode the choices come from --install/--clear.
+        """
+        config = get_config()
+        if not has_pending_legacy_migration(config):
+            self._out.print('No Picard 2 plugin list found to migrate.')
+            return ExitCode.SUCCESS
+
+        plan = plan_legacy_migration(self._manager._registry)
+
+        if plan.resolved:
+            self._out.print('Plugins from your Picard 2 configuration with a Picard 3 equivalent:')
+            for legacy_id, registry_plugin in plan.resolved:
+                self._out.print(f'  {legacy_id} -> {registry_plugin.id}')
+        else:
+            self._out.print('None of your Picard 2 plugins have a Picard 3 equivalent yet.')
+
+        if plan.unresolved:
+            self._out.warning('No Picard 3 equivalent (yet) for: ' + ', '.join(plan.unresolved))
+
+        interactive = not getattr(self._args, 'yes', False)
+        installed = []
+        failed = []
+
+        # Question 1: install equivalents
+        do_install = getattr(self._args, 'install', False)
+        if interactive and plan.resolved:
+            do_install = self._out.yesno('Install the Picard 3 equivalents and enable them?')
+        if do_install and plan.resolved:
+            installed, failed = install_resolved_plugins(self._manager, plan)
+            self._out.success(f'Installed {len(installed)} plugin(s).')
+            if failed:
+                self._out.warning('Failed to install: ' + ', '.join(failed))
+
+        # Question 2: clear the old list (independent of install)
+        do_clear = getattr(self._args, 'clear', False)
+        if interactive:
+            if plan.unresolved:
+                self._out.warning(
+                    'Clearing the list will forget the %d plugin(s) with no Picard 3 equivalent.' % len(plan.unresolved)
+                )
+            do_clear = self._out.yesno('Clear the stored Picard 2 plugin list?')
+        if do_clear:
+            if clear_legacy_list(config):
+                self._out.success('Cleared the stored Picard 2 plugin list.')
+
+        return ExitCode.SUCCESS
 
     def _cmd_refresh_registry(self):
         """Force refresh of plugin registry cache."""

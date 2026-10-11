@@ -915,3 +915,42 @@ class TestPluginRegistry(PicardTestCase):
         url, uuid = metadata_mgr.get_original_metadata(True, 'https://example.com/B', test_uuid)
         self.assertEqual(url, 'https://example.com/A')
         self.assertEqual(uuid, 'original-uuid-A')
+
+    def test_registry_plugin_legacy_id_property(self):
+        """RegistryPlugin exposes the legacy_id mapping list."""
+        registry = create_test_registry()
+        plugin = registry.find_plugin(plugin_id='example-plugin')
+        self.assertIsNotNone(plugin)
+        self.assertIn({'id': 'example_v2', 'version': '2'}, plugin.legacy_id)
+
+    def test_registry_plugin_legacy_id_default_empty(self):
+        """legacy_id defaults to an empty list when not present."""
+        registry = create_test_registry()
+        plugin = registry.find_plugin(plugin_id='discogs')
+        self.assertIsNotNone(plugin)
+        self.assertEqual([], plugin.legacy_id)
+
+    def test_find_plugin_by_legacy_id_default_version(self):
+        """find_plugin_by_legacy_id resolves a v2 legacy ID (default version)."""
+        registry = create_test_registry()
+        plugin = registry.find_plugin_by_legacy_id('example_v2')
+        self.assertIsNotNone(plugin)
+        self.assertEqual('example-plugin', plugin.id)
+
+    def test_find_plugin_by_legacy_id_explicit_version(self):
+        """find_plugin_by_legacy_id honors the legacy version scope."""
+        registry = create_test_registry()
+        plugin = registry.find_plugin_by_legacy_id('example_v1', legacy_version='1')
+        self.assertIsNotNone(plugin)
+        self.assertEqual('example-plugin', plugin.id)
+
+    def test_find_plugin_by_legacy_id_version_mismatch(self):
+        """A legacy ID only matches within its own version scope."""
+        registry = create_test_registry()
+        # example_v1 exists only for version '1', not '2'
+        self.assertIsNone(registry.find_plugin_by_legacy_id('example_v1', legacy_version='2'))
+
+    def test_find_plugin_by_legacy_id_unknown(self):
+        """Unknown legacy IDs resolve to None."""
+        registry = create_test_registry()
+        self.assertIsNone(registry.find_plugin_by_legacy_id('does_not_exist'))

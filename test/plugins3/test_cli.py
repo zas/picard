@@ -42,12 +42,17 @@ from test.plugins3.helpers import (
     create_mock_manager_with_manifest_validation,
     create_test_manifest_content,
     create_test_plugin_dir,
+    create_test_registry,
     get_backend_repo,
     load_plugin_manifest,
     run_cli,
     skip_if_no_git_backend,
 )
 
+from picard.config import (
+    ListOption,
+    get_config,
+)
 from picard.git.backend import GitStatusFlag
 from picard.git.factory import has_git_backend
 from picard.plugin3.cli import (
@@ -1655,3 +1660,58 @@ class TestPluginCLICompileUI(PicardTestCase):
         ui_file = '/invalid/file.ui'
         exit_code, stdout, stderr = run_cli(MockPluginManager(), verb='compile-ui', ui_file=ui_file)
         self.assertEqual(ExitCode.NOT_FOUND, exit_code)
+
+
+class TestPluginCLIMigrate(PicardTestCase):
+    """Tests for the `plugins migrate` CLI command."""
+
+    def setUp(self):
+        super().setUp()
+        ListOption('setting', 'enabled_plugins', [])
+
+    def _manager(self):
+        manager = MockPluginManager()
+        manager._registry = create_test_registry()
+        manager.install_plugin = Mock()
+        manager.select_ref_for_plugin = Mock(return_value='main')
+        return manager
+
+    def test_migrate_no_pending_list(self):
+        """With no legacy list, migrate reports nothing to do."""
+        get_config().setting.remove('enabled_plugins')
+        manager = self._manager()
+        exit_code, stdout, _ = run_cli(manager, verb='migrate', yes=True, install=False, clear=False)
+        self.assertEqual(ExitCode.SUCCESS, exit_code)
+        self.assertIn('No Picard 2 plugin list', stdout)
+        manager.install_plugin.assert_not_called()
+
+    def test_migrate_install_only_non_interactive(self):
+        """--install installs resolved equivalents but keeps the list."""
+        get_config().setting['enabled_plugins'] = ['example_v2', 'not_ported']
+        manager = self._manager()
+        exit_code, stdout, stderr = run_cli(manager, verb='migrate', yes=True, install=True, clear=False)
+        self.assertEqual(ExitCode.SUCCESS, exit_code)
+        manager.install_plugin.assert_called_once_with(
+            'https://github.com/test/example', ref='main', enable_after_install=True
+        )
+        # unresolved reported (warning -> stderr), list preserved (clear not requested)
+        self.assertIn('not_ported', stderr)
+        self.assertIn('enabled_plugins', get_config().setting)
+
+    def test_migrate_clear_only_non_interactive(self):
+        """--clear removes the list without installing."""
+        get_config().setting['enabled_plugins'] = ['example_v2']
+        manager = self._manager()
+        exit_code, _, _ = run_cli(manager, verb='migrate', yes=True, install=False, clear=True)
+        self.assertEqual(ExitCode.SUCCESS, exit_code)
+        manager.install_plugin.assert_not_called()
+        self.assertNotIn('enabled_plugins', get_config().setting)
+
+    def test_migrate_install_and_clear(self):
+        """--install --clear does both."""
+        get_config().setting['enabled_plugins'] = ['example_v2']
+        manager = self._manager()
+        exit_code, _, _ = run_cli(manager, verb='migrate', yes=True, install=True, clear=True)
+        self.assertEqual(ExitCode.SUCCESS, exit_code)
+        manager.install_plugin.assert_called_once()
+        self.assertNotIn('enabled_plugins', get_config().setting)

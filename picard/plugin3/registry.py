@@ -485,6 +485,30 @@ class PluginRegistry:
 
         return None
 
+    def find_plugin_by_legacy_id(self, legacy_id, legacy_version='2'):
+        """Find a plugin that supersedes a legacy (v1/v2) plugin ID.
+
+        Legacy Picard plugins had no UUID, only a plain ID (the key in the old
+        plugins.json). The registry maps those IDs onto their v3 equivalents via
+        the ``legacy_id`` field so the upgrade system can preinstall them.
+
+        Args:
+            legacy_id: Legacy plugin ID to search for
+            legacy_version: Legacy plugin generation the ID belongs to (default '2')
+
+        Returns:
+            RegistryPlugin: Matching plugin or None if no mapping exists
+        """
+        if not self._ensure_registry_loaded('legacy plugin search'):
+            return None
+
+        legacy_version = str(legacy_version)
+        for plugin in self._plugins:
+            for entry in plugin.legacy_id:
+                if entry.get('id') == legacy_id and str(entry.get('version', '')) == legacy_version:
+                    return plugin
+        return None
+
     def resolve_redirect(self, url=None, uuid=None):
         """Resolve registry redirect for a URL and/or UUID.
 
@@ -712,6 +736,17 @@ class RegistryPlugin(InstallablePlugin):
     def redirect_from_uuid(self):
         """Get plugin redirect UUIDs."""
         return self._data.get('redirect_from_uuid', [])
+
+    @property
+    def legacy_id(self):
+        """Get legacy (v1/v2) plugin ID mappings.
+
+        Each entry is a dict with 'id' (the legacy plugin ID, as used in the old
+        plugins.json) and 'version' (the legacy plugin generation, e.g. '2'). Used
+        by the upgrade system to preinstall the v3 equivalent of a plugin a user
+        had enabled in a previous Picard version.
+        """
+        return self._data.get('legacy_id', [])
 
     def get(self, key, default=None):
         """Delegate to underlying data dict."""

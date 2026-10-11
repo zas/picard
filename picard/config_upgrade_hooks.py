@@ -711,8 +711,12 @@ def remove_old_plugin_options(config):
     config.persist.remove('plugins_list_sort_section')
     config.persist.remove('plugins_list_state')
 
-    # Remove old plugin configuration (replaced by plugins3_enabled_plugins)
-    config.setting.remove('enabled_plugins')
+    # NOTE: the old 'enabled_plugins' setting (a list of v1/v2 plugin IDs) is
+    # intentionally NOT removed here. The v3 plugin manager uses it as a pending
+    # migration queue: once the registry is available it resolves each legacy ID
+    # to its v3 equivalent (via the registry's legacy_id mapping), preinstalls it
+    # by UUID into 'plugins3_enabled_plugins', and removes 'enabled_plugins' only
+    # once the queue has been fully drained.
 
 
 @upgrade_settings('3.0.0dev10')

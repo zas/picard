@@ -611,11 +611,14 @@ class TestPicardConfigUpgrades(TestPicardConfigCommon):
 
         hooks.remove_old_plugin_options(self.config)
 
-        # Verify options were removed
+        # Verify obsolete UI state options were removed
         self.assertNotIn('plugins_list_sort_order', self.config.persist)
         self.assertNotIn('plugins_list_sort_section', self.config.persist)
         self.assertNotIn('plugins_list_state', self.config.persist)
-        self.assertNotIn('enabled_plugins', self.config.setting)
+        # enabled_plugins must be preserved: it is the pending legacy-migration
+        # queue consumed by the v3 plugin manager once the registry is available.
+        self.assertIn('enabled_plugins', self.config.setting)
+        self.assertEqual(['plugin1', 'plugin2'], self.config.setting['enabled_plugins'])
 
     def test_lowercase_cover_art_formats(self):
         Option('setting', 'cover_tags_convert_to_format', ImageFormat.JPEG)

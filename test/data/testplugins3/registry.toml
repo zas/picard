@@ -23,6 +23,10 @@ redirect_from = [
 redirect_from_uuid = [
     "old-uuid-1234",
 ]
+legacy_id = [
+    { id = "example_v2", version = "2" },
+    { id = "example_v1", version = "1" },
+]
 added_at = "2025-11-01T10:00:00Z"
 updated_at = "2025-11-20T15:00:00Z"
 

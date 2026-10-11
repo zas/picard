@@ -45,6 +45,12 @@ from picard.i18n import (
     ngettext,
 )
 from picard.plugin3.asyncops.manager import AsyncPluginManager
+from picard.plugin3.legacy_migration import (
+    clear_legacy_list,
+    has_pending_legacy_migration,
+    install_resolved_plugins,
+    plan_legacy_migration,
+)
 
 from picard.ui.dialogs.installplugin import InstallPluginDialog
 from picard.ui.dialogs.plugin_error import show_plugin_error
@@ -69,6 +75,8 @@ class Plugins3OptionsPage(OptionsPage):
         # Cache plugin manager for performance
         self.plugin_manager = self.tagger.get_plugin_manager()
         self._last_plugin_count = 0
+        # Prompt for Picard 2 -> 3 plugin migration at most once per page lifetime.
+        self._legacy_migration_prompted = False
 
         self.setup_ui()
         if self.plugin_manager:
@@ -232,6 +240,75 @@ class Plugins3OptionsPage(OptionsPage):
         except Exception as e:
             log.debug("Error loading plugins", exc_info=True)
             self._show_status(_("Error loading plugins: {}").format(str(e)))
+
+        # Offer to migrate a Picard 2 plugin selection (once per page lifetime).
+        self._maybe_prompt_legacy_migration()
+
+    def _maybe_prompt_legacy_migration(self):
+        """Offer to migrate the user's Picard 2 plugin selection to Picard 3.
+
+        Shown the first time the Plugins options page is opened while a legacy
+        ``enabled_plugins`` list is present. Asks two independent questions:
+        install the Picard 3 equivalents, and clear the stored legacy list.
+        """
+        if self._legacy_migration_prompted or not self.plugin_manager:
+            return
+        if not has_pending_legacy_migration():
+            return
+        self._legacy_migration_prompted = True
+
+        try:
+            plan = plan_legacy_migration(self.plugin_manager._registry)
+        except Exception:
+            log.debug("Legacy plugin migration planning failed", exc_info=True)
+            return
+
+        if not plan.resolved and not plan.unresolved:
+            return
+
+        # Question 1: install the resolved v3 equivalents.
+        if plan.resolved:
+            names = "\n".join(f"\u2022 {legacy_id} \u2192 {p.id}" for legacy_id, p in plan.resolved)
+            text = _(
+                "Picard found plugins from your previous (Picard 2) configuration "
+                "that have a Picard 3 equivalent:\n\n{names}\n\n"
+                "Do you want to install and enable them now?"
+            ).format(names=names)
+            if self._question(_("Migrate Picard 2 plugins"), text):
+                installed, failed = install_resolved_plugins(self.plugin_manager, plan)
+                if failed:
+                    self._show_status(
+                        _("Installed {count} plugin(s); {failed} failed.").format(
+                            count=len(installed), failed=len(failed)
+                        )
+                    )
+                else:
+                    self._show_status(_("Installed {count} plugin(s).").format(count=len(installed)))
+                self._filter_plugins()
+
+        # Question 2: clear the stored legacy list (independent of install).
+        clear_text = _("Do you want to clear the stored Picard 2 plugin list?")
+        if plan.unresolved:
+            clear_text = (
+                _(
+                    "{count} plugin(s) from your Picard 2 configuration have no Picard 3 "
+                    "equivalent yet and will be forgotten if you clear the list:\n\n{names}\n\n"
+                ).format(count=len(plan.unresolved), names=", ".join(plan.unresolved))
+                + clear_text
+            )
+        if self._question(_("Clear Picard 2 plugin list"), clear_text):
+            clear_legacy_list()
+
+    def _question(self, title, text):
+        """Show a Yes/No question dialog; return True if the user chose Yes."""
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            title,
+            text,
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        return reply == QtWidgets.QMessageBox.StandardButton.Yes
 
     def _refresh_all(self):
         """Refresh registry, list, and update status."""
