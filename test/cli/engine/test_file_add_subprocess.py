@@ -72,6 +72,44 @@ finally:
 """
 
 
+# Add a (copied) file then save it; asserts the save reports success. Uses a
+# temp copy because saving writes tags to disk.
+_SAVE_PROGRAM = """
+import shutil
+import sys
+import tempfile
+
+from picard.cli.headless import HeadlessTagger
+from picard.cli.engine.builtins import register_builtins
+from picard.cli.engine.commands import EngineCommandRegistry
+from picard.cli.engine.dispatch import dispatch
+from picard.cli.engine.session import LocalEngineSession
+
+src = sys.argv[1]
+tmp = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+tmp.close()
+shutil.copy(src, tmp.name)
+
+app = HeadlessTagger([])
+try:
+    registry = EngineCommandRegistry()
+    register_builtins(registry)
+    session = LocalEngineSession(app)
+
+    add = dispatch(session, registry, 'file add ' + repr(tmp.name))
+    if add.ok and add.mints:
+        print('ADD_OK')
+
+    result = dispatch(session, registry, 'save f*')
+    if result.ok and result.items and all(it.status == 'saved' for it in result.items):
+        print('SAVE_OK', len(result.items))
+finally:
+    app.run_cleanup()
+    import os
+    os.unlink(tmp.name)
+"""
+
+
 class FileAddSubprocessTest(PicardTestCase):
     def test_file_add_then_ls(self):
         result = subprocess.run(
@@ -88,3 +126,19 @@ class FileAddSubprocessTest(PicardTestCase):
         )
         for marker in ('ADD_OK', 'LS_OK', 'LS_SELECTOR_OK', 'SERIALIZABLE_OK'):
             self.assertIn(marker, result.stdout)
+
+    def test_add_then_save(self):
+        result = subprocess.run(
+            [sys.executable, '-c', _SAVE_PROGRAM, os.path.abspath(_TEST_FILE)],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            timeout=120,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            msg=f"subprocess failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn('ADD_OK', result.stdout)
+        self.assertIn('SAVE_OK', result.stdout)
