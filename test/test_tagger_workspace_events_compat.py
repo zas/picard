@@ -25,6 +25,9 @@ from PyQt6 import QtCore
 
 from test.picardtestcase import PicardTestCase
 
+from picard.album import Album
+from picard.cluster import Cluster
+from picard.file import File
 from picard.tagger import Tagger
 from picard.workspace_events import (
     set_workspace_events_provider,
@@ -37,13 +40,18 @@ class _TaggerSignalStand(QtCore.QObject):
 
     Lets us exercise Tagger._init_workspace_events as an unbound method without
     instantiating the QApplication singleton (only one may exist per process).
+
+    The signals are declared with the SAME concrete entity types as the real
+    Tagger (Album/Cluster/File, i.e. QObject*), not ``object``. This is what
+    lets the test catch the facade (PyQt_PyObject) -> Tagger (QObject*) signal
+    signature mismatch that a plain signal -> signal connect fails on.
     """
 
-    album_added = QtCore.pyqtSignal(object)
-    album_removed = QtCore.pyqtSignal(object)
-    cluster_added = QtCore.pyqtSignal(object)
-    cluster_removed = QtCore.pyqtSignal(object)
-    file_loaded = QtCore.pyqtSignal(object)
+    album_added = QtCore.pyqtSignal(Album)
+    album_removed = QtCore.pyqtSignal(Album)
+    cluster_added = QtCore.pyqtSignal(Cluster)
+    cluster_removed = QtCore.pyqtSignal(Cluster)
+    file_loaded = QtCore.pyqtSignal(File)
     tagger_stats_changed = QtCore.pyqtSignal()
 
 
@@ -54,7 +62,10 @@ class TaggerWorkspaceEventsCompatTest(PicardTestCase):
 
     def test_facade_emissions_reach_tagger_signal_listeners(self):
         stand = _TaggerSignalStand()
-        # Wire the facade exactly as the real Tagger does.
+        # Wire the facade exactly as the real Tagger does. With the stand's
+        # signals declared as the real concrete entity types, this connect is
+        # what regresses if the forwarding uses a plain signal -> signal
+        # connect (Qt: "Incompatible sender/receiver arguments").
         Tagger._init_workspace_events(stand)
 
         received = []
@@ -66,25 +77,26 @@ class TaggerWorkspaceEventsCompatTest(PicardTestCase):
         stand.file_loaded.connect(lambda obj: received.append(('file_loaded', obj)))
         stand.tagger_stats_changed.connect(lambda: received.append(('stats', None)))
 
-        # Core/internal code emits on the facade.
+        # Core/internal code emits on the facade. The facade carries ``object``;
+        # emitting None is accepted by the typed Tagger signals and avoids
+        # constructing heavy Album/Cluster/File instances here.
         events = workspace_events()
-        a, b, c, d, f = (object() for _ in range(5))
-        events.album_added.emit(a)
-        events.album_removed.emit(b)
-        events.cluster_added.emit(c)
-        events.cluster_removed.emit(d)
-        events.file_loaded.emit(f)
+        events.album_added.emit(None)
+        events.album_removed.emit(None)
+        events.cluster_added.emit(None)
+        events.cluster_removed.emit(None)
+        events.file_loaded.emit(None)
         events.tagger_stats_changed.emit()
 
         # Each facade emission is forwarded to the matching Tagger signal.
         self.assertEqual(
             received,
             [
-                ('album_added', a),
-                ('album_removed', b),
-                ('cluster_added', c),
-                ('cluster_removed', d),
-                ('file_loaded', f),
+                ('album_added', None),
+                ('album_removed', None),
+                ('cluster_added', None),
+                ('cluster_removed', None),
+                ('file_loaded', None),
                 ('stats', None),
             ],
         )

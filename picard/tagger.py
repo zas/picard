@@ -537,11 +537,18 @@ class Tagger(WorkspaceHost, QtWidgets.QApplication):
         set_workspace_events_provider(self._workspace_events)
         # Re-emit facade signals on the matching Tagger signal for plugin
         # backward compatibility (see docstring).
-        self._workspace_events.album_added.connect(self.album_added)
-        self._workspace_events.album_removed.connect(self.album_removed)
-        self._workspace_events.cluster_added.connect(self.cluster_added)
-        self._workspace_events.cluster_removed.connect(self.cluster_removed)
-        self._workspace_events.file_loaded.connect(self.file_loaded)
+        #
+        # The facade signals carry ``object`` (PyQt_PyObject) to stay free of
+        # core-entity imports, while the Tagger signals are typed
+        # (Album/Cluster/File, i.e. QObject*). A direct signal -> signal
+        # connect is rejected by Qt as "Incompatible sender/receiver arguments"
+        # because those C++ signatures differ, so we forward through Python
+        # slots that re-emit on the typed Tagger signal instead.
+        self._workspace_events.album_added.connect(lambda obj: self.album_added.emit(obj))
+        self._workspace_events.album_removed.connect(lambda obj: self.album_removed.emit(obj))
+        self._workspace_events.cluster_added.connect(lambda obj: self.cluster_added.emit(obj))
+        self._workspace_events.cluster_removed.connect(lambda obj: self.cluster_removed.emit(obj))
+        self._workspace_events.file_loaded.connect(lambda obj: self.file_loaded.emit(obj))
         self._workspace_events.tagger_stats_changed.connect(self.tagger_stats_changed)
 
     # --- workspace field delegation -----------------------------------------
