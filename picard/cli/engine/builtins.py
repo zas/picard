@@ -27,6 +27,7 @@ both frontends call it so they share one vocabulary.
 import glob
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from picard import config
 from picard.cli.engine.candidates import Candidate
@@ -44,6 +45,7 @@ from picard.file import File
 from picard.services import services
 from picard.util import (
     iter_files_from_objects,
+    mbid_validate,
     scan_paths_recursive,
 )
 from picard.workspace import workspace
@@ -384,6 +386,52 @@ def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _extract_release_mbid(text: str) -> 'str | None':
+    """Extract a release MBID from a bare id or a MusicBrainz release URL.
+
+    Accepts ``<mbid>``, ``https://musicbrainz.org/release/<mbid>`` (any host,
+    optional trailing path/query), or an ``mbid://`` URI. Returns the MBID if
+    valid, else None.
+    """
+    text = text.strip()
+    if mbid_validate(text):
+        return text
+    parsed = urlparse(text)
+    if parsed.scheme in {'http', 'https', 'mbid'}:
+        # Take the last path segment (…/release/<mbid>) or the netloc for mbid://.
+        candidate = (parsed.path.rstrip('/').rsplit('/', 1)[-1]) or parsed.netloc
+        if mbid_validate(candidate):
+            return candidate
+    return None
+
+
+def _cmd_album_load(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Load a release by MBID (or MusicBrainz release URL) as an empty album.
+
+    The album loads with no files attached; files or clusters can then be moved
+    onto it. Mirrors the GUI's load-by-MBID (search+load, tagger button, or a
+    pasted release URL).
+    """
+    arg = args.get('mbid')
+    if not arg:
+        return EngineResult.failure("album load: usage: album load <mbid|url>")
+    if isinstance(arg, list):
+        arg = arg[0] if arg else ''
+    mbid = _extract_release_mbid(arg)
+    if mbid is None:
+        return EngineResult.failure(f"album load: not a release MBID or URL: {arg!r}")
+
+    album = workspace().load_album(mbid)
+    session.run_until_idle(timeout=60)
+
+    handle = session.handle_for(album)
+    status = 'error' if album.errors else 'loaded'
+    return EngineResult(
+        items=[EngineItemResult(handle=handle, status=status, data=describe_entity(album))],
+        mints=[handle],
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -420,6 +468,15 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Identify clusters on MusicBrainz; auto-apply the best match, expose alternatives as m handles.",
             args=('selector',),
             arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='album load',
+            run=_cmd_album_load,
+            help="Load a release by MBID or MusicBrainz URL as an empty album.",
+            args=('mbid',),
+            arg_kinds=('',),
         )
     )
     registry.register(
