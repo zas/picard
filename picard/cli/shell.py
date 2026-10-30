@@ -40,6 +40,26 @@ from picard.cli.subcommand import Subcommand
 _PROMPT = 'picard> '
 
 
+def _setup_readline(registry, session) -> None:
+    """Enable tab-completion (handles + file paths) if readline is available."""
+    try:
+        import readline
+    except ImportError:  # e.g. some Windows Pythons without pyreadline
+        return
+    from picard.cli.engine.completion import ShellCompleter
+
+    completer = ShellCompleter(registry, session, readline.get_line_buffer)
+    readline.set_completer(completer.complete)
+    # Complete whole tokens: do not break on characters common in paths/handles
+    # (default delims include '/', '-', '~', etc. which would split paths).
+    readline.set_completer_delims(' \t\n')
+    # 'libedit' (macOS) uses a different bind syntax than GNU readline.
+    if 'libedit' in getattr(readline, '__doc__', ''):
+        readline.parse_and_bind('bind ^I rl_complete')
+    else:
+        readline.parse_and_bind('tab: complete')
+
+
 class ShellSubcommand(Subcommand):
     def __init__(self):
         super().__init__(
@@ -111,6 +131,8 @@ def _run_shell(args):
     registry = EngineCommandRegistry()
     register_builtins(registry)
     session = LocalEngineSession(app)
+
+    _setup_readline(registry, session)
 
     output.print(output.dim("Picard engine shell — type 'help', 'quit' to exit."))
 
