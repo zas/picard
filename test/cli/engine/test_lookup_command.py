@@ -140,6 +140,33 @@ class ClusterLookupCommandTest(PicardTestCase):
         self.assertEqual(1, len(entities))
         self.assertEqual([], unresolved)
 
+    def test_lookup_release_load_failure_not_reported_as_match(self):
+        # Simulate a failed release load (e.g. a 503 from the server): the
+        # album comes back with errors populated. The lookup must NOT report a
+        # confident match or move files, but still expose the candidates so a
+        # retry via `match` is possible.
+        from picard.album import Album
+
+        def fake_load_album_error(mbid, **kwargs):
+            album = Album(mbid)
+            album.error_append("server replied with status code 503")
+            self._loaded.append(mbid)
+            return album
+
+        workspace().load_album.side_effect = fake_load_album_error
+        move_mock = workspace().move_files_to_album
+
+        result = dispatch(self.session, self.reg, 'cluster lookup')
+        item = result.items[0]
+        self.assertEqual('load_failed', item.status)
+        self.assertIsNone(item.data['matched_album'])
+        self.assertIn('503', item.data.get('error', ''))
+        # Candidates are still exposed for a retry.
+        self.assertEqual(2, len(item.data['candidates']))
+        # No matched-album handle minted; files were not moved.
+        self.assertTrue(all(not h.startswith('a') for h in result.mints))
+        move_mock.assert_not_called()
+
 
 class MatchCommandTest(ClusterLookupCommandTest):
     """Reuses the lookup test harness (mocked find_releases + load_album)."""
@@ -180,3 +207,25 @@ class MatchCommandTest(ClusterLookupCommandTest):
         result = dispatch(self.session, self.reg, f'match {cluster_handle} m99')
         self.assertFalse(result.ok)
         self.assertIn('m99', result.unresolved)
+
+    def test_match_release_load_failure_is_failure(self):
+        cluster_handle, cands = self._lookup()
+        other = next(c for c in cands if not c.get('applied'))
+
+        # The chosen candidate's release load fails (server error).
+        from picard.album import Album
+
+        def fake_load_album_error(mbid, **kwargs):
+            album = Album(mbid)
+            album.error_append("server replied with status code 503")
+            return album
+
+        workspace().load_album.side_effect = fake_load_album_error
+        move_mock = workspace().move_files_to_album
+        move_mock.reset_mock()
+
+        result = dispatch(self.session, self.reg, f'match {cluster_handle} {other["handle"]}')
+        self.assertFalse(result.ok)
+        self.assertIn('503', result.error)
+        # Files must not be moved onto a failed album.
+        move_mock.assert_not_called()
