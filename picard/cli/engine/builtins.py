@@ -35,6 +35,13 @@ from picard.cli.engine.result import (
     EngineItemResult,
     EngineResult,
 )
+from picard.file import File
+from picard.services import services
+from picard.util import (
+    normpath,
+    resolve_fs_path,
+)
+from picard.workspace import workspace
 
 
 # Prefixes shown by a bare ``ls`` (top-level, mirroring the GUI panes).
@@ -96,6 +103,59 @@ def _cmd_ls(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(items=items, resolved=[it.handle for it in items])
 
 
+def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Load one or more audio files into the working set (unclustered).
+
+    Each path is opened with the format registry, registered in the working
+    set's file registry and unclustered bucket, then loaded; the async loads
+    are drained before returning. Successful files are minted as ``f`` handles.
+    """
+    paths = args.get('paths')
+    if not paths:
+        return EngineResult.failure("file add: no paths given")
+    if isinstance(paths, str):
+        paths = [paths]
+
+    wks = workspace()
+    registry = services().format_registry
+    loaded = []
+    items = []
+    for path in paths:
+        # Same normalisation as the GUI's add_files, so the "already loaded"
+        # check below compares like with like.
+        path = normpath(resolve_fs_path(path))
+        existing = wks.files.get(path)
+        if existing is not None:
+            # Never open a second File for a path that is already in the set.
+            items.append(
+                EngineItemResult(handle=session.handle_for(existing), status='already_loaded', data={'path': path})
+            )
+            continue
+        file = registry.open(path)
+        if file is None:
+            items.append(EngineItemResult(handle='', status='unsupported', data={'path': path}))
+            continue
+        wks.files[file.filename] = file
+        wks.unclustered_files.add_file(file)
+        file.load(lambda _f: None)
+        loaded.append(file)
+
+    # Drain all the scheduled loads together.
+    session.run_until_idle(timeout=120)
+
+    mints = []
+    for file in loaded:
+        if file.state == File.State.ERROR:
+            items.append(EngineItemResult(handle='', status='error', data={'path': file.filename}))
+            continue
+        handle = session.handle_for(file)
+        mints.append(handle)
+        items.append(EngineItemResult(handle=handle, status='added', data=describe_entity(file)))
+
+    ok = any(it.status == 'added' for it in items) or not loaded
+    return EngineResult(ok=ok, items=items, mints=mints)
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -104,5 +164,13 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_ls,
             help="List working-set entities (optionally matching a selector) with their handles.",
             args=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='file add',
+            run=_cmd_file_add,
+            help="Load one or more audio files into the working set.",
+            args=('paths',),
         )
     )
