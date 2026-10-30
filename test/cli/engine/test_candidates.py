@@ -50,8 +50,21 @@ class CandidateTest(PicardTestCase):
         self.assertIn('title', data)
         self.assertEqual(0.1234, data['similarity'])
         self.assertTrue(data['applied'])
+        # Entity type is always present (MB vocabulary); a lookup candidate is
+        # a release, so the reference is release:<mbid>.
+        self.assertEqual('release', data['entity_type'])
         # Must be JSON-serializable (MCP / cross-process).
         json.dumps(data)
+
+    def test_describe_includes_entity_type_even_with_none_release(self):
+        c = Candidate(SimMatchRelease(similarity=-1, release=None))
+        data = c.describe()
+        self.assertEqual('release', data['entity_type'])
+
+    def test_entity_type_override(self):
+        c = Candidate(SimMatchRelease(similarity=0.9, release=self.release), entity_type='recording')
+        self.assertEqual('recording', c.entity_type)
+        self.assertEqual('recording', c.describe()['entity_type'])
 
     def test_describe_handles_none_release(self):
         c = Candidate(SimMatchRelease(similarity=-1, release=None))

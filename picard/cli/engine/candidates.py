@@ -59,13 +59,19 @@ class Candidate:
     ``match`` holds the :class:`~picard.matching.SimMatchRelease` (its
     ``release`` is the raw MB release search node; ``similarity`` the final
     score). ``applied`` is True for the candidate auto-applied by the lookup.
+
+    ``entity_type`` is the MusicBrainz entity type the candidate's MBID
+    addresses — currently always ``'release'`` (cluster lookup searches
+    releases), but carried explicitly so a future recording/other lookup can
+    mint candidates of a different type without the renderer having to guess.
     """
 
-    __slots__ = ('match', 'applied', '__weakref__')
+    __slots__ = ('match', 'applied', 'entity_type', '__weakref__')
 
-    def __init__(self, match: Any, applied: bool = False):
+    def __init__(self, match: Any, applied: bool = False, entity_type: str = 'release'):
         self.match = match
         self.applied = applied
+        self.entity_type = entity_type
 
     @property
     def release_id(self) -> 'str | None':
@@ -86,6 +92,7 @@ class Candidate:
         release = self.match.release or {}
         rg = release.get('release-group') or {}
         data: dict[str, Any] = {
+            'entity_type': self.entity_type,
             'mbid': release.get('id'),
             'title': release.get('title'),
             'artist': _artist_name(release),
