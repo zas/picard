@@ -202,6 +202,10 @@ from picard.workspace import (
     Workspace,
     set_workspace_provider,
 )
+from picard.workspace_events import (
+    WorkspaceEvents,
+    set_workspace_events_provider,
+)
 
 import picard.resources  # noqa: F401 # pylint: disable=unused-import
 
@@ -507,6 +511,21 @@ class Tagger(QtWidgets.QApplication):
         # See picard.workspace.
         self._workspace = Workspace()
         set_workspace_provider(self._workspace)
+
+        # The working-set-changed signals are migrating off Tagger onto the
+        # WorkspaceEvents facade (picard.workspace_events). Own an emitter,
+        # install it as the provider, and bridge Tagger's own signals into it.
+        # The bridge lets connectors move to workspace_events() while emitters
+        # still emit on Tagger (one side at a time), with nothing breaking
+        # mid-migration; it is removed once both sides are migrated.
+        self._workspace_events = WorkspaceEvents()
+        set_workspace_events_provider(self._workspace_events)
+        self.album_added.connect(self._workspace_events.album_added)
+        self.album_removed.connect(self._workspace_events.album_removed)
+        self.cluster_added.connect(self._workspace_events.cluster_added)
+        self.cluster_removed.connect(self._workspace_events.cluster_removed)
+        self.file_loaded.connect(self._workspace_events.file_loaded)
+        self.tagger_stats_changed.connect(self._workspace_events.tagger_stats_changed)
 
     # --- workspace field delegation -----------------------------------------
     #
