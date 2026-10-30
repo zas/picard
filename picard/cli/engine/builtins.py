@@ -24,6 +24,8 @@ frontend renders the result.
 both frontends call it so they share one vocabulary.
 """
 
+import glob
+import os
 from typing import Any
 
 from picard import config
@@ -40,7 +42,10 @@ from picard.cli.engine.result import (
 from picard.cluster import Cluster
 from picard.file import File
 from picard.services import services
-from picard.util import iter_files_from_objects
+from picard.util import (
+    iter_files_from_objects,
+    scan_paths_recursive,
+)
 from picard.workspace import workspace
 
 
@@ -103,12 +108,61 @@ def _cmd_ls(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(items=items, resolved=[it.handle for it in items])
 
 
+def _expand_input_paths(tokens: list[str]) -> 'tuple[list[str], list[str]]':
+    """Expand user path tokens to concrete paths, recursing into directories.
+
+    Each token is ``~``-expanded and glob-expanded (so ``dir/*`` works inside
+    the REPL, where no shell expands it). Directories are walked via
+    scan_paths_recursive (respecting the recursively_add_files /
+    ignore_hidden_files settings). Returns ``(files, unmatched_tokens)`` where
+    unmatched tokens are those matching no existing path.
+    """
+    settings = config.get_config().setting
+    recursive = settings['recursively_add_files']
+    ignore_hidden = settings['ignore_hidden_files']
+
+    roots: list[str] = []
+    unmatched: list[str] = []
+    for token in tokens:
+        expanded = os.path.expanduser(token)
+        if glob.has_magic(expanded):
+            matches = glob.glob(expanded)
+            if matches:
+                roots.extend(matches)
+            else:
+                unmatched.append(token)
+        elif os.path.exists(expanded):
+            roots.append(expanded)
+        else:
+            unmatched.append(token)
+
+    # Fallback for unquoted paths containing spaces: the shell tokenizer split
+    # e.g. "/music/Second tour/" into ["/music/Second", "tour/"]. If the
+    # leftover tokens, re-joined with spaces, name an existing path (or a glob
+    # that matches), treat them as that single path rather than reporting each
+    # fragment as unresolved.
+    if unmatched:
+        joined = os.path.expanduser(' '.join(unmatched))
+        if glob.has_magic(joined):
+            matches = glob.glob(joined)
+            if matches:
+                roots.extend(matches)
+                unmatched = []
+        elif os.path.exists(joined):
+            roots.append(joined)
+            unmatched = []
+
+    files = list(scan_paths_recursive(roots, recursive, ignore_hidden))
+    return files, unmatched
+
+
 def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Load one or more audio files into the working set (unclustered).
 
-    Each path is opened with the format registry, registered in the working
-    set's file registry and unclustered bucket, then loaded; the async loads
-    are drained before returning. Successful files are minted as ``f`` handles.
+    Accepts files, directories (walked) and globs. Each resolved file is opened
+    with the format registry, registered in the working set's file registry and
+    unclustered bucket, then loaded; the async loads are drained before
+    returning. Successfully loaded files are minted as ``f`` handles.
     """
     paths = args.get('paths')
     if not paths:
@@ -116,11 +170,13 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     if isinstance(paths, str):
         paths = [paths]
 
+    filepaths, unmatched = _expand_input_paths(list(paths))
+
     ws = workspace()
     registry = services().format_registry
     loaded = []
     items = []
-    for path in paths:
+    for path in filepaths:
         file = registry.open(path)
         if file is None:
             items.append(EngineItemResult(handle='', status='unsupported', data={'path': path}))
@@ -142,8 +198,8 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         mints.append(handle)
         items.append(EngineItemResult(handle=handle, status='added', data=describe_entity(file)))
 
-    ok = any(it.status == 'added' for it in items) or not loaded
-    return EngineResult(ok=ok, items=items, mints=mints)
+    ok = any(it.status == 'added' for it in items) or (not loaded and not unmatched)
+    return EngineResult(ok=ok, items=items, mints=mints, unresolved=unmatched)
 
 
 def _cmd_cluster(session: EngineSession, args: dict[str, Any]) -> EngineResult:
