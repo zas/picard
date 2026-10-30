@@ -97,8 +97,15 @@ def run_repl(session, registry, output, read_line) -> None:
         try:
             line = read_line()
         except EOFError:
+            # Ctrl-D at the prompt: leave the shell.
             output.nl()
             return
+        except KeyboardInterrupt:
+            # Ctrl-C cancels the current line and returns to a fresh prompt
+            # (as in the Python REPL / psql), rather than crashing with a
+            # traceback. Use quit/exit or Ctrl-D to leave.
+            output.nl()
+            continue
         line = line.strip()
         if not line:
             continue
@@ -108,7 +115,14 @@ def run_repl(session, registry, output, read_line) -> None:
         if head == 'help':
             _print_help(registry, output)
             continue
-        result = dispatch(session, registry, line)
+        try:
+            result = dispatch(session, registry, line)
+        except KeyboardInterrupt:
+            # Ctrl-C during a running command (e.g. a lookup pumping the event
+            # loop) aborts that command and returns to the prompt.
+            output.nl()
+            output.warning("interrupted")
+            continue
         render_result(result, output)
 
 
