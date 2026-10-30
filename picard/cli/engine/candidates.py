@@ -27,14 +27,30 @@ once the session drops the old ones their weak handles expire. The session
 holds the current candidates (keyed by target) with strong refs; see
 ``LocalEngineSession``.
 
-``describe()`` projects a candidate to a small, JSON-serializable dict mirroring
-the fields the GUI search dialog shows, for an EngineResult item.
+``describe()`` projects a candidate to a small, JSON-serializable dict read
+directly from the MB release search node (the fields the GUI search dialog
+shows), for an EngineResult item. It deliberately avoids the full
+``release_to_metadata`` mapping, which drags in config-dependent artist
+standardization/translation unneeded for a display projection.
 """
 
 from typing import Any
 
-from picard.mbjson import release_to_metadata
-from picard.metadata import Metadata
+
+def _artist_name(release: dict) -> 'str | None':
+    """Best-effort artist label from a release search node (no standardization)."""
+    credits = release.get('artist-credit')
+    if not credits:
+        return None
+    parts = []
+    for credit in credits:
+        name = credit.get('name') or credit.get('artist', {}).get('name')
+        if name:
+            parts.append(name)
+        join = credit.get('joinphrase')
+        if join:
+            parts.append(join)
+    return ''.join(parts) or None
 
 
 class Candidate:
@@ -61,28 +77,25 @@ class Candidate:
         return self.match.similarity
 
     def describe(self) -> dict[str, Any]:
-        """A small, serializable projection of the candidate release."""
-        release = self.match.release
-        meta = Metadata()
-        # Canonical mapping of the MB release node to metadata fields (only when
-        # there is a release; the no-match sentinel has release None).
-        if release:
-            release_to_metadata(release, meta)
-        else:
-            release = {}
+        """A small, serializable projection of the candidate release.
+
+        Reads display fields straight from the MB release search node (as the
+        GUI search dialog does), so it needs no config and tolerates the
+        no-match sentinel (release None).
+        """
+        release = self.match.release or {}
+        rg = release.get('release-group') or {}
         data: dict[str, Any] = {
             'mbid': release.get('id'),
-            'title': meta['album'] or release.get('title'),
-            'artist': meta['albumartist'] or meta['artist'],
-            'date': meta['date'],
-            'country': meta['releasecountry'],
+            'title': release.get('title'),
+            'artist': _artist_name(release),
+            'date': release.get('date'),
+            'country': release.get('country'),
+            'type': rg.get('primary-type'),
+            'tracks': release.get('track-count'),
             'score': release.get('score'),
             'similarity': round(self.similarity, 4),
             'applied': self.applied,
         }
-        # Track count from the search node, when present.
-        track_count = release.get('track-count')
-        if track_count is not None:
-            data['tracks'] = track_count
         # Drop empty values for a tidy result.
         return {k: v for k, v in data.items() if v not in ('', None)}
