@@ -142,6 +142,27 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(ok=ok, items=items, mints=mints)
 
 
+def _cmd_cluster(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Group the selected files into clusters by their metadata.
+
+    Defaults to clustering the unclustered bucket (``f*``). Resulting clusters
+    are minted as ``c`` handles; single-file groups stay unclustered.
+    """
+    selector = args.get('selector') or 'f*'
+    entities, unresolved = session.resolve(selector)
+    files = [e for e in entities if isinstance(e, File)]
+    clusters = workspace().cluster_files(files)
+    items = []
+    mints = []
+    for cluster in clusters:
+        handle = session.handle_for(cluster)
+        mints.append(handle)
+        items.append(EngineItemResult(handle=handle, status='clustered', data=describe_entity(cluster)))
+    return EngineResult(
+        items=items, mints=mints, resolved=[session.handle_for(f) for f in files], unresolved=unresolved
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -158,5 +179,13 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_file_add,
             help="Load one or more audio files into the working set.",
             args=('paths',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='cluster',
+            run=_cmd_cluster,
+            help="Group files (default: unclustered) into clusters by metadata.",
+            args=('selector',),
         )
     )
