@@ -52,6 +52,20 @@ class RenderResultTest(PicardTestCase):
         self.assertIn('OK Computer', text)
         self.assertIn('minted', text)
 
+    def test_render_item_shows_type_mbid(self):
+        out, buf = _output()
+        result = EngineResult(
+            items=[
+                EngineItemResult(
+                    'a1',
+                    'listed',
+                    {'entity_type': 'release', 'mbid': 'rel-123', 'title': 'OK Computer'},
+                )
+            ],
+        )
+        render_result(result, out)
+        self.assertIn('release:rel-123', buf.getvalue())
+
     def test_render_failure(self):
         out, buf = _output()
         render_result(EngineResult.failure('boom', unresolved=['a9']), out)
@@ -68,7 +82,14 @@ class RenderResultTest(PicardTestCase):
                     'matched',
                     {
                         'candidates': [
-                            {'handle': 'm1', 'title': 'Best', 'similarity': 0.9, 'applied': True},
+                            {
+                                'handle': 'm1',
+                                'entity_type': 'release',
+                                'mbid': 'rel-abc',
+                                'title': 'Best',
+                                'similarity': 0.9,
+                                'applied': True,
+                            },
                             {'handle': 'm2', 'title': 'Other', 'similarity': 0.5},
                         ]
                     },
@@ -79,6 +100,7 @@ class RenderResultTest(PicardTestCase):
         text = buf.getvalue()
         self.assertIn('m1', text)
         self.assertIn('Best', text)
+        self.assertIn('release:rel-abc', text)
         self.assertIn('* ', text)  # applied marker
 
     def test_render_empty(self):
