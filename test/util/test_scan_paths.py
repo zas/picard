@@ -18,13 +18,21 @@ import os
 
 from test.picardtestcase import PicardTestCase
 
-from picard.util import scan_paths_recursive
+from picard.util import (
+    normpath,
+    scan_paths_recursive,
+)
 
 
 class ScanPathsRecursiveTest(PicardTestCase):
     def setUp(self):
         super().setUp()
-        self.root = self.mktmpdir()
+        # scan_paths_recursive runs every path through normpath() (which
+        # resolves realpath), so normalize the root the same way. Otherwise on
+        # Windows the temp dir's realpath (AppData\Local\Temp may be a junction)
+        # differs from mktmpdir()'s raw path and os.path.relpath() below yields
+        # "..\..\.." noise instead of the plain names. See PR #3544 CI failure.
+        self.root = normpath(self.mktmpdir())
         self._touch('a.mp3')
         self._touch('b.flac')
         os.mkdir(os.path.join(self.root, 'sub'))
@@ -39,7 +47,7 @@ class ScanPathsRecursiveTest(PicardTestCase):
         return sorted(os.path.relpath(p, self.root) for p in paths)
 
     def test_file_path_yielded_as_is(self):
-        f = os.path.join(self.root, 'a.mp3')
+        f = normpath(os.path.join(self.root, 'a.mp3'))
         self.assertEqual([f], list(scan_paths_recursive([f], recursive=True, ignore_hidden=True)))
 
     def test_directory_non_recursive(self):
@@ -69,7 +77,7 @@ class ScanPathsRecursiveTest(PicardTestCase):
         self.assertIn('.hidden.mp3', all_files)
 
     def test_missing_path_is_skipped(self):
-        missing = os.path.join(self.root, 'does-not-exist')
+        missing = normpath(os.path.join(self.root, 'does-not-exist'))
         # Non-dir, non-existent path is yielded as-is (caller decides); a
         # genuinely unreadable directory would be logged and skipped.
         self.assertEqual([missing], list(scan_paths_recursive([missing], recursive=True, ignore_hidden=True)))
