@@ -57,13 +57,23 @@ class CompleteTest(PicardTestCase):
         self.assertNotIn('ls', matches)
 
     def test_two_word_verb_completion(self):
-        # "cluster " -> offer the verb of the two-word command.
+        # "cluster " -> offer BOTH the verb of the two-word command (lookup)
+        # and the one-word command's selector args, because 'cluster' is both a
+        # command and the noun of 'cluster lookup'.
         matches = self._complete('cluster ')
-        # At this point tokens=['cluster'] which IS a command; arg0 is a
-        # selector, so we get handles/wildcards — plus verb completion is only
-        # when the one-word token is NOT itself a command. 'cluster' is a
-        # command, so selector completion applies here.
+        self.assertIn('lookup', matches)
         self.assertIn('a*', matches)
+
+    def test_second_word_completes_verb_when_first_word_is_also_command(self):
+        # Regression: 'cluster loo<TAB>' must complete to 'lookup' even though
+        # 'cluster' is itself a valid command (its arg0 is a selector).
+        matches = self._complete('cluster loo')
+        self.assertEqual(['lookup'], matches)
+
+    def test_second_word_verb_completion_filters_by_prefix(self):
+        # A prefix that matches no verb (and no handle) yields nothing.
+        matches = self._complete('cluster zzz')
+        self.assertEqual([], matches)
 
     def test_selector_arg_completes_handles_and_wildcards(self):
         # Mint handles first so they are live.
