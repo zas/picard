@@ -154,6 +154,12 @@ class LsCommandTest(PicardTestCase):
         self.assertTrue(r.ok)
         self.assertEqual(['a1'], [it.handle for it in r.items])
 
+    def test_ls_album_item_carries_release_ref(self):
+        r = dispatch(self.session, self.reg, 'ls a*')
+        data = r.items[0].data
+        self.assertEqual('release', data['entity_type'])
+        self.assertEqual('rel-1', data['mbid'])
+
     def test_ls_unknown_handle_reported_unresolved(self):
         r = dispatch(self.session, self.reg, 'ls a9')
         self.assertEqual([], r.items)

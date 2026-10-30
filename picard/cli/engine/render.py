@@ -29,9 +29,30 @@ from picard.cli.engine.result import EngineResult
 from picard.cli.output import CliOutput
 
 
+def _entity_ref(item: dict[str, Any]) -> str:
+    """Build a ``<type>:<mbid>`` MusicBrainz reference from an item dict.
+
+    Used to always surface which entity a candidate/match points at (e.g.
+    ``release:0bad6e23-...``). Falls back gracefully: a bare MBID if the type
+    is absent, or ``''`` if there is no MBID at all.
+    """
+    mbid = item.get('mbid')
+    if not mbid:
+        return ''
+    entity_type = item.get('entity_type')
+    return f"{entity_type}:{mbid}" if entity_type else str(mbid)
+
+
 def _format_item_data(data: dict[str, Any]) -> str:
-    """Compact one-line summary of an item's data (title/artist/path/etc.)."""
+    """Compact one-line summary of an item's data (title/artist/path/etc.).
+
+    Leads with the ``<type>:<mbid>`` reference when the item points at a
+    MusicBrainz entity, so every listed entity shows what it is and resolves to.
+    """
     parts = []
+    ref = _entity_ref(data)
+    if ref:
+        parts.append(ref)
     for key in ('title', 'artist', 'filename', 'path', 'file_count', 'matched_album', 'error'):
         value = data.get(key)
         if value not in (None, ''):
@@ -61,7 +82,12 @@ def render_result(result: EngineResult, output: CliOutput) -> None:
             title = cand.get('title', '')
             score = cand.get('similarity')
             score_s = f" ({score})" if score is not None else ''
-            output.print(f"    {mark} {chandle}  {title}{score_s}")
+            # Always show the MusicBrainz entity reference as <type>:<mbid>
+            # (e.g. release:0bad6e23-...), so a candidate is unambiguously
+            # identifiable and directly usable with the lookup/URL tools.
+            ref = _entity_ref(cand)
+            ref_s = f"{output.dim(ref)}  " if ref else ''
+            output.print(f"    {mark} {chandle}  {ref_s}{title}{score_s}")
 
     if result.mints:
         output.print(output.dim("minted: " + ', '.join(result.mints)))

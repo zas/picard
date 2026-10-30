@@ -30,6 +30,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from picard import config
+from picard.album import Album
 from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.commands import (
     EngineCommand,
@@ -43,6 +44,7 @@ from picard.cli.engine.result import (
 from picard.cluster import Cluster
 from picard.file import File
 from picard.services import services
+from picard.track import Track
 from picard.util import (
     iter_files_from_objects,
     mbid_validate,
@@ -55,6 +57,25 @@ from picard.workspace import workspace
 _LS_PREFIXES = ('f', 'c', 'a')
 
 
+def _entity_mb_ref(entity: Any) -> 'tuple[str, str] | tuple[None, None]':
+    """Return the ``(entity_type, mbid)`` an entity points at, or ``(None, None)``.
+
+    Uses MusicBrainz entity-type vocabulary (``release`` for albums,
+    ``recording`` for tracks/files) so the reference round-trips with the
+    MB web service and the ``album load <type>:<mbid>`` style tools. The MBID
+    comes from the entity's own identity (Album.id / Track.id) or, for a
+    standalone file, its ``musicbrainz_recordingid`` tag.
+    """
+    if isinstance(entity, Album):
+        return ('release', entity.id) if entity.id else (None, None)
+    if isinstance(entity, Track):
+        return ('recording', entity.id) if entity.id else (None, None)
+    if isinstance(entity, File):
+        recording_id = entity.metadata['musicbrainz_recordingid']
+        return ('recording', recording_id) if recording_id else (None, None)
+    return (None, None)
+
+
 def describe_entity(entity: Any) -> dict[str, Any]:
     """A small, serializable summary of an entity for ``ls`` / item data.
 
@@ -62,6 +83,10 @@ def describe_entity(entity: Any) -> dict[str, Any]:
     source the GUI columns use), falling back to a filename for files.
     """
     data: dict[str, Any] = {}
+    entity_type, mbid = _entity_mb_ref(entity)
+    if entity_type and mbid:
+        data['entity_type'] = entity_type
+        data['mbid'] = mbid
     column = getattr(entity, 'column', None)
     if callable(column):
         # Title/artist are the common human labels for albums/clusters/tracks.
