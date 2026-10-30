@@ -342,12 +342,14 @@ class Tagger(WorkspaceHost, QtWidgets.QApplication):
         debug = self._debug or DebugOpt.any_enabled()
         log.set_verbosity(logging.DEBUG if debug else config.setting['log_verbosity'])
 
-        setup_audit(self._audit)
-
-        # Route Qt's own log messages through Picard's logging and drop the
-        # known-benign Qt-internal warnings (e.g. the spurious QSslSocket
-        # "device not open" read warning on HTTP/2 error replies).
+        # Route Qt's own log messages through Picard's logging as soon as the
+        # log is configured, so Qt diagnostics emitted during the rest of
+        # startup are captured. Also drops the known-benign Qt-internal
+        # warnings (e.g. the spurious QSslSocket "device not open" read warning
+        # on HTTP/2 error replies).
         install_qt_message_handler()
+
+        setup_audit(self._audit)
 
     def _init_threads(self):
         """Initialize threads"""
