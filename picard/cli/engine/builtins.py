@@ -80,8 +80,13 @@ def describe_entity(entity: Any) -> dict[str, Any]:
     """A small, serializable summary of an entity for ``ls`` / item data.
 
     Uses the entity's own ``column()`` accessors where available (the same
-    source the GUI columns use), falling back to a filename for files.
+    source the GUI columns use), falling back to a filename for files. A lookup
+    :class:`Candidate` is projected via its own ``describe()`` so ``ls m*``
+    shows the same release reference/title/score as the lookup listing.
     """
+    if isinstance(entity, Candidate):
+        return entity.describe()
+
     data: dict[str, Any] = {}
     entity_type, mbid = _entity_mb_ref(entity)
     if entity_type and mbid:
