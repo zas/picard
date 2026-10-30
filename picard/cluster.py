@@ -494,8 +494,14 @@ class Cluster(FileList):
             )
         return best_match.result.release, best_match.reason
 
-    def lookup_metadata(self):
-        """Try to identify the cluster using the existing metadata."""
+    def lookup_metadata(self, callback=None):
+        """Try to identify the cluster using the existing metadata.
+
+        ``callback`` overrides the default auto-apply handler
+        (:meth:`_lookup_finished`); it receives the usual
+        ``(document, http, error)``. The headless lookup command passes its own
+        callback to capture the ranked candidates.
+        """
         if self._lookup_task:
             return
         notifier().status_message(
@@ -505,7 +511,7 @@ class Cluster(FileList):
         config = get_config()
         freq = self._most_frequent_values(('catalognumber', 'label'))
         self._lookup_task = services().mb_api.find_releases(
-            self._lookup_finished,
+            callback or self._lookup_finished,
             artist=self.metadata['albumartist'],
             release=self.metadata['album'],
             tracks=str(len(self.files)),

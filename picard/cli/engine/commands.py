@@ -75,6 +75,14 @@ class EngineSession(Protocol):
         """Yield the live entities of a handle prefix (for wildcards / ls)."""
         ...
 
+    def set_candidates(self, target: Any, candidates: list[Any]) -> list[str]:
+        """Replace the lookup candidates for ``target``; return their handles."""
+        ...
+
+    def candidates_for(self, target: Any) -> list[Any]:
+        """Return the current candidates held for ``target`` (may be empty)."""
+        ...
+
     def run_until_idle(self, timeout: float | None = None) -> bool:
         """Drain async work (thread pools, pending requests) to completion."""
         ...
