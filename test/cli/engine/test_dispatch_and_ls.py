@@ -165,6 +165,28 @@ class LsCommandTest(PicardTestCase):
         self.assertEqual([], r.items)
         self.assertEqual(['a9'], r.unresolved)
 
+    def test_ls_candidate_shows_release_ref_and_title(self):
+        # A candidate (m handle) listed via ls must carry the same projection
+        # as the lookup listing (type:mbid, title, score), not an empty line.
+        from picard.cli.engine.candidates import Candidate
+        from picard.matching import SimMatchRelease
+
+        release = {
+            'id': 'rel-cand',
+            'title': 'A Candidate Release',
+            'artist-credit': [{'name': 'The Artist', 'artist': {'name': 'The Artist'}}],
+        }
+        cand = Candidate(SimMatchRelease(similarity=0.42, release=release))
+        (handle,) = self.session.set_candidates(object(), [cand])
+
+        r = dispatch(self.session, self.reg, f'ls {handle}')
+        self.assertTrue(r.ok)
+        data = r.items[0].data
+        self.assertEqual('release', data['entity_type'])
+        self.assertEqual('rel-cand', data['mbid'])
+        self.assertEqual('A Candidate Release', data['title'])
+        self.assertEqual(0.42, data['similarity'])
+
     def test_ls_result_is_serializable(self):
         import json
 
