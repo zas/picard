@@ -158,3 +158,32 @@ class RunReplTest(PicardTestCase):
     def test_unknown_command_rendered_as_error(self):
         run_repl(self.session, self.reg, self.out, self._lines('bogus thing', 'quit'))
         self.assertIn('unknown command', self.buf.getvalue())
+
+    def test_ctrl_c_at_prompt_cancels_line_and_continues(self):
+        # Ctrl-C at the prompt raises KeyboardInterrupt from read_line; the loop
+        # must swallow it, return to the prompt, and NOT exit or crash.
+        calls = iter([KeyboardInterrupt(), 'ls', 'quit'])
+
+        def read_line():
+            value = next(calls)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        run_repl(self.session, self.reg, self.out, read_line)
+        # The command after the interrupt still ran (a1 rendered).
+        self.assertIn('a1', self.buf.getvalue())
+
+    def test_ctrl_c_during_command_is_caught(self):
+        # Ctrl-C while a command runs (dispatch) must abort that command and
+        # return to the prompt rather than propagating out of run_repl.
+        # KeyboardInterrupt is a BaseException, so dispatch's `except Exception`
+        # does not swallow it; run_repl must catch it around dispatch.
+        from picard.cli.engine.commands import EngineCommand
+
+        def boom(session, args):
+            raise KeyboardInterrupt()
+
+        self.reg.register(EngineCommand(name='hang', run=boom))
+        run_repl(self.session, self.reg, self.out, self._lines('hang', 'quit'))
+        self.assertIn('interrupted', self.buf.getvalue())
