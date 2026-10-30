@@ -336,6 +336,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_ls,
             help="List working-set entities (optionally matching a selector) with their handles.",
             args=('selector',),
+            arg_kinds=('selector',),
         )
     )
     registry.register(
@@ -344,6 +345,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_file_add,
             help="Load one or more audio files into the working set.",
             args=('paths',),
+            arg_kinds=('path',),
         )
     )
     registry.register(
@@ -352,6 +354,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_cluster,
             help="Group files (default: unclustered) into clusters by metadata.",
             args=('selector',),
+            arg_kinds=('selector',),
         )
     )
     registry.register(
@@ -360,6 +363,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_cluster_lookup,
             help="Identify clusters on MusicBrainz; auto-apply the best match, expose alternatives as m handles.",
             args=('selector',),
+            arg_kinds=('selector',),
         )
     )
     registry.register(
@@ -368,6 +372,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_match,
             help="Apply a specific lookup candidate: match <target> <candidate>.",
             args=('target', 'candidate'),
+            arg_kinds=('selector', 'handle'),
         )
     )
     registry.register(
@@ -376,5 +381,6 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_save,
             help="Save tag changes of the selected objects to disk (default: all).",
             args=('selector',),
+            arg_kinds=('selector',),
         )
     )
