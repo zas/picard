@@ -44,9 +44,18 @@ class ScanPathsRecursiveTest(PicardTestCase):
 
     def test_directory_non_recursive(self):
         result = scan_paths_recursive([self.root], recursive=False, ignore_hidden=True)
-        # Non-recursive: top-level entries are yielded as-is, including the
-        # subdirectory path itself (the caller's file-open simply skips it).
-        self.assertEqual(['a.mp3', 'b.flac', 'sub'], self._names(result))
+        # Non-recursive: yield the directory's files but NOT its subdirectory
+        # paths. The function yields file paths only (see docstring); a
+        # subdirectory must never be yielded, recursive or not.
+        self.assertEqual(['a.mp3', 'b.flac'], self._names(result))
+
+    def test_subdirectory_never_yielded(self):
+        # Regression: with recursive=False a nested directory entry used to be
+        # yielded (it fell through to the else branch). Ensure no yielded path
+        # is a directory, in either mode.
+        for recursive in (False, True):
+            for path in scan_paths_recursive([self.root], recursive=recursive, ignore_hidden=True):
+                self.assertFalse(os.path.isdir(path), f"directory yielded (recursive={recursive}): {path!r}")
 
     def test_directory_recursive(self):
         result = scan_paths_recursive([self.root], recursive=True, ignore_hidden=True)
