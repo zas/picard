@@ -84,29 +84,41 @@ def complete(line: str, text: str, registry, session) -> list[str]:
         names = registry.names() + ['help', 'quit', 'exit']
         return sorted(n for n in names if n.startswith(text))
 
+    # When the first word is on the line and we're completing the second word,
+    # offer the verbs of any two-word command sharing that first word. This is
+    # needed even when the first word is ITSELF a complete command (e.g.
+    # ``cluster`` is a command and also the noun of ``cluster lookup``):
+    # ``cluster loo<TAB>`` must still complete to ``lookup``.
+    verb_matches: list[str] = []
+    if len(tokens) == 1:
+        prefix = tokens[0] + ' '
+        verb_matches = [
+            n[len(prefix) :] for n in registry.names() if n.startswith(prefix) and n[len(prefix) :].startswith(text)
+        ]
+
     # Is the first token (or first two) a known command?
     name, rest = split_command_name(tokens, registry)
     command = registry.get(name)
     if command is None:
-        # Maybe the user is mid-typing a two-word command: offer verb matches.
-        if len(tokens) == 1:
-            prefix = tokens[0] + ' '
-            matches = [n[len(prefix) :] for n in registry.names() if n.startswith(prefix)]
-            if matches:
-                return sorted(m for m in matches if m.startswith(text))
-        return []
+        # First word is not a command on its own; only the verb matches apply.
+        return sorted(set(verb_matches))
 
     # We have a command; the number of already-typed args decides the arg index.
     arg_index = len(rest)
     kind = command.arg_kind(arg_index)
+    arg_matches: list[str] = []
     if kind == 'path':
-        return _complete_path(text)
-    if kind in {'selector', 'handle'}:
+        arg_matches = _complete_path(text)
+    elif kind in {'selector', 'handle'}:
         options = _live_handles(session)
         if kind == 'selector':
             options = options + list(_WILDCARDS)
-        return sorted(o for o in set(options) if o.startswith(text))
-    return []
+        arg_matches = [o for o in set(options) if o.startswith(text)]
+
+    # Merge verb completions (two-word commands) with the one-word command's
+    # arg completions, so both ``cluster lookup`` and ``cluster <selector>`` are
+    # offered after ``cluster ``.
+    return sorted(set(verb_matches) | set(arg_matches))
 
 
 class ShellCompleter:
