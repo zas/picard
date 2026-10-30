@@ -451,6 +451,30 @@ class Workspace:
         workspace_events().cluster_added.emit(cluster)
         return cluster
 
+    def cluster_files(self, files) -> list:
+        """Group ``files`` into clusters by metadata and apply the result.
+
+        Runs the clustering algorithm synchronously (it is CPU-bound metadata
+        grouping, not I/O — no event loop needed). Each resulting group of more
+        than one file becomes a cluster (created or reused via load_cluster);
+        single-file groups stay in the unclustered bucket. Returns the list of
+        clusters that received files (new or existing), in creation order.
+        """
+        # Imported here to avoid the cluster <-> workspace import cycle.
+        from picard.cluster import Cluster
+
+        touched: list = []
+        for file_cluster in Cluster.cluster(files):
+            group = set(file_cluster.files)
+            if len(group) > 1:
+                cluster = self.load_cluster(file_cluster.title, file_cluster.artist)
+                cluster.add_files(group)
+                if cluster not in touched:
+                    touched.append(cluster)
+            else:
+                self.unclustered_files.add_files(group)
+        return touched
+
 
 _workspace: Workspace | None = None
 
