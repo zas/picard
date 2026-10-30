@@ -515,28 +515,36 @@ class Tagger(QtWidgets.QApplication):
         set_workspace_provider(self._workspace)
 
     def _init_workspace_events(self):
-        """Set up the WorkspaceEvents facade and bridge Tagger's signals into it.
+        """Set up the WorkspaceEvents facade and forward it to Tagger's signals.
 
         Done before services/entities so that workspace_events() resolves to
         this emitter for every later connection (e.g. the web service wiring in
         _init_webservice) rather than a lazily-created default that would then
         be replaced.
 
-        The working-set-changed signals are migrating off Tagger onto the
-        WorkspaceEvents facade (picard.workspace_events). Own an emitter,
-        install it as the provider, and bridge Tagger's own signals into it.
-        The bridge lets connectors move to workspace_events() while emitters
-        still emit on Tagger (one side at a time), with nothing breaking
-        mid-migration; it is removed once both sides are migrated.
+        The working-set-changed signals (album_added/removed,
+        cluster_added/removed, file_loaded, tagger_stats_changed) now live on
+        the WorkspaceEvents facade; core emitters and GUI connectors use
+        workspace_events() directly.
+
+        Tagger keeps declaring the same signals and re-emits each facade signal
+        on its own, as a BACKWARD-COMPATIBILITY surface: plugins reach the
+        application object via PluginApi.tagger and may connect to
+        ``tagger.album_added`` / ``tagger.file_loaded`` etc. Forwarding
+        facade -> Tagger keeps those connections working even though nothing
+        emits on the Tagger signals directly anymore. (Headless has no Tagger,
+        so this forwarding simply does not exist there.)
         """
         self._workspace_events = WorkspaceEvents()
         set_workspace_events_provider(self._workspace_events)
-        self.album_added.connect(self._workspace_events.album_added)
-        self.album_removed.connect(self._workspace_events.album_removed)
-        self.cluster_added.connect(self._workspace_events.cluster_added)
-        self.cluster_removed.connect(self._workspace_events.cluster_removed)
-        self.file_loaded.connect(self._workspace_events.file_loaded)
-        self.tagger_stats_changed.connect(self._workspace_events.tagger_stats_changed)
+        # Re-emit facade signals on the matching Tagger signal for plugin
+        # backward compatibility (see docstring).
+        self._workspace_events.album_added.connect(self.album_added)
+        self._workspace_events.album_removed.connect(self.album_removed)
+        self._workspace_events.cluster_added.connect(self.cluster_added)
+        self._workspace_events.cluster_removed.connect(self.cluster_removed)
+        self._workspace_events.file_loaded.connect(self.file_loaded)
+        self._workspace_events.tagger_stats_changed.connect(self.tagger_stats_changed)
 
     # --- workspace field delegation -----------------------------------------
     #
