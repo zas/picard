@@ -1613,14 +1613,7 @@ class Tagger(QtWidgets.QApplication):
     # =======================================================================
 
     def autotag(self, objects):
-        flashed = False
-        for obj in objects:
-            if obj.can_autotag:
-                if not flashed:
-                    # Result appears asynchronously; acknowledge the action once.
-                    notifier().flash_busy()
-                    flashed = True
-                obj.lookup_metadata()
+        self._workspace.autotag(objects)
 
     # =======================================================================
     #  Clusters
