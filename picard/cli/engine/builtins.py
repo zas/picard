@@ -40,6 +40,7 @@ from picard.cli.engine.result import (
 from picard.cluster import Cluster
 from picard.file import File
 from picard.services import services
+from picard.util import iter_files_from_objects
 from picard.workspace import workspace
 
 
@@ -301,6 +302,32 @@ def _cmd_match(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Save tag changes for the selected objects to disk.
+
+    ``save <selector>`` saves the files of the matched objects (albums,
+    clusters, tracks or files); defaults to all top-level objects (``*``).
+    Drains the async saves and reports per-file success.
+    """
+    selector = args.get('selector') or '*'
+    entities, unresolved = session.resolve(selector)
+    files = list(iter_files_from_objects(entities, save=True))
+    savable = [f for f in files if f.can_save]
+    for file in savable:
+        file.save()
+    session.run_until_idle(timeout=120)
+
+    items = []
+    for file in savable:
+        status = 'error' if file.state == File.State.ERROR else 'saved'
+        items.append(EngineItemResult(handle=session.handle_for(file), status=status, data={'path': file.filename}))
+    return EngineResult(
+        items=items,
+        resolved=[session.handle_for(e) for e in entities],
+        unresolved=unresolved,
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -341,5 +368,13 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_match,
             help="Apply a specific lookup candidate: match <target> <candidate>.",
             args=('target', 'candidate'),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='save',
+            run=_cmd_save,
+            help="Save tag changes of the selected objects to disk (default: all).",
+            args=('selector',),
         )
     )
