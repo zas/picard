@@ -139,3 +139,44 @@ class ClusterLookupCommandTest(PicardTestCase):
         entities, unresolved = self.session.resolve(handle)
         self.assertEqual(1, len(entities))
         self.assertEqual([], unresolved)
+
+
+class MatchCommandTest(ClusterLookupCommandTest):
+    """Reuses the lookup test harness (mocked find_releases + load_album)."""
+
+    def _lookup(self):
+        result = dispatch(self.session, self.reg, 'cluster lookup')
+        cluster_handle = result.items[0].handle
+        cands = result.items[0].data['candidates']
+        return cluster_handle, cands
+
+    def test_match_applies_chosen_candidate(self):
+        cluster_handle, cands = self._lookup()
+        # Pick the candidate that was NOT auto-applied (the weaker one).
+        other = next(c for c in cands if not c.get('applied'))
+        result = dispatch(self.session, self.reg, f'match {cluster_handle} {other["handle"]}')
+        self.assertTrue(result.ok)
+        item = result.items[0]
+        self.assertEqual('matched', item.status)
+        self.assertEqual(other['handle'], item.data['candidate'])
+        # The chosen candidate's release was loaded.
+        self.assertIn('mbid-weak', self._loaded)
+
+    def test_match_flips_applied_flag(self):
+        cluster_handle, cands = self._lookup()
+        other = next(c for c in cands if not c.get('applied'))
+        dispatch(self.session, self.reg, f'match {cluster_handle} {other["handle"]}')
+        # Re-describe the candidate set: the chosen one is now applied, sole.
+        entities, _ = self.session.resolve('m*')
+        applied = [c for c in entities if c.applied]
+        self.assertEqual(1, len(applied))
+        self.assertEqual(other['handle'], self.session.handle_for(applied[0]))
+
+    def test_match_bad_usage_is_failure(self):
+        self.assertFalse(dispatch(self.session, self.reg, 'match c1').ok)
+
+    def test_match_unknown_candidate_unresolved(self):
+        cluster_handle, _cands = self._lookup()
+        result = dispatch(self.session, self.reg, f'match {cluster_handle} m99')
+        self.assertFalse(result.ok)
+        self.assertIn('m99', result.unresolved)

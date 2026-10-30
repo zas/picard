@@ -250,6 +250,57 @@ def _cmd_cluster_lookup(session: EngineSession, args: dict[str, Any]) -> EngineR
     )
 
 
+def _cmd_match(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Apply a specific lookup candidate to its target.
+
+    ``match <target> <candidate>`` moves the target cluster's files onto the
+    release of candidate handle ``m<n>`` (an alternative from a prior
+    ``cluster lookup``), overriding the auto-applied match. Updates which
+    candidate is marked ``applied``.
+    """
+    target_sel = args.get('target')
+    candidate_sel = args.get('candidate')
+    if not target_sel or not candidate_sel:
+        return EngineResult.failure("match: usage: match <target> <candidate>")
+
+    targets, target_unresolved = session.resolve(target_sel)
+    cands, cand_unresolved = session.resolve(candidate_sel)
+    unresolved = target_unresolved + cand_unresolved
+
+    clusters = [e for e in targets if isinstance(e, Cluster)]
+    candidates = [c for c in cands if isinstance(c, Candidate)]
+    if len(clusters) != 1 or len(candidates) != 1:
+        return EngineResult.failure(
+            "match: need exactly one target cluster and one candidate",
+            unresolved=unresolved,
+        )
+    cluster = clusters[0]
+    candidate = candidates[0]
+    if candidate.release_id is None:
+        return EngineResult.failure("match: candidate has no release", unresolved=unresolved)
+
+    album = workspace().load_album(candidate.release_id)
+    workspace().move_files_to_album(cluster.files, album=album)
+
+    # Reflect the new selection in the target's candidate set.
+    for c in session.candidates_for(cluster):
+        c.applied = c is candidate
+
+    album_handle = session.handle_for(album)
+    return EngineResult(
+        items=[
+            EngineItemResult(
+                handle=session.handle_for(cluster),
+                status='matched',
+                data={'matched_album': album_handle, 'candidate': session.handle_for(candidate)},
+            )
+        ],
+        resolved=[session.handle_for(cluster)],
+        unresolved=unresolved,
+        mints=[album_handle],
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -282,5 +333,13 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_cluster_lookup,
             help="Identify clusters on MusicBrainz; auto-apply the best match, expose alternatives as m handles.",
             args=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='match',
+            run=_cmd_match,
+            help="Apply a specific lookup candidate: match <target> <candidate>.",
+            args=('target', 'candidate'),
         )
     )
