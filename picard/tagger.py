@@ -181,7 +181,10 @@ from picard.util import (
 )
 from picard.util.checkupdate import UpdateCheckManager
 from picard.util.datahash import DataHash
-from picard.util.qt import process_events_iter
+from picard.util.qt import (
+    install_qt_message_handler,
+    process_events_iter,
+)
 from picard.util.readthedocs import ReadTheDocs
 from picard.util.toc import (
     parse_toc_itunes_cddb,
@@ -340,6 +343,11 @@ class Tagger(WorkspaceHost, QtWidgets.QApplication):
         log.set_verbosity(logging.DEBUG if debug else config.setting['log_verbosity'])
 
         setup_audit(self._audit)
+
+        # Route Qt's own log messages through Picard's logging and drop the
+        # known-benign Qt-internal warnings (e.g. the spurious QSslSocket
+        # "device not open" read warning on HTTP/2 error replies).
+        install_qt_message_handler()
 
     def _init_threads(self):
         """Initialize threads"""
