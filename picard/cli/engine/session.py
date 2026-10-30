@@ -34,6 +34,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from picard.album import Album
+from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.handles import HandleRegistry
 from picard.cli.engine.selectors import resolve_selector
 from picard.cluster import (
@@ -52,6 +53,7 @@ def classify_entity(entity: Any) -> 'str | None':
     disjoint. ``UnclusteredFiles`` is a ``Cluster`` subclass but is the
     unclustered bucket, not a user cluster, so it is NOT handleable as ``c``.
     ``NatAlbum`` is an ``Album`` ('a'); ``NonAlbumTrack`` is a ``Track`` ('t').
+    A lookup match :class:`Candidate` is minted as ``m``.
     """
     if isinstance(entity, File):
         return 'f'
@@ -63,6 +65,8 @@ def classify_entity(entity: Any) -> 'str | None':
         return 'c'
     if isinstance(entity, Track):
         return 't'
+    if isinstance(entity, Candidate):
+        return 'm'
     return None
 
 
@@ -73,6 +77,24 @@ class LocalEngineSession:
         """``app`` is the HeadlessTagger owning the Workspace and thread pools."""
         self._app = app
         self._handles = HandleRegistry(classify_entity)
+        # Current lookup candidates, keyed by the id() of the looked-up target
+        # (cluster/file). Held with strong refs so their m-handles stay live;
+        # replaced on the next lookup of that target (transient semantics).
+        self._candidates: dict[int, list[Candidate]] = {}
+
+    # --- candidates ---------------------------------------------------------
+
+    def set_candidates(self, target: Any, candidates: list[Candidate]) -> list[str]:
+        """Replace the candidates for ``target`` and return their m handles.
+
+        Dropping the previous candidate list lets the old m handles expire.
+        """
+        self._candidates[id(target)] = candidates
+        return [self._handles.handle_for(c) for c in candidates]
+
+    def candidates_for(self, target: Any) -> list[Candidate]:
+        """Return the current candidates held for ``target`` (may be empty)."""
+        return self._candidates.get(id(target), [])
 
     # --- EngineSession protocol ---------------------------------------------
 
@@ -95,6 +117,9 @@ class LocalEngineSession:
             return list(ws.albums.values())
         if prefix == 't':
             return [track for album in ws.albums.values() for track in album.tracks]
+        if prefix == 'm':
+            # All candidates currently held across lookups, in mint order.
+            return [c for candidates in self._candidates.values() for c in candidates]
         return []
 
     def run_until_idle(self, timeout: float | None = None) -> bool:
