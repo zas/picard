@@ -32,7 +32,7 @@ from picard.cli.output import CliOutput
 def _format_item_data(data: dict[str, Any]) -> str:
     """Compact one-line summary of an item's data (title/artist/path/etc.)."""
     parts = []
-    for key in ('title', 'artist', 'filename', 'path', 'file_count', 'matched_album'):
+    for key in ('title', 'artist', 'filename', 'path', 'file_count', 'matched_album', 'error'):
         value = data.get(key)
         if value not in (None, ''):
             parts.append(f"{key}={value}")

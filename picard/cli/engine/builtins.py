@@ -268,19 +268,37 @@ def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResul
     candidate_handles = session.set_candidates(cluster, candidates)
 
     matched_album_handle = None
+    load_error = None
     if applied_release is not None:
         album = workspace().load_album(applied_release['id'])
-        workspace().move_files_to_album(cluster.files, album=album)
-        matched_album_handle = session.handle_for(album)
+        # Drain the release load before moving files: load_album() only
+        # schedules the request. If it failed (e.g. a 503 from the server),
+        # album.errors is populated and we must NOT report a confident match
+        # or move files onto a half-loaded album.
+        session.run_until_idle(timeout=60)
+        if album.errors:
+            load_error = album.errors[-1]
+        else:
+            workspace().move_files_to_album(cluster.files, album=album)
+            matched_album_handle = session.handle_for(album)
+
+    if matched_album_handle:
+        status = 'matched'
+    elif load_error is not None:
+        status = 'load_failed'
+    else:
+        status = 'no_confident_match'
 
     data = {
         'reason': best.reason,
         'matched_album': matched_album_handle,
         'candidates': [{'handle': h, **c.describe()} for h, c in zip(candidate_handles, candidates, strict=True)],
     }
+    if load_error is not None:
+        data['error'] = load_error
     return EngineItemResult(
         handle=session.handle_for(cluster),
-        status='matched' if matched_album_handle else 'no_confident_match',
+        status=status,
         data=data,
     )
 
@@ -339,6 +357,15 @@ def _cmd_match(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         return EngineResult.failure("match: candidate has no release", unresolved=unresolved)
 
     album = workspace().load_album(candidate.release_id)
+    # Drain the load and verify it succeeded before moving files onto the
+    # album (load_album() only schedules the request; a failed load leaves
+    # album.errors set and must not be reported as a match).
+    session.run_until_idle(timeout=60)
+    if album.errors:
+        return EngineResult.failure(
+            f"match: release load failed: {album.errors[-1]}",
+            unresolved=unresolved,
+        )
     workspace().move_files_to_album(cluster.files, album=album)
 
     # Reflect the new selection in the target's candidate set.
