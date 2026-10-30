@@ -18,6 +18,7 @@ import os
 
 from test.picardtestcase import PicardTestCase
 
+from picard.const.sys import IS_WIN
 from picard.util import (
     normpath,
     scan_paths_recursive,
@@ -41,6 +42,20 @@ class ScanPathsRecursiveTest(PicardTestCase):
     def _touch(self, rel):
         path = os.path.join(self.root, rel)
         open(path, 'w').close()
+        return path
+
+    def _touch_hidden(self, rel):
+        # is_hidden() uses the leading-dot convention only on non-Windows; on
+        # Windows it checks the FILE_ATTRIBUTE_HIDDEN flag, which a plain
+        # open() does not set. Set it explicitly so the file is genuinely
+        # hidden on every platform.
+        path = self._touch(rel)
+        if IS_WIN:
+            import ctypes
+
+            FILE_ATTRIBUTE_HIDDEN = 0x02
+            if not ctypes.windll.kernel32.SetFileAttributesW(path, FILE_ATTRIBUTE_HIDDEN):
+                raise ctypes.WinError()
         return path
 
     def _names(self, paths):
@@ -70,11 +85,18 @@ class ScanPathsRecursiveTest(PicardTestCase):
         self.assertEqual(['a.mp3', 'b.flac', os.path.join('sub', 'c.ogg')], self._names(result))
 
     def test_ignore_hidden(self):
-        self._touch('.hidden.mp3')
+        self._touch_hidden('.hidden.mp3')
         visible = self._names(scan_paths_recursive([self.root], recursive=True, ignore_hidden=True))
         self.assertNotIn('.hidden.mp3', visible)
         all_files = self._names(scan_paths_recursive([self.root], recursive=True, ignore_hidden=False))
         self.assertIn('.hidden.mp3', all_files)
+
+    def test_hidden_path_passed_directly_respects_ignore_hidden(self):
+        # A hidden file given directly as a path (not discovered by scanning)
+        # must also honour ignore_hidden: skipped when True, yielded when False.
+        hidden = normpath(self._touch_hidden('.hidden.mp3'))
+        self.assertEqual([], list(scan_paths_recursive([hidden], recursive=True, ignore_hidden=True)))
+        self.assertEqual([hidden], list(scan_paths_recursive([hidden], recursive=True, ignore_hidden=False)))
 
     def test_missing_path_is_skipped(self):
         missing = normpath(os.path.join(self.root, 'does-not-exist'))
