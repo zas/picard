@@ -33,7 +33,7 @@ class ClusterCommandTest(PicardTestCase):
         self.set_config_values(setting={'va_name': 'Various Artists', 'nat_name': 'Standalone Recordings'})
         # File._move touches services (acoustid/isrc managers) via services();
         # the mock tagger is the services provider in tests — stub them.
-        self.tagger.acoustidmanager = MagicMock()
+        self.tagger.acoustid_manager = MagicMock()
         self.tagger.isrc_submit_manager = MagicMock()
         self.reg = EngineCommandRegistry()
         register_builtins(self.reg)

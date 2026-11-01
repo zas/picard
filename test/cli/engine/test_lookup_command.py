@@ -56,7 +56,7 @@ class ClusterLookupCommandTest(PicardTestCase):
         )
         # Services used along the lookup/move path (mock provider is the tagger).
         self.tagger.mb_api = MagicMock()
-        self.tagger.acoustidmanager = MagicMock()
+        self.tagger.acoustid_manager = MagicMock()
         self.tagger.isrc_submit_manager = MagicMock()
 
         self.reg = EngineCommandRegistry()
