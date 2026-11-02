@@ -52,6 +52,33 @@ class RenderResultTest(PicardTestCase):
         self.assertIn('OK Computer', text)
         self.assertIn('minted', text)
 
+    def test_render_indents_items_by_depth(self):
+        out, buf = _output()
+        result = EngineResult(
+            items=[
+                EngineItemResult('a1', 'album', {'title': 'OK Computer', 'depth': 0}),
+                EngineItemResult('t1', 'track', {'title': 'Airbag', 'depth': 1}),
+                EngineItemResult('f1', 'file', {'filename': 'airbag.flac', 'depth': 2}),
+            ],
+        )
+        render_result(result, out)
+        lines = buf.getvalue().splitlines()
+        album_line = next(line for line in lines if 'a1' in line)
+        track_line = next(line for line in lines if 't1' in line)
+        file_line = next(line for line in lines if 'f1' in line)
+        # Deeper items are indented further than shallower ones.
+        self.assertEqual(0, len(album_line) - len(album_line.lstrip()))
+        self.assertLess(
+            len(album_line) - len(album_line.lstrip()),
+            len(track_line) - len(track_line.lstrip()),
+        )
+        self.assertLess(
+            len(track_line) - len(track_line.lstrip()),
+            len(file_line) - len(file_line.lstrip()),
+        )
+        # depth is structural, not surfaced as a data field.
+        self.assertNotIn('depth=', buf.getvalue())
+
     def test_render_item_shows_type_mbid(self):
         out, buf = _output()
         result = EngineResult(

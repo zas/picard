@@ -69,9 +69,10 @@ def render_result(result: EngineResult, output: CliOutput) -> None:
         return
 
     for item in result.items:
+        indent = '  ' * int(item.data.get('depth', 0))
         handle = output.d_id(item.handle) if item.handle else '—'
         summary = _format_item_data(item.data)
-        line = f"{handle}  {output.dim(item.status)}"
+        line = f"{indent}{handle}  {output.dim(item.status)}"
         if summary:
             line += f"  {summary}"
         output.print(line)

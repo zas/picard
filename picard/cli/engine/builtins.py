@@ -144,6 +144,79 @@ def _cmd_ls(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(items=items, resolved=[it.handle for it in items])
 
 
+def _tree_item(session: EngineSession, entity: Any, kind: str, depth: int) -> EngineItemResult:
+    """Build a depth-tagged tree item for ``entity``.
+
+    ``kind`` is a short structural role ('unclustered', 'cluster', 'album',
+    'track', 'file', 'unmatched') shown as the status; ``depth`` drives the
+    renderer's indentation.
+    """
+    data = describe_entity(entity)
+    data['depth'] = depth
+    return EngineItemResult(handle=session.handle_for(entity), status=kind, data=data)
+
+
+def _tree_album(session: EngineSession, album: Any, items: list, depth: int = 0) -> None:
+    """Append ``album`` and its tracks/matched-files/unmatched bucket to ``items``."""
+    items.append(_tree_item(session, album, 'album', depth))
+    for track in album.tracks:
+        items.append(_tree_item(session, track, 'track', depth + 1))
+        for file in track.files:
+            items.append(_tree_item(session, file, 'file', depth + 2))
+    for file in album.unmatched_files.files:
+        items.append(_tree_item(session, file, 'unmatched', depth + 1))
+
+
+def _tree_cluster(session: EngineSession, cluster: Any, items: list, depth: int = 0) -> None:
+    """Append ``cluster`` and its files to ``items``."""
+    items.append(_tree_item(session, cluster, 'cluster', depth))
+    for file in cluster.files:
+        items.append(_tree_item(session, file, 'file', depth + 1))
+
+
+def _cmd_tree(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Show the working set as a tree, mirroring the GUI panes.
+
+    With no selector, renders the three GUI panes as one indented tree:
+      - unclustered files (the left pane's loose files),
+      - clusters, each with its files,
+      - albums, each with its tracks (and the files matched to each), plus any
+        files still in the album's unmatched bucket.
+
+    With a selector (e.g. ``tree a1``), renders just the subtree(s) of the
+    matched entities: an album with its tracks/files, a cluster with its files,
+    or a lone file/track.
+
+    Read-only; every row carries its handle so it can be acted on (match,
+    remove, save, ...). Use ``ls`` for a flat top-level listing.
+    """
+    items: list[EngineItemResult] = []
+    selector = args.get('selector')
+
+    if selector:
+        entities, unresolved = session.resolve(selector)
+        for entity in entities:
+            if isinstance(entity, Album):
+                _tree_album(session, entity, items)
+            elif isinstance(entity, Cluster):
+                _tree_cluster(session, entity, items)
+            else:
+                items.append(_tree_item(session, entity, 'file', 0))
+        return EngineResult(items=items, resolved=[session.handle_for(e) for e in entities], unresolved=unresolved)
+
+    wks = workspace()
+    # Unclustered files (left pane, loose files).
+    for file in wks.unclustered_files.files:
+        items.append(_tree_item(session, file, 'unclustered', 0))
+    # Clusters (left pane) with their files.
+    for cluster in wks.clusters:
+        _tree_cluster(session, cluster, items)
+    # Albums (right pane): tracks, matched files, and the unmatched bucket.
+    for album in wks.albums.values():
+        _tree_album(session, album, items)
+    return EngineResult(items=items, resolved=[it.handle for it in items])
+
+
 def _expand_input_paths(tokens: list[str]) -> 'tuple[list[str], list[str]]':
     """Expand user path tokens to concrete paths, recursing into directories.
 
@@ -761,6 +834,15 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             name='ls',
             run=_cmd_ls,
             help="List working-set entities (optionally matching a selector) with their handles.",
+            args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='tree',
+            run=_cmd_tree,
+            help="Show the working set (or a selected subtree) as an indented tree.",
             args=('selector',),
             arg_kinds=('selector',),
         )
