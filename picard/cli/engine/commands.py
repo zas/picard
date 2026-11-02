@@ -114,8 +114,9 @@ class EngineCommand:
     # document. Kept as simple strings; there is no typed-parameter layer.
     args: tuple[str, ...] = field(default_factory=tuple)
     # Completion hint per positional arg, parallel to ``args``: one of
-    # 'path' (filesystem path), 'selector' (handle selector / wildcard),
-    # 'handle' (a single handle), or '' (no completion). Used by the shell's
+    # 'path' (filesystem path), 'device' (CD/DVD drive), 'selector' (handle
+    # selector / wildcard), 'handle' (a single handle), or '' (no completion).
+    # Used by the shell's
     # tab-completer. Missing entries default to no completion.
     arg_kinds: tuple[str, ...] = field(default_factory=tuple)
 

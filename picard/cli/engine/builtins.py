@@ -42,6 +42,8 @@ from picard.cli.engine.result import (
     EngineResult,
 )
 from picard.cluster import Cluster
+import picard.disc
+from picard.disc.presentation import disc_presentation
 from picard.file import File
 from picard.services import services
 from picard.track import Track
@@ -670,6 +672,59 @@ def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _disc_lookup_and_report(session: EngineSession, disc) -> EngineResult:
+    """Look up a populated ``disc`` and report the album it matched.
+
+    Shared tail of the disc commands: issues the disc-id lookup and drains it
+    (and any album load the headless auto-load scheduled), then reports the
+    matched album — or ``no_match`` when nothing unambiguous was found. The
+    matched album is read from the disc-presentation facade (not by diffing the
+    album registry), so a release already loaded in the session is still
+    reported as a match rather than a spurious ``no_match``.
+    """
+    dp = disc_presentation()
+    dp.reset_last_loaded()
+    disc.lookup()
+    session.run_until_idle(timeout=120)
+
+    album = dp.last_loaded_album
+    if album is None:
+        return EngineResult(items=[EngineItemResult(handle='', status='no_match', data={'disc_id': disc.id})])
+    handle = session.handle_for(album)
+    return EngineResult(
+        items=[EngineItemResult(handle=handle, status='loaded', data=describe_entity(album))],
+        mints=[handle],
+    )
+
+
+def _cmd_disc_read(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Read the TOC from an audio CD in the drive and load the matching release.
+
+    ``disc read [device]`` reads the disc in ``device`` (or the default drive
+    when omitted), computes its disc ID, and looks it up on MusicBrainz.
+    Headless, a single unambiguous match is auto-loaded (carrying the disc id
+    and any ISRCs read from the disc); an ambiguous result loads nothing (no
+    picker).
+
+    Requires the optional python-discid library and a readable CD drive.
+    """
+    if picard.disc.discid is None:
+        return EngineResult.failure("disc read: the python-discid library is not available")
+
+    device = args.get('device')
+    if isinstance(device, list):
+        device = device[0] if device else None
+
+    disc = picard.disc.Disc()
+    try:
+        disc.read(device)
+    except Exception as e:
+        where = device or 'the default drive'
+        return EngineResult.failure(f"disc read: could not read {where}: {e}")
+
+    return _disc_lookup_and_report(session, disc)
+
+
 def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Identify a disc from a CD ripper log file and load the matching release.
 
@@ -681,14 +736,7 @@ def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineRe
 
     Requires the optional python-discid library (for TOC -> disc-id).
     """
-    # Imported here: picard.disc pulls optional deps and is a heavier import;
-    # keep it off the module load path for frontends that never touch discs.
-    from picard.disc import (
-        Disc,
-        discid,
-    )
-
-    if discid is None:
+    if picard.disc.discid is None:
         return EngineResult.failure("disc read-log: the python-discid library is not available")
 
     path = args.get('path')
@@ -697,32 +745,13 @@ def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineRe
     if not path:
         return EngineResult.failure("disc read-log: usage: disc read-log <path>")
 
-    wks = workspace()
-    disc = Disc()
+    disc = picard.disc.Disc()
     try:
         disc.read_log(path)
     except Exception as e:
         return EngineResult.failure(f"disc read-log: could not parse {path!r}: {e}")
 
-    before = set(wks.albums)
-    disc.lookup()
-    # Drain the TOC/disc-id lookup and any album load the headless auto-load
-    # scheduled.
-    session.run_until_idle(timeout=120)
-
-    new_album_ids = [aid for aid in wks.albums if aid not in before]
-    if not new_album_ids:
-        return EngineResult(
-            items=[EngineItemResult(handle='', status='no_match', data={'disc_id': disc.id})],
-        )
-    items = []
-    mints = []
-    for aid in new_album_ids:
-        album = wks.albums[aid]
-        handle = session.handle_for(album)
-        mints.append(handle)
-        items.append(EngineItemResult(handle=handle, status='loaded', data=describe_entity(album)))
-    return EngineResult(items=items, mints=mints)
+    return _disc_lookup_and_report(session, disc)
 
 
 def register_builtins(registry: EngineCommandRegistry) -> None:
@@ -824,6 +853,15 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Move the selected files to the system trash and drop them from the set.",
             args=('selector',),
             arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='disc read',
+            run=_cmd_disc_read,
+            help="Read the TOC from an audio CD in the drive and load the matching release.",
+            args=('device',),
+            arg_kinds=('device',),
         )
     )
     registry.register(

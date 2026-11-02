@@ -15,7 +15,10 @@
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
 import os
-from unittest.mock import MagicMock
+from unittest.mock import (
+    MagicMock,
+    patch,
+)
 
 from test.picardtestcase import PicardTestCase
 
@@ -106,6 +109,17 @@ class CompleteTest(PicardTestCase):
         prefix = os.path.join(tmp, 'su')
         matches = complete('file add ' + prefix, prefix, self.reg, self.session)
         self.assertEqual([os.path.join(tmp, 'sub') + os.sep], matches)
+
+    def test_disc_read_device_completes_cdrom_drives(self):
+        with patch('picard.util.cdrom.get_cdrom_drives', return_value=['/dev/cdrom', '/dev/sr0']):
+            matches = self._complete('disc read ')
+        self.assertIn('/dev/cdrom', matches)
+        self.assertIn('/dev/sr0', matches)
+
+    def test_disc_read_device_filters_by_prefix(self):
+        with patch('picard.util.cdrom.get_cdrom_drives', return_value=['/dev/cdrom', '/dev/sr0']):
+            matches = complete('disc read /dev/sr', '/dev/sr', self.reg, self.session)
+        self.assertEqual(['/dev/sr0'], matches)
 
     def test_unknown_command_no_matches(self):
         self.assertEqual([], self._complete('bogus '))

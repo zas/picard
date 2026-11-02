@@ -23,6 +23,7 @@ decides what to complete from the command registry and the command's declared
 
 - command name (first word(s)) -> matching ``noun verb`` names
 - a ``path`` arg -> filesystem paths (``~`` expanded, directory-aware)
+- a ``device`` arg -> detected CD/DVD drives (cross-platform)
 - a ``selector`` / ``handle`` arg -> live session handles + wildcards
 
 :class:`ShellCompleter` adapts :func:`complete` to the stdlib ``readline``
@@ -55,6 +56,21 @@ def _complete_path(text: str) -> list[str]:
             shown += os.sep
         results.append(shown)
     return sorted(results)
+
+
+def _cdrom_devices() -> list[str]:
+    """Available CD/DVD drive identifiers, for completing a device argument.
+
+    Uses Picard's cross-platform drive detection (Linux device nodes like
+    ``/dev/cdrom``, Windows drive letters like ``D:``). Imported lazily to keep
+    the optional discid / cdrom machinery off the completer's import path.
+    """
+    try:
+        from picard.util.cdrom import get_cdrom_drives
+
+        return get_cdrom_drives()
+    except Exception:
+        return []
 
 
 def _live_handles(session) -> list[str]:
@@ -109,6 +125,8 @@ def complete(line: str, text: str, registry, session) -> list[str]:
     arg_matches: list[str] = []
     if kind == 'path':
         arg_matches = _complete_path(text)
+    elif kind == 'device':
+        arg_matches = [d for d in _cdrom_devices() if d.startswith(text)]
     elif kind in {'selector', 'handle'}:
         options = _live_handles(session)
         if kind == 'selector':
