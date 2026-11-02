@@ -670,6 +670,61 @@ def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Identify a disc from a CD ripper log file and load the matching release.
+
+    ``disc read-log <path>`` parses the ripper log (EAC / XLD / Whipper /
+    dBpoweramp / cyanrip / SCSI TOC) into a disc TOC, computes the disc ID, and
+    looks it up on MusicBrainz. Headless, a single unambiguous match is
+    auto-loaded (carrying the disc id); an ambiguous result loads nothing (no
+    picker). Exercises the decoupled disc path end to end.
+
+    Requires the optional python-discid library (for TOC -> disc-id).
+    """
+    # Imported here: picard.disc pulls optional deps and is a heavier import;
+    # keep it off the module load path for frontends that never touch discs.
+    from picard.disc import (
+        Disc,
+        discid,
+    )
+
+    if discid is None:
+        return EngineResult.failure("disc read-log: the python-discid library is not available")
+
+    path = args.get('path')
+    if isinstance(path, list):
+        path = path[0] if path else None
+    if not path:
+        return EngineResult.failure("disc read-log: usage: disc read-log <path>")
+
+    wks = workspace()
+    disc = Disc()
+    try:
+        disc.read_log(path)
+    except Exception as e:
+        return EngineResult.failure(f"disc read-log: could not parse {path!r}: {e}")
+
+    before = set(wks.albums)
+    disc.lookup()
+    # Drain the TOC/disc-id lookup and any album load the headless auto-load
+    # scheduled.
+    session.run_until_idle(timeout=120)
+
+    new_album_ids = [aid for aid in wks.albums if aid not in before]
+    if not new_album_ids:
+        return EngineResult(
+            items=[EngineItemResult(handle='', status='no_match', data={'disc_id': disc.id})],
+        )
+    items = []
+    mints = []
+    for aid in new_album_ids:
+        album = wks.albums[aid]
+        handle = session.handle_for(album)
+        mints.append(handle)
+        items.append(EngineItemResult(handle=handle, status='loaded', data=describe_entity(album)))
+    return EngineResult(items=items, mints=mints)
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -769,5 +824,14 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Move the selected files to the system trash and drop them from the set.",
             args=('selector',),
             arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='disc read-log',
+            run=_cmd_disc_read_log,
+            help="Identify a disc from a CD ripper log file and load the matching release.",
+            args=('path',),
+            arg_kinds=('path',),
         )
     )
