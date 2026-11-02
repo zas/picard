@@ -569,6 +569,107 @@ def _cmd_scan(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _cmd_remove(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Remove the selected objects from the working set (does not touch disk).
+
+    ``remove <selector>`` removes the matched files, tracks, clusters and
+    albums from the session's working set. Nothing is written or deleted on
+    disk; it only drops them from Picard. There is no default selector — an
+    explicit selection is required, to avoid wiping the whole set by accident.
+    """
+    selector = args.get('selector')
+    if not selector:
+        return EngineResult.failure("remove: a selector is required (e.g. remove c1, remove a*)")
+    entities, unresolved = session.resolve(selector)
+    if not entities:
+        return EngineResult(items=[], unresolved=unresolved)
+
+    # Lookup candidates are session-side objects, not working-set members:
+    # there is nothing to remove, so say so rather than report them removed.
+    removable = [e for e in entities if not isinstance(e, Candidate)]
+    skipped = [e for e in entities if isinstance(e, Candidate)]
+
+    # Capture handles/descriptions before removal (the entities still exist in
+    # this scope; their handles stay valid for the report).
+    items = [
+        EngineItemResult(handle=session.handle_for(e), status='removed', data=describe_entity(e)) for e in removable
+    ]
+    items.extend(
+        EngineItemResult(handle=session.handle_for(e), status='skipped', data=describe_entity(e)) for e in skipped
+    )
+    if removable:
+        workspace().remove(removable)
+    return EngineResult(items=items, resolved=[it.handle for it in items], unresolved=unresolved)
+
+
+def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Move the selected files to the system trash and drop them from the set.
+
+    ``trash <selector>`` sends the files of the matched objects to the OS
+    trash/recycle bin (reversible via the OS) and removes them from the working
+    set. Like the GUI action, a container (album, cluster, track) stands for
+    all of its files, so ``trash a1`` trashes every file in album ``a1``. A
+    selector is required.
+    """
+    selector = args.get('selector')
+    if not selector:
+        return EngineResult.failure("trash: a selector is required (e.g. trash f1)")
+    entities, unresolved = session.resolve(selector)
+    files = list(iter_files_from_objects(entities))
+    if not files:
+        return EngineResult(items=[], unresolved=unresolved)
+
+    items = [EngineItemResult(handle=session.handle_for(f), status='trashed', data={'path': f.filename}) for f in files]
+    workspace().trash_files(files)
+    return EngineResult(items=items, resolved=[it.handle for it in items], unresolved=unresolved)
+
+
+def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Look up the selected objects on MusicBrainz by their existing metadata.
+
+    ``lookup <selector>`` (default: all top-level objects, ``*``) runs the
+    metadata-based lookup (autotag) on each taggable object: a cluster or file
+    is matched to a release/recording from its current tags and moved onto the
+    result. This is the "Lookup" action; for the candidate-capturing variant
+    that exposes alternatives, use ``cluster lookup``.
+
+    Reports, per object, whether it ended up matched (moved onto an album) or
+    unmatched after the lookups drain.
+    """
+    selector = args.get('selector') or '*'
+    entities, unresolved = session.resolve(selector)
+    taggable = [e for e in entities if getattr(e, 'can_autotag', False)]
+    if not taggable:
+        return EngineResult(items=[], resolved=[session.handle_for(e) for e in entities], unresolved=unresolved)
+
+    workspace().autotag(taggable)
+    # autotag dispatches async web lookups (and album loads on a match); drain.
+    session.run_until_idle(timeout=300)
+
+    items = []
+    mints = []
+    for obj in taggable:
+        album = None
+        if isinstance(obj, File):
+            album = getattr(obj.parent_item, 'album', None)
+        if album is not None:
+            status = 'matched'
+            album_handle = session.handle_for(album)
+            if album_handle not in mints:
+                mints.append(album_handle)
+            data = {'handle': session.handle_for(obj), 'album': album_handle}
+        else:
+            status = 'done'
+            data = {'handle': session.handle_for(obj)}
+        items.append(EngineItemResult(handle=session.handle_for(obj), status=status, data=data))
+    return EngineResult(
+        items=items,
+        mints=mints,
+        resolved=[session.handle_for(e) for e in taggable],
+        unresolved=unresolved,
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -639,6 +740,33 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             name='save',
             run=_cmd_save,
             help="Save tag changes of the selected objects to disk (default: all).",
+            args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='lookup',
+            run=_cmd_lookup,
+            help="Look up the selected objects on MusicBrainz by their existing metadata (default: all).",
+            args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='remove',
+            run=_cmd_remove,
+            help="Remove the selected objects from the working set (does not touch disk).",
+            args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='trash',
+            run=_cmd_trash,
+            help="Move the selected files to the system trash and drop them from the set.",
             args=('selector',),
             arg_kinds=('selector',),
         )
