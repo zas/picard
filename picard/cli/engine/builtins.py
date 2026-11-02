@@ -517,6 +517,58 @@ def _cmd_album_load(session: EngineSession, args: dict[str, Any]) -> EngineResul
     )
 
 
+def _cmd_scan(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Identify the selected files by AcoustID fingerprint (the "Scan" action).
+
+    Defaults to the unclustered bucket (``f*``). Each analyzable file is
+    fingerprinted and looked up on AcoustID; a confident recording match moves
+    the file onto the matching album track (or a non-album track). The async
+    fingerprint + lookup work is drained before returning. Reports, per file,
+    whether it ended up identified (moved onto a track) or unmatched.
+
+    No-op when AcoustID is not the configured fingerprinting system (reported
+    as a failure so the user knows nothing ran).
+    """
+    wks = workspace()
+    if not wks.use_acoustid:
+        return EngineResult.failure(
+            "scan: AcoustID fingerprinting is not enabled (set the fingerprinting system to AcoustID)"
+        )
+
+    selector = args.get('selector') or 'f*'
+    entities, unresolved = session.resolve(selector)
+    files = [e for e in entities if isinstance(e, File) and e.can_analyze]
+    if not files:
+        return EngineResult(items=[], resolved=[session.handle_for(e) for e in entities], unresolved=unresolved)
+
+    wks.analyze(files)
+    # Drain the fingerprint computation and the follow-up AcoustID lookups, plus
+    # any album loads a confident match scheduled.
+    session.run_until_idle(timeout=300)
+
+    items = []
+    mints = []
+    for file in files:
+        parent = file.parent_item
+        album = getattr(parent, 'album', None)
+        if album is not None:
+            status = 'identified'
+            album_handle = session.handle_for(album)
+            if album_handle not in mints:
+                mints.append(album_handle)
+            data = {'path': file.filename, 'album': album_handle}
+        else:
+            status = 'no_match'
+            data = {'path': file.filename}
+        items.append(EngineItemResult(handle=session.handle_for(file), status=status, data=data))
+    return EngineResult(
+        items=items,
+        mints=mints,
+        resolved=[session.handle_for(f) for f in files],
+        unresolved=unresolved,
+    )
+
+
 def register_builtins(registry: EngineCommandRegistry) -> None:
     """Register the built-in commands into ``registry``."""
     registry.register(
@@ -551,6 +603,15 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             name='cluster lookup',
             run=_cmd_cluster_lookup,
             help="Identify clusters on MusicBrainz; auto-apply the best match, expose alternatives as m handles.",
+            args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='scan',
+            run=_cmd_scan,
+            help="Identify files (default: unclustered) by AcoustID fingerprint; move confident matches onto tracks.",
             args=('selector',),
             arg_kinds=('selector',),
         )
