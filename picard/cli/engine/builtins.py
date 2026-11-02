@@ -233,6 +233,17 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     # Drain all the scheduled loads together.
     session.run_until_idle(timeout=120)
 
+    # Apply the same per-file placement policy the GUI uses after a load:
+    # honour embedded MusicBrainz IDs (auto-move to the matching album/track/
+    # NAT) and, when configured, the analyze fallback. Files with no embedded
+    # IDs stay in the unclustered bucket. This keeps `file add` behaviour in the
+    # shell consistent with dropping files into the GUI.
+    for file in loaded:
+        if file.state != File.State.ERROR:
+            wks.place_loaded_file(file)
+    # Placement may have scheduled album/NAT loads (and matching); drain them.
+    session.run_until_idle(timeout=120)
+
     mints = []
     for file in loaded:
         if file.state == File.State.ERROR:
