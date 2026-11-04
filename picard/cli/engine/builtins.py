@@ -353,6 +353,14 @@ def _cmd_cluster(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _request_error_text(http: Any, error: Any) -> str:
+    """Human text for a failed web service request (as the album load reports it)."""
+    try:
+        return http.errorString()
+    except AttributeError:
+        return str(error)
+
+
 def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResult:
     """Look up one cluster: capture ranked candidates, auto-apply the best.
 
@@ -365,10 +373,20 @@ def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResul
 
     def capture(document, http, error):
         captured['document'] = document
+        captured['http'] = http
         captured['error'] = error
 
     cluster.lookup_metadata(callback=capture)
     session.run_until_idle(timeout=60)
+
+    if captured.get('error'):
+        # The search request itself failed (network/server error): say so
+        # instead of reporting it as "no matches".
+        return EngineItemResult(
+            handle=session.handle_for(cluster),
+            status='lookup_failed',
+            data={'candidates': [], 'error': _request_error_text(captured.get('http'), captured['error'])},
+        )
 
     document = captured.get('document')
     releases = None

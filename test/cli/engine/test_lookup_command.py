@@ -129,6 +129,23 @@ class ClusterLookupCommandTest(PicardTestCase):
         self.assertEqual('no_matches', result.items[0].status)
         self.assertEqual([], result.items[0].data['candidates'])
 
+    def test_lookup_request_error_is_reported_not_no_matches(self):
+        http = MagicMock()
+        http.errorString.return_value = 'Service Unavailable'
+
+        def failing_find_releases(callback, **kwargs):
+            callback(None, http, 203)  # a truthy network error code
+            return MagicMock()
+
+        self.tagger.mb_api.find_releases.side_effect = failing_find_releases
+        result = dispatch(self.session, self.reg, 'cluster lookup')
+        self.assertTrue(result.ok)
+        item = result.items[0]
+        self.assertEqual('lookup_failed', item.status)
+        self.assertEqual('Service Unavailable', item.data['error'])
+        self.assertEqual([], item.data['candidates'])
+        self.assertEqual([], self._loaded)
+
     def test_lookup_result_serializable(self):
         result = dispatch(self.session, self.reg, 'cluster lookup')
         json.dumps(result.to_dict())
