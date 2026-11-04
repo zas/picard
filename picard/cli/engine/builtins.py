@@ -1028,6 +1028,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Move the selected files to the system trash and drop them from the set.",
             args=('selector',),
             arg_kinds=('selector',),
+            destructive=True,
         )
     )
     registry.register(

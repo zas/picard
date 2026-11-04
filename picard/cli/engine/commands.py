@@ -119,6 +119,11 @@ class EngineCommand:
     # Used by the shell's
     # tab-completer. Missing entries default to no completion.
     arg_kinds: tuple[str, ...] = field(default_factory=tuple)
+    # True for a command whose effect on disk is hard to undo (e.g. ``trash``).
+    # The engine itself never prompts; an interactive frontend should ask for
+    # confirmation before running such a command, and an automated one can apply
+    # its own policy.
+    destructive: bool = False
 
     def arg_kind(self, index: int) -> str:
         """Completion kind for the positional arg at ``index`` (''/unknown)."""

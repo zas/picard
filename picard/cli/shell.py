@@ -32,6 +32,7 @@ vocabulary, e.g.::
 """
 
 from argparse import ArgumentParser
+import shlex
 
 from picard.cli.base import ExitCode
 from picard.cli.subcommand import Subcommand
@@ -82,11 +83,37 @@ def _print_help(registry, output) -> None:
     output.print(f"  {output.d_command('quit'):<28} Leave the shell (also: exit, Ctrl-D).")
 
 
-def run_repl(session, registry, output, read_line) -> None:
+def _ask_yes_no(question: str) -> bool:
+    """Ask ``question`` on the terminal; anything but yes (or EOF) is no."""
+    try:
+        answer = input(f"{question} [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {'y', 'yes'}
+
+
+def _find_command(registry, line: str):
+    """Return the registered command ``line`` would run, or None."""
+    # Local import: dispatch pulls in the engine; keep shell import light.
+    from picard.cli.engine.dispatch import split_command_name
+
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return None  # dispatch reports the parse error
+    if not tokens:
+        return None
+    name, _rest = split_command_name(tokens, registry)
+    return registry.get(name)
+
+
+def run_repl(session, registry, output, read_line, confirm=_ask_yes_no) -> None:
     """Run the read-dispatch-render loop.
 
     ``read_line`` is a callable returning the next input line, or raising
-    EOFError at end of input. Factored out so it can be driven by a scripted
+    EOFError at end of input. ``confirm`` is called with a question before a
+    destructive command (see ``EngineCommand.destructive``) and returns whether
+    to go ahead. Both are factored out so the loop can be driven by scripted
     input in tests (not only an interactive terminal).
     """
     # Local import: dispatch/render pull in the engine; keep shell import light.
@@ -115,6 +142,11 @@ def run_repl(session, registry, output, read_line) -> None:
         if head == 'help':
             _print_help(registry, output)
             continue
+        command = _find_command(registry, line)
+        if command is not None and command.destructive:
+            if not confirm(f"'{command.name}' is destructive. Run '{line}'?"):
+                output.warning("cancelled")
+                continue
         try:
             result = dispatch(session, registry, line)
         except KeyboardInterrupt:

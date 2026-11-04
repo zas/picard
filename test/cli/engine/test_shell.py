@@ -21,7 +21,10 @@ from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
 from picard.cli.engine.builtins import register_builtins
-from picard.cli.engine.commands import EngineCommandRegistry
+from picard.cli.engine.commands import (
+    EngineCommand,
+    EngineCommandRegistry,
+)
 from picard.cli.engine.render import render_result
 from picard.cli.engine.result import (
     EngineItemResult,
@@ -206,11 +209,48 @@ class RunReplTest(PicardTestCase):
         # return to the prompt rather than propagating out of run_repl.
         # KeyboardInterrupt is a BaseException, so dispatch's `except Exception`
         # does not swallow it; run_repl must catch it around dispatch.
-        from picard.cli.engine.commands import EngineCommand
-
         def boom(session, args):
             raise KeyboardInterrupt()
 
         self.reg.register(EngineCommand(name='hang', run=boom))
         run_repl(self.session, self.reg, self.out, self._lines('hang', 'quit'))
         self.assertIn('interrupted', self.buf.getvalue())
+
+    def _register_destructive(self):
+        ran = []
+
+        def wipe(session, args):
+            ran.append(args)
+            return EngineResult()
+
+        self.reg.register(EngineCommand(name='wipe', run=wipe, destructive=True))
+        return ran
+
+    def test_destructive_command_runs_when_confirmed(self):
+        ran = self._register_destructive()
+        questions = []
+
+        def confirm(question):
+            questions.append(question)
+            return True
+
+        run_repl(self.session, self.reg, self.out, self._lines('wipe x', 'quit'), confirm=confirm)
+        self.assertEqual(1, len(ran))
+        self.assertIn('wipe x', questions[0])
+
+    def test_destructive_command_is_cancelled_when_declined(self):
+        ran = self._register_destructive()
+        run_repl(self.session, self.reg, self.out, self._lines('wipe x', 'quit'), confirm=lambda question: False)
+        self.assertEqual([], ran)
+        self.assertIn('cancelled', self.buf.getvalue())
+
+    def test_non_destructive_command_is_not_confirmed(self):
+        def confirm(question):
+            raise AssertionError("must not ask")
+
+        run_repl(self.session, self.reg, self.out, self._lines('ls', 'quit'), confirm=confirm)
+        self.assertIn('a1', self.buf.getvalue())
+
+    def test_trash_is_destructive(self):
+        self.assertTrue(self.reg.get('trash').destructive)
+        self.assertFalse(self.reg.get('remove').destructive)
