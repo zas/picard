@@ -485,6 +485,12 @@ def _cmd_match(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     candidate = candidates[0]
     if candidate.release_id is None:
         return EngineResult.failure("match: candidate has no release", unresolved=unresolved)
+    # A candidate is only an alternative for the cluster it was looked up for.
+    if not any(c is candidate for c in session.candidates_for(cluster)):
+        return EngineResult.failure(
+            f"match: {session.handle_for(candidate)} is not a candidate of {session.handle_for(cluster)}",
+            unresolved=unresolved,
+        )
 
     album = workspace().load_album(candidate.release_id)
     # Drain the load and verify it succeeded before moving files onto the

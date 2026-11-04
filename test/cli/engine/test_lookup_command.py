@@ -239,6 +239,18 @@ class MatchCommandTest(ClusterLookupCommandTest):
         self.assertEqual(1, len(applied))
         self.assertEqual(other['handle'], self.session.handle_for(applied[0]))
 
+    def test_match_rejects_candidate_of_another_cluster(self):
+        _cluster_handle, cands = self._lookup()
+        other_cluster = Cluster('Other Album', 'Other Artist')
+        workspace().clusters.append(other_cluster)
+        other_handle = self.session.handle_for(other_cluster)
+        workspace().move_files_to_album.reset_mock()
+
+        result = dispatch(self.session, self.reg, f'match {other_handle} {cands[0]["handle"]}')
+        self.assertFalse(result.ok)
+        self.assertIn('not a candidate', result.error)
+        workspace().move_files_to_album.assert_not_called()
+
     def test_match_bad_usage_is_failure(self):
         self.assertFalse(dispatch(self.session, self.reg, 'match c1').ok)
 
