@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
+import gc
 from unittest.mock import MagicMock
 
 from test.picardtestcase import PicardTestCase
@@ -22,6 +23,7 @@ from picard.album import (
     Album,
     NatAlbum,
 )
+from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.commands import EngineSession
 from picard.cli.engine.session import (
     LocalEngineSession,
@@ -105,3 +107,25 @@ class LocalEngineSessionTest(PicardTestCase):
         self.app.run_until_idle.return_value = True
         self.assertTrue(self.session.run_until_idle(timeout=1.0))
         self.app.run_until_idle.assert_called_once_with(timeout=1.0)
+
+    def test_candidates_are_dropped_with_their_target(self):
+        cluster = Cluster('Album', 'Artist')
+        match = MagicMock()
+        match.release = {'id': 'rel-1'}
+        self.session.set_candidates(cluster, [Candidate(match)])
+        self.assertEqual(1, len(list(self.session.enumerate_prefix('m'))))
+
+        # Once the target is gone, its candidates must not linger (or leak).
+        del cluster
+        gc.collect()
+        self.assertEqual([], list(self.session.enumerate_prefix('m')))
+
+    def test_candidates_are_per_target_object(self):
+        first = Cluster('Album', 'Artist')
+        second = Cluster('Album', 'Artist')
+        match = MagicMock()
+        match.release = {'id': 'rel-1'}
+        candidate = Candidate(match)
+        self.session.set_candidates(first, [candidate])
+        self.assertEqual([candidate], self.session.candidates_for(first))
+        self.assertEqual([], self.session.candidates_for(second))

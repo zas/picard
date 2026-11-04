@@ -185,7 +185,7 @@ class LsCommandTest(PicardTestCase):
             'artist-credit': [{'name': 'The Artist', 'artist': {'name': 'The Artist'}}],
         }
         cand = Candidate(SimMatchRelease(similarity=0.42, release=release))
-        (handle,) = self.session.set_candidates(object(), [cand])
+        (handle,) = self.session.set_candidates(self.cluster, [cand])
 
         r = dispatch(self.session, self.reg, f'ls {handle}')
         self.assertTrue(r.ok)

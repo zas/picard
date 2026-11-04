@@ -32,6 +32,7 @@ type-agnostic.
 
 from collections.abc import Iterable
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from picard.album import Album
 from picard.cli.engine.candidates import Candidate
@@ -77,10 +78,13 @@ class LocalEngineSession:
         """``app`` is the HeadlessTagger owning the Workspace and thread pools."""
         self._app = app
         self._handles = HandleRegistry(classify_entity)
-        # Current lookup candidates, keyed by the id() of the looked-up target
-        # (cluster/file). Held with strong refs so their m-handles stay live;
-        # replaced on the next lookup of that target (transient semantics).
-        self._candidates: dict[int, list[Candidate]] = {}
+        # Current lookup candidates, keyed (weakly) by the looked-up target
+        # (cluster/file). The candidates themselves are held with strong refs so
+        # their m-handles stay live; replaced on the next lookup of that target
+        # (transient semantics) and dropped when the target leaves the working
+        # set and is collected. Keying by the object, not id(), also means a
+        # new target can never inherit a dead target's candidates.
+        self._candidates: WeakKeyDictionary[Any, list[Candidate]] = WeakKeyDictionary()
 
     # --- candidates ---------------------------------------------------------
 
@@ -89,12 +93,12 @@ class LocalEngineSession:
 
         Dropping the previous candidate list lets the old m handles expire.
         """
-        self._candidates[id(target)] = candidates
+        self._candidates[target] = candidates
         return [self._handles.handle_for(c) for c in candidates]
 
     def candidates_for(self, target: Any) -> list[Candidate]:
         """Return the current candidates held for ``target`` (may be empty)."""
-        return self._candidates.get(id(target), [])
+        return self._candidates.get(target, [])
 
     # --- EngineSession protocol ---------------------------------------------
 

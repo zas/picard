@@ -27,6 +27,7 @@ from picard.cli.engine.session import (
     LocalEngineSession,
     classify_entity,
 )
+from picard.cluster import Cluster
 from picard.matching import SimMatchRelease
 
 
@@ -81,7 +82,7 @@ class SessionCandidateStoreTest(PicardTestCase):
         super().setUp()
         self.release = load_test_json('release.json')
         self.session = LocalEngineSession(MagicMock())
-        self.target = object()  # stand-in for a cluster/file
+        self.target = Cluster('Album', 'Artist')  # the looked-up cluster
 
     def _candidate(self, similarity):
         return Candidate(SimMatchRelease(similarity=similarity, release=self.release))
