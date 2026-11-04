@@ -61,6 +61,25 @@ from picard.workspace import workspace
 _LS_PREFIXES = ('f', 'c', 'a')
 
 
+def _drain(session: EngineSession, timeout: float, notes: list[str]) -> bool:
+    """Wait for the session's background work; note a timeout for the result.
+
+    Returns True when everything finished. On a timeout the work may still be
+    running, so the command's outcome can be incomplete: a message is added to
+    ``notes`` (deduplicated) for the command to put in its result.
+    """
+    drained = bool(session.run_until_idle(timeout=timeout))
+    if not drained:
+        note = f"timed out after {timeout:g}s waiting for background work; results may be incomplete"
+        if note not in notes:
+            notes.append(note)
+    return drained
+
+
+def _message(notes: list[str]) -> str:
+    return '; '.join(notes)
+
+
 def _entity_mb_ref(entity: Any) -> 'tuple[str, str] | tuple[None, None]':
     """Return the ``(entity_type, mbid)`` an entity points at, or ``(None, None)``.
 
@@ -285,6 +304,7 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     registry = services().format_registry
     loaded = []
     items = []
+    notes: list[str] = []
     for path in filepaths:
         # Same normalisation as the GUI's add_files, so the "already loaded"
         # check below compares like with like.
@@ -306,7 +326,7 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         loaded.append(file)
 
     # Drain all the scheduled loads together.
-    session.run_until_idle(timeout=120)
+    _drain(session, 120, notes)
 
     # Apply the same per-file placement policy the GUI uses after a load:
     # honour embedded MusicBrainz IDs (auto-move to the matching album/track/
@@ -317,7 +337,7 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         if file.state != File.State.ERROR:
             wks.place_loaded_file(file)
     # Placement may have scheduled album/NAT loads (and matching); drain them.
-    session.run_until_idle(timeout=120)
+    _drain(session, 120, notes)
 
     mints = []
     for file in loaded:
@@ -326,10 +346,12 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
             continue
         handle = session.handle_for(file)
         mints.append(handle)
-        items.append(EngineItemResult(handle=handle, status='added', data=describe_entity(file)))
+        # A file whose load had not finished when we gave up is not "added" yet.
+        status = 'pending' if file.state == File.State.PENDING else 'added'
+        items.append(EngineItemResult(handle=handle, status=status, data=describe_entity(file)))
 
-    ok = any(it.status == 'added' for it in items) or (not loaded and not unmatched)
-    return EngineResult(ok=ok, items=items, mints=mints, unresolved=unmatched)
+    ok = any(it.status in {'added', 'pending'} for it in items) or (not loaded and not unmatched)
+    return EngineResult(ok=ok, items=items, mints=mints, unresolved=unmatched, message=_message(notes))
 
 
 def _cmd_cluster(session: EngineSession, args: dict[str, Any]) -> EngineResult:
@@ -361,7 +383,7 @@ def _request_error_text(http: Any, error: Any) -> str:
         return str(error)
 
 
-def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResult:
+def _lookup_cluster(session: EngineSession, cluster: Cluster, notes: list[str]) -> EngineItemResult:
     """Look up one cluster: capture ranked candidates, auto-apply the best.
 
     Issues the same release search as the GUI cluster lookup but with our own
@@ -377,7 +399,11 @@ def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResul
         captured['error'] = error
 
     cluster.lookup_metadata(callback=capture)
-    session.run_until_idle(timeout=60)
+    drained = _drain(session, 60, notes)
+
+    if not drained and not captured:
+        # No reply at all before we gave up: neither "no matches" nor a result.
+        return EngineItemResult(handle=session.handle_for(cluster), status='timeout', data={'candidates': []})
 
     if captured.get('error'):
         # The search request itself failed (network/server error): say so
@@ -421,9 +447,11 @@ def _lookup_cluster(session: EngineSession, cluster: Cluster) -> EngineItemResul
         # schedules the request. If it failed (e.g. a 503 from the server),
         # album.errors is populated and we must NOT report a confident match
         # or move files onto a half-loaded album.
-        session.run_until_idle(timeout=60)
+        loaded = _drain(session, 60, notes)
         if album.errors:
             load_error = album.errors[-1]
+        elif not loaded and not album.loaded:
+            load_error = "timed out waiting for the release to load"
         else:
             # cluster.files is typed as generic metadata items; only File here.
             files = [f for f in cluster.files if isinstance(f, File)]
@@ -461,7 +489,8 @@ def _cmd_cluster_lookup(session: EngineSession, args: dict[str, Any]) -> EngineR
     selector = args.get('selector') or 'c*'
     entities, unresolved = session.resolve(selector)
     clusters = [e for e in entities if isinstance(e, Cluster)]
-    items = [_lookup_cluster(session, cluster) for cluster in clusters]
+    notes: list[str] = []
+    items = [_lookup_cluster(session, cluster, notes) for cluster in clusters]
     mints = []
     for item in items:
         if item.data.get('matched_album'):
@@ -472,6 +501,7 @@ def _cmd_cluster_lookup(session: EngineSession, args: dict[str, Any]) -> EngineR
         resolved=[session.handle_for(c) for c in clusters],
         unresolved=unresolved,
         mints=mints,
+        message=_message(notes),
     )
 
 
@@ -514,10 +544,16 @@ def _cmd_match(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     # Drain the load and verify it succeeded before moving files onto the
     # album (load_album() only schedules the request; a failed load leaves
     # album.errors set and must not be reported as a match).
-    session.run_until_idle(timeout=60)
+    notes: list[str] = []
+    drained = _drain(session, 60, notes)
     if album.errors:
         return EngineResult.failure(
             f"match: release load failed: {album.errors[-1]}",
+            unresolved=unresolved,
+        )
+    if not drained and not album.loaded:
+        return EngineResult.failure(
+            f"match: {_message(notes)}",
             unresolved=unresolved,
         )
     workspace().move_files_to_album(cluster.files, album=album)
@@ -554,16 +590,23 @@ def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     savable = [f for f in files if f.can_save]
     for file in savable:
         file.save()
-    session.run_until_idle(timeout=120)
+    notes: list[str] = []
+    _drain(session, 120, notes)
 
     items = []
     for file in savable:
-        status = 'error' if file.state == File.State.ERROR else 'saved'
+        if file.state == File.State.ERROR:
+            status = 'error'
+        elif file.state == File.State.PENDING:
+            status = 'pending'  # still being saved when we stopped waiting
+        else:
+            status = 'saved'
         items.append(EngineItemResult(handle=session.handle_for(file), status=status, data={'path': file.filename}))
     return EngineResult(
         items=items,
         resolved=[session.handle_for(e) for e in entities],
         unresolved=unresolved,
+        message=_message(notes),
     )
 
 
@@ -606,13 +649,20 @@ def _cmd_album_load(session: EngineSession, args: dict[str, Any]) -> EngineResul
         return EngineResult.failure(f"album load: not a release MBID or URL: {arg!r}")
 
     album = workspace().load_album(mbid)
-    session.run_until_idle(timeout=60)
+    notes: list[str] = []
+    drained = _drain(session, 60, notes)
 
     handle = session.handle_for(album)
-    status = 'error' if album.errors else 'loaded'
+    if album.errors:
+        status = 'error'
+    elif not drained and not album.loaded:
+        status = 'pending'
+    else:
+        status = 'loaded'
     return EngineResult(
         items=[EngineItemResult(handle=handle, status=status, data=describe_entity(album))],
         mints=[handle],
+        message=_message(notes),
     )
 
 
@@ -643,7 +693,8 @@ def _cmd_scan(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     wks.analyze(files)
     # Drain the fingerprint computation and the follow-up AcoustID lookups, plus
     # any album loads a confident match scheduled.
-    session.run_until_idle(timeout=300)
+    notes: list[str] = []
+    _drain(session, 300, notes)
 
     items = []
     mints = []
@@ -665,6 +716,7 @@ def _cmd_scan(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         mints=mints,
         resolved=[session.handle_for(f) for f in files],
         unresolved=unresolved,
+        message=_message(notes),
     )
 
 
@@ -743,7 +795,8 @@ def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
 
     workspace().autotag(taggable)
     # autotag dispatches async web lookups (and album loads on a match); drain.
-    session.run_until_idle(timeout=300)
+    notes: list[str] = []
+    _drain(session, 300, notes)
 
     items = []
     mints = []
@@ -766,6 +819,7 @@ def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         mints=mints,
         resolved=[session.handle_for(e) for e in taggable],
         unresolved=unresolved,
+        message=_message(notes),
     )
 
 
@@ -782,15 +836,21 @@ def _disc_lookup_and_report(session: EngineSession, disc) -> EngineResult:
     dp = disc_presentation()
     dp.reset_last_loaded()
     disc.lookup()
-    session.run_until_idle(timeout=120)
+    notes: list[str] = []
+    drained = _drain(session, 120, notes)
 
     album = dp.last_loaded_album
     if album is None:
-        return EngineResult(items=[EngineItemResult(handle='', status='no_match', data={'disc_id': disc.id})])
+        status = 'no_match' if drained else 'timeout'
+        return EngineResult(
+            items=[EngineItemResult(handle='', status=status, data={'disc_id': disc.id})],
+            message=_message(notes),
+        )
     handle = session.handle_for(album)
     return EngineResult(
         items=[EngineItemResult(handle=handle, status='loaded', data=describe_entity(album))],
         mints=[handle],
+        message=_message(notes),
     )
 
 
