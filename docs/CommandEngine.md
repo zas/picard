@@ -3,7 +3,7 @@
 > STATUS: **In-progress design / target contract.** This settles the design so
 > the code written now can grow into it. It is NOT a commitment to implement
 > the full vocabulary immediately. The near-term work builds the minimal,
-> extensible substrate (see "What we build now"); commands, backends, and the
+> extensible substrate (see "Current state"); commands, backends, and the
 > full selector grammar are added later, incrementally.
 
 ## Purpose
@@ -83,6 +83,11 @@ Commands are `noun verb [args]`: `option set`, `tag add`, `album show`,
 collision between options and tags), self-groups for help/discovery, and maps
 directly to MCP tool names (`album_show`, `tag_add`). Supersedes the older flat
 vocabulary (`save a1` → `album save a1` / `file save`).
+
+> The commands implemented so far (see "Current state") still use some flat
+> names (`save`, `remove`, `trash`, `scan`, `lookup`) and `disc read` /
+> `disc read-log`. The `noun verb` names in this document are the target; the
+> final names are not decided yet.
 
 ## Backend availability
 
@@ -165,6 +170,12 @@ Decided semantics:
 - `!a3` alone → empty set (composable). Duplicates dedupe.
 - Reserved future: `prefix where <field>=<value>` metadata selectors.
 
+Implemented subset (`picard/cli/engine/selectors.py`): single handles (`a1`),
+type wildcards (`a*`), the universal `*`, and comma unions of those. A union
+may be written with spaces and arrive as several command-line tokens
+(`ls a1, c2` or `ls a1 c2`). Ranges, exclusion and sticky bare ordinals are
+rejected with a clear error until they are implemented.
+
 ## Result contract
 
 Selector-taking commands return a per-handle outcome list plus resolution info,
@@ -189,6 +200,12 @@ unresolved == []` = valid, nothing matched.
 Derived from Picard's full GUI action surface (`picard/const/actions.py`
 `MainAction`), so the vocabulary is complete-by-construction. `avail`: both /
 gui.
+
+The names below are the TARGET vocabulary. Commands already implemented keep
+their current names (see "Current state"): `file save` is `save`,
+`file remove` is `remove`, `file trash` is `trash`, `file scan` is `scan`,
+`album lookup` is `lookup`, `disc lookup` is `disc read` and `disc from-log` is
+`disc read-log`.
 
 ### Working-set nouns (backend: both unless noted)
 
@@ -307,27 +324,51 @@ MCP (agent):
 ← {"items":[{"handle":"a1","saved":12}], "unresolved":[]}
 ```
 
-## What we build now (minimal extensible substrate)
+## Current state
 
-Extension points, not features. Home: `picard/cli/engine/`.
+Home: `picard/cli/engine/`. The console frontend is `picard-cli shell`
+(`picard/cli/shell.py`, with `render.py` and `completion.py`).
 
-1. **HandleRegistry** — mint/resolve handles, weakref, id-stable, injected
-   classifier. **Done** (`picard/cli/engine/handles.py`).
-2. **Selector parser + resolver** — grammar above (or a documented SUBSET first:
-   single handles + `prefix*` + `*`), returns `(entities, unresolved)`, Workspace
-   injected for wildcard enumeration. Written so list/range/exclude slot in.
-3. **`Session` INTERFACE + command declaration/registry + serializable Result
-   type** — define `Session` as a protocol (so RemoteSession can satisfy it
-   later); `Command` = name + params + backend-availability + `run(session,
-   args) -> Result`. Implement only `LocalSession` now.
-4. **LocalSession** — owns HeadlessTagger/Workspace + HandleRegistry + resolver +
-   run_until_idle.
-5. **2–3 trivial commands** as proof (`ls`, `file add`, maybe `file remove`).
+Substrate, frontend-agnostic:
 
-NOT now: the full catalog, RemoteSession + pipe response channel, gui-only
-commands, candidate/version/disc/collection/session machinery, options/profiles,
-the MCP frontend, REPL polish. Those are declarations/backends/frontends added
-later against this substrate.
+1. **HandleRegistry** (`handles.py`) — mint/resolve handles, weak references,
+   stable ids, injected classifier.
+2. **Selector parser + resolver** (`selectors.py`) — the subset described under
+   "Selector grammar"; returns `(entities, unresolved)`.
+3. **`EngineSession` interface, command declaration/registry, serializable
+   `EngineResult`** (`commands.py`, `result.py`). A command declares its name,
+   backend availability, positional args, completion hints and whether it is
+   `destructive` (an interactive frontend asks before running it).
+4. **`LocalEngineSession`** (`session.py`) — owns the handle registry, the
+   resolver and the lookup candidates (held weakly per looked-up target), and
+   drains async work with `run_until_idle`. A command that stops waiting reports
+   it in its result (a message, and a `pending` / `timeout` status where the
+   outcome is unknown) instead of looking successful.
+5. **Dispatch** (`dispatch.py`) — command line to command invocation, always
+   returning an `EngineResult`.
+
+Implemented commands (backend: both):
+
+| command | what it does |
+|---|---|
+| `ls [sel]` | list top-level entities (or the selection) with their handles |
+| `tree [sel]` | the working set as an indented tree, like the GUI panes |
+| `file add <paths>` | load files, directories and globs; applies the GUI's ignore rules and placement policy; skips files already loaded |
+| `cluster [sel]` | group files (default: unclustered) into clusters |
+| `cluster lookup [sel]` | search MusicBrainz for clusters, auto-apply the best match, expose the alternatives as `m` handles |
+| `match <cluster> <m>` | apply another candidate of that cluster |
+| `lookup [sel]` | metadata lookup (autotag) of the selected objects |
+| `scan [sel]` | identify files by AcoustID fingerprint |
+| `album load <mbid\|url>` | load a release as an empty album |
+| `disc read [device]` | read the TOC of the CD in a drive and load the matching release |
+| `disc read-log <path>` | the same from a CD ripper log file |
+| `save [sel]` | write tag changes to disk |
+| `remove <sel>` | drop objects from the working set (never touches disk) |
+| `trash <sel>` | move the files of the selection to the system trash (destructive) |
+
+Not done yet: the rest of the catalog, `RemoteEngineSession` and the pipe
+response channel, gui-only commands, release versions, collections, sessions,
+options/profiles, the MCP frontend.
 
 Guiding principle: an empty-but-correct registry + resolver + `Session`
 interface is the deliverable; features are incremental declarations on top.
