@@ -48,6 +48,8 @@ from picard.file import File
 from picard.services import services
 from picard.track import Track
 from picard.util import (
+    compile_ignore_regex,
+    is_ignored_file,
     iter_files_from_objects,
     mbid_validate,
     normpath,
@@ -300,6 +302,10 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
 
     filepaths, unmatched = _expand_input_paths(list(paths))
 
+    settings = config.get_config().setting
+    ignore_hidden = settings['ignore_hidden_files']
+    ignoreregex = compile_ignore_regex(settings['ignore_regex'])
+
     wks = workspace()
     registry = services().format_registry
     loaded = []
@@ -309,6 +315,9 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         # Same normalisation as the GUI's add_files, so the "already loaded"
         # check below compares like with like.
         path = normpath(resolve_fs_path(path))
+        if is_ignored_file(path, ignore_hidden, ignoreregex):
+            items.append(EngineItemResult(handle='', status='ignored', data={'path': path}))
+            continue
         existing = wks.files.get(path)
         if existing is not None:
             # Never open a second File for a path that is already in the set.

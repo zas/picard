@@ -52,6 +52,8 @@ class FileAddPlacementTest(PicardTestCase):
         self.set_config_values(
             setting={
                 'ignore_file_mbids': False,
+                'ignore_hidden_files': False,
+                'ignore_regex': '',
                 'analyze_new_files': False,
                 'cluster_new_files': False,
             }
@@ -103,6 +105,19 @@ class FileAddPlacementTest(PicardTestCase):
         self.assertEqual([], second.mints)
         self.assertEqual(1, len(self.wks.unclustered_files.files))
         self.assertIs(f, self.wks.files[f.filename])
+
+    def test_files_matching_ignore_rules_are_not_added(self):
+        self.set_config_values(setting={'ignore_hidden_files': False, 'ignore_regex': r'\.bak$'})
+        skipped_regex = self._make_file('song.bak')
+        skipped_smb = self._make_file('.smbdelete1234')
+        kept = self._make_file('song.flac')
+        result = self._dispatch_add([skipped_regex, skipped_smb, kept])
+        self.assertTrue(result.ok)
+        ignored = {it.data['path'] for it in result.items if it.status == 'ignored'}
+        self.assertEqual({skipped_regex.filename, skipped_smb.filename}, ignored)
+        self.assertEqual(1, len([it for it in result.items if it.status == 'added']))
+        self.assertEqual([kept], list(self.wks.unclustered_files.files))
+        self.assertNotIn(skipped_regex.filename, self.wks.files)
 
     def test_file_with_album_mbid_is_moved_to_album(self):
         f = self._make_file('tagged.flac', albumid=_VALID_ALBUM_MBID)
