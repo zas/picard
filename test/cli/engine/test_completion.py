@@ -28,6 +28,7 @@ from picard.cli.engine.commands import EngineCommandRegistry
 from picard.cli.engine.completion import complete
 from picard.cli.engine.session import LocalEngineSession
 from picard.cluster import Cluster
+from picard.track import Track
 from picard.workspace import workspace
 
 
@@ -94,6 +95,54 @@ class CompleteTest(PicardTestCase):
         self.assertIn('a1', matches)
         self.assertIn('a*', matches)
         self.assertNotIn('c*', matches)
+
+    def test_selector_offers_the_unclustered_bucket(self):
+        self.assertIn('u', self._complete('ls '))
+
+    def test_path_segments_after_a_dot(self):
+        self._load_album()
+        matches = self._complete('ls a1.')
+        self.assertEqual(['a1.d*', 'a1.d1', 'a1.f*', 'a1.t*', 'a1.t1', 'a1.t2', 'a1.u'], matches)
+
+    def test_path_segments_are_filtered_by_what_is_typed(self):
+        self._load_album()
+        self.assertEqual(['a1.t*', 'a1.t1', 'a1.t2'], self._complete('ls a1.t'))
+        self.assertEqual(['a1.d*', 'a1.d1'], self._complete('ls a1.d'))
+
+    def test_path_completion_goes_deeper(self):
+        self._load_album()
+        self.assertEqual(['a1.d1.f*', 'a1.d1.t*', 'a1.d1.t1', 'a1.d1.t2'], self._complete('ls a1.d1.'))
+
+    def test_path_completion_applies_to_any_selector_argument(self):
+        self._load_album()
+        self.assertIn('a1.t1', self._complete('save a1.'))
+        self.assertIn('a1.t1', self._complete('tree a1.'))
+        # 'match' takes a target and a candidate; both are selectors.
+        self.assertIn('a1.t1', self._complete('match a1.'))
+
+    def test_only_the_last_term_of_a_union_is_completed(self):
+        self._load_album()
+        self.assertEqual(
+            ['a1.d1,a1.t*', 'a1.d1,a1.t1', 'a1.d1,a1.t2'],
+            self._complete('ls a1.d1,a1.t'),
+        )
+
+    def test_union_of_handles_is_completed(self):
+        self.assertIn('a1,c1', self._complete('ls a1,c'))
+
+    def test_unknown_path_base_completes_nothing(self):
+        self.assertEqual([], self._complete('ls a9.'))
+        self.assertEqual([], self._complete('ls a1.k1.'))
+
+    def _load_album(self):
+        album = workspace().albums['rel-1']
+        album.loaded = True
+        for number in (1, 2):
+            track = Track(f'trk-{number}', album)
+            track.metadata['discnumber'] = '1'
+            track.metadata['tracknumber'] = str(number)
+            album.tracks.append(track)
+        self.session.handle_for(album)
 
     def test_path_arg_completes_filesystem(self):
         tmp = self.mktmpdir()

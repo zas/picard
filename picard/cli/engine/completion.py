@@ -24,7 +24,9 @@ decides what to complete from the command registry and the command's declared
 - command name (first word(s)) -> matching ``noun verb`` names
 - a ``path`` arg -> filesystem paths (``~`` expanded, directory-aware)
 - a ``device`` arg -> detected CD/DVD drives (cross-platform)
-- a ``selector`` / ``handle`` arg -> live session handles + wildcards
+- a ``selector`` / ``handle`` arg -> live session handles + wildcards, and
+  after a ``.`` the path segments that can follow (``a1.`` -> ``a1.d1``,
+  ``a1.t*``, ...); in a comma-separated union the last term is completed
 
 :class:`ShellCompleter` adapts :func:`complete` to the stdlib ``readline``
 completer protocol.
@@ -36,7 +38,7 @@ import os
 from picard.cli.engine.dispatch import split_command_name
 
 
-_WILDCARDS = ('*', 'f*', 'c*', 'a*', 't*', 'm*')
+_WILDCARDS = ('*', 'f*', 'c*', 'a*', 't*', 'm*', 'u')
 _HANDLE_PREFIXES = ('f', 'c', 'a', 't', 'm')
 
 
@@ -85,6 +87,24 @@ def _live_handles(session) -> list[str]:
     return handles
 
 
+def _complete_selector(session, text: str, wildcards: bool) -> list[str]:
+    """Completions for the selector ``text``: handles, wildcards and path segments.
+
+    Only the term being typed is completed (the part after the last ``,``), and
+    after a ``.`` the options are what can follow the path before it.
+    """
+    union, comma, term = text.rpartition(',')
+    union += comma
+    base, dot, _partial = term.rpartition('.')
+    if dot:
+        options = [f"{base}.{segment}" for segment in session.path_segments(base)]
+    else:
+        options = _live_handles(session)
+        if wildcards:
+            options += list(_WILDCARDS)
+    return [union + option for option in set(options) if option.startswith(term)]
+
+
 def complete(line: str, text: str, registry, session) -> list[str]:
     """Return completions for ``text`` given the full ``line`` so far.
 
@@ -128,10 +148,7 @@ def complete(line: str, text: str, registry, session) -> list[str]:
     elif kind == 'device':
         arg_matches = [d for d in _cdrom_devices() if d.startswith(text)]
     elif kind in {'selector', 'handle'}:
-        options = _live_handles(session)
-        if kind == 'selector':
-            options = options + list(_WILDCARDS)
-        arg_matches = [o for o in set(options) if o.startswith(text)]
+        arg_matches = _complete_selector(session, text, wildcards=(kind == 'selector'))
 
     # Merge verb completions (two-word commands) with the one-word command's
     # arg completions, so both ``cluster lookup`` and ``cluster <selector>`` are
