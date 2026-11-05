@@ -30,6 +30,7 @@ added without changing call sites.
 
 import shlex
 
+from picard import log
 from picard.cli.engine.commands import (
     EngineCommandRegistry,
     EngineSession,
@@ -79,12 +80,29 @@ def dispatch(session: EngineSession, registry: EngineCommandRegistry, line: str)
 
     args = _bind_args(command.args, rest)
     try:
-        return command.run(session, args)
+        result = command.run(session, args)
     except SelectorError as e:
         # The user's selector is at fault (malformed, ambiguous, ...), not the command.
         return EngineResult.failure(f"{name}: invalid selector: {e}")
     except Exception as e:  # a command bug must not crash the frontend
         return EngineResult.failure(f"command {name!r} failed: {e}")
+    _add_paths(session, result)
+    return result
+
+
+def _add_paths(session: EngineSession, result: EngineResult) -> None:
+    """Fill in where each reported entity currently sits (``EngineItemResult.path``).
+
+    The command has already run, so a failure here must not turn its outcome
+    into an error: an item is simply left without a path.
+    """
+    for item in result.items:
+        if not item.handle or item.path:
+            continue
+        try:
+            item.path = session.path_of(item.handle) or ''
+        except Exception as e:
+            log.debug("Could not work out the path of %r: %s", item.handle, e)
 
 
 def _bind_args(names: tuple[str, ...], values: list[str]) -> 'dict[str, object]':

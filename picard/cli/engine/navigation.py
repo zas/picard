@@ -50,6 +50,7 @@ from collections.abc import (
 from typing import Any
 
 from picard.album import Album
+from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.selectors import (
     Segment,
     SelectorError,
@@ -104,6 +105,14 @@ def _files_of_tracks(tracks: Iterable[Track]) -> list[File]:
     return [file for track in tracks for file in track.files if isinstance(file, File)]
 
 
+def _position(items: Iterable, item: Any) -> 'int | None':
+    """The 1-based position of ``item`` in ``items`` (by identity), or None."""
+    for position, candidate in enumerate(items, 1):
+        if candidate is item:
+            return position
+    return None
+
+
 def _positional(items: list, segment: Segment) -> list:
     """Select from ``items`` by 1-based position (ordinal) or all of them (wildcard)."""
     if segment.kind == 'wildcard':
@@ -119,9 +128,16 @@ def _unsupported(parent: str, segment: Segment) -> SelectorError:
 class PathNavigator:
     """Navigator over the working set (see the module docstring for the rules)."""
 
-    def __init__(self, candidates_for: Callable[[Any], list]):
-        """``candidates_for(target)`` returns the lookup candidates held for ``target``."""
+    def __init__(
+        self,
+        candidates_for: Callable[[Any], list],
+        candidate_owner: 'Callable[[Candidate], Any] | None' = None,
+    ):
+        """``candidates_for(target)`` returns the lookup candidates held for ``target``;
+        ``candidate_owner(candidate)`` the target a candidate was found for.
+        """
         self._candidates_for = candidates_for
+        self._candidate_owner = candidate_owner
 
     # --- Navigator protocol -------------------------------------------------
 
@@ -148,6 +164,67 @@ class PathNavigator:
         if isinstance(node, Cluster) and node.special:
             return list(node.files)
         return [node]
+
+    # --- where an entity is now -------------------------------------------------
+
+    def path_of(self, entity: Any, handle_for: Callable[[Any], str]) -> 'str | None':
+        """The path that currently reaches ``entity``, or None.
+
+        The inverse of resolving a path: tracks, files and candidates sit at a
+        position under a container (``a1.d2.t3``, ``c1.f2``, ``c1.m1``). Albums
+        and clusters are reached by their plain handle, so they have no path.
+        ``handle_for`` supplies the handle of the container the path starts from.
+        """
+        if isinstance(entity, Track):
+            return self._track_path(entity, handle_for)
+        if isinstance(entity, File):
+            return self._file_path(entity, handle_for)
+        if isinstance(entity, Candidate):
+            return self._candidate_path(entity, handle_for)
+        return None
+
+    def _track_path(self, track: Track, handle_for: Callable[[Any], str]) -> 'str | None':
+        album = track.album
+        if album is None:
+            return None
+        position = _position(album.tracks, track)
+        if position is None:
+            return None
+        base = handle_for(album)
+        if not _is_numbered(album):
+            return f"{base}.t{position}"
+        # The shortest form that resolves: the disc is only named when needed.
+        if len(_disc_numbers(album)) > 1:
+            return f"{base}.d{_disc_of(track)}.t{_number_of(track)}"
+        return f"{base}.t{_number_of(track)}"
+
+    def _file_path(self, file: File, handle_for: Callable[[Any], str]) -> 'str | None':
+        parent = file.parent_item
+        if parent is None:
+            return None
+        position = _position(parent.files, file)
+        if position is None:
+            return None
+        if isinstance(parent, Track):
+            base = self._track_path(parent, handle_for)
+            return None if base is None else f"{base}.f{position}"
+        if isinstance(parent, Cluster):
+            if parent is workspace().unclustered_files:
+                return f"u.f{position}"
+            if parent.special:
+                # The unmatched files of an album.
+                return None if parent.album is None else f"{handle_for(parent.album)}.u.f{position}"
+            return f"{handle_for(parent)}.f{position}"
+        return None
+
+    def _candidate_path(self, candidate: Candidate, handle_for: Callable[[Any], str]) -> 'str | None':
+        if self._candidate_owner is None:
+            return None
+        owner = self._candidate_owner(candidate)
+        if owner is None:
+            return None
+        position = _position(self._candidates_for(owner), candidate)
+        return None if position is None else f"{handle_for(owner)}.m{position}"
 
     # --- children of each kind of node -----------------------------------------
 

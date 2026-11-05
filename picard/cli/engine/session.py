@@ -38,7 +38,10 @@ from picard.album import Album
 from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.handles import HandleRegistry
 from picard.cli.engine.navigation import PathNavigator
-from picard.cli.engine.selectors import resolve_selector
+from picard.cli.engine.selectors import (
+    SelectorError,
+    resolve_selector,
+)
 from picard.cluster import (
     Cluster,
     UnclusteredFiles,
@@ -87,7 +90,7 @@ class LocalEngineSession:
         # new target can never inherit a dead target's candidates.
         self._candidates: WeakKeyDictionary[Any, list[Candidate]] = WeakKeyDictionary()
         # Walks selector paths (a1.d2.t3, c1.f*, ...) through the working set.
-        self._navigator = PathNavigator(self.candidates_for)
+        self._navigator = PathNavigator(self.candidates_for, self._candidate_owner)
 
     # --- candidates ---------------------------------------------------------
 
@@ -103,6 +106,13 @@ class LocalEngineSession:
         """Return the current candidates held for ``target`` (may be empty)."""
         return self._candidates.get(target, [])
 
+    def _candidate_owner(self, candidate: Candidate) -> Any:
+        """The target ``candidate`` was found for, or None if it is no longer held."""
+        for target, candidates in list(self._candidates.items()):
+            if any(held is candidate for held in candidates):
+                return target
+        return None
+
     # --- EngineSession protocol ---------------------------------------------
 
     def resolve(self, selector: str) -> 'tuple[list[Any], list[str]]':
@@ -112,6 +122,16 @@ class LocalEngineSession:
     def handle_for(self, entity: Any) -> str:
         """Return (minting if needed) the session handle for ``entity``."""
         return self._handles.handle_for(entity)
+
+    def path_of(self, handle: str) -> 'str | None':
+        """Where the entity of ``handle`` currently sits, as a selector path, or None."""
+        try:
+            entities, _unresolved = self.resolve(handle)
+        except SelectorError:
+            return None
+        if not entities:
+            return None
+        return self._navigator.path_of(entities[0], self.handle_for)
 
     def enumerate_prefix(self, prefix: str) -> Iterable[Any]:
         """Yield the live entities of a handle prefix, in a stable order."""

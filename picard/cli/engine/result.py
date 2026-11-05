@@ -38,15 +38,18 @@ class EngineItemResult:
 
     ``handle`` is the entity's session handle (a string). ``status`` is a short
     machine-readable tag (e.g. ``'saved'``, ``'matched'``, ``'skipped'``).
-    ``data`` carries any command-specific, JSON-serializable detail.
+    ``data`` carries any command-specific, JSON-serializable detail. ``path``
+    is where the entity currently sits (``a1.d2.t3``, ``c1.f2``), filled in by
+    the dispatcher; unlike the handle it is a position, so it can change.
     """
 
     handle: str
     status: str = 'ok'
     data: dict[str, Any] = field(default_factory=dict)
+    path: str = ''
 
     def to_dict(self) -> dict[str, Any]:
-        return {'handle': self.handle, 'status': self.status, 'data': self.data}
+        return {'handle': self.handle, 'path': self.path, 'status': self.status, 'data': self.data}
 
 
 @dataclass

@@ -52,7 +52,7 @@ class EngineResultTest(PicardTestCase):
             d,
             {
                 'ok': True,
-                'items': [{'handle': 'a1', 'status': 'saved', 'data': {'files': 12}}],
+                'items': [{'handle': 'a1', 'path': '', 'status': 'saved', 'data': {'files': 12}}],
                 'resolved': ['a1'],
                 'unresolved': [],
                 'mints': ['a1'],

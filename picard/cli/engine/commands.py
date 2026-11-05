@@ -71,6 +71,10 @@ class EngineSession(Protocol):
         """Return (minting if needed) the session handle for ``entity``."""
         ...
 
+    def path_of(self, handle: str) -> 'str | None':
+        """Where the entity of ``handle`` currently sits, as a selector path (or None)."""
+        ...
+
     def enumerate_prefix(self, prefix: str) -> Iterable[Any]:
         """Yield the live entities of a handle prefix (for wildcards / ls)."""
         ...

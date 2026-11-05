@@ -48,6 +48,9 @@ class _Session:
     def handle_for(self, entity):
         return 'x1'
 
+    def path_of(self, handle):
+        return None
+
     def enumerate_prefix(self, prefix):
         return []
 

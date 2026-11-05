@@ -20,7 +20,10 @@ from unittest.mock import MagicMock
 from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
+from picard.cli.engine.builtins import register_builtins
 from picard.cli.engine.candidates import Candidate
+from picard.cli.engine.commands import EngineCommandRegistry
+from picard.cli.engine.dispatch import dispatch
 from picard.cli.engine.selectors import SelectorError
 from picard.cli.engine.session import LocalEngineSession
 from picard.cluster import Cluster
@@ -53,6 +56,7 @@ class _PathTestBase(PicardTestCase):
         # Moving a file into a container reaches these services.
         self.tagger.acoustid_manager = MagicMock()
         self.tagger.isrc_submit_manager = MagicMock()
+        self.tagger.acoustid_client = MagicMock()
         self.session = LocalEngineSession(MagicMock())
         self.wks = workspace()
 
@@ -328,3 +332,119 @@ class PathResultTest(_PathTestBase):
         entities, unresolved = self._resolve('a1,a1.t1,a9.t1')
         self.assertEqual(2, len(entities))
         self.assertEqual(['a9.t1'], unresolved)
+
+
+class PathOfTest(_PathTestBase):
+    """The path an entity currently has, which must resolve back to it."""
+
+    def setUp(self):
+        super().setUp()
+        self.single = self._album('rel-1', [(1, 1, 'One'), (1, 2, 'Two')])
+        self.multi = self._album('rel-2', [(1, 1, 'A1'), (2, 1, 'B1'), (2, 2, 'B2')])
+        self.nat = self._album('NATS', [(None, None, 'X'), (None, None, 'Y')])
+        self.on_track = _file(self.wks, 'on-track.flac')
+        self.on_track.move(self.multi.tracks[2])
+        self.unmatched = _file(self.wks, 'unmatched.flac')
+        self.single.unmatched_files.add_file(self.unmatched)
+        self.cluster = Cluster('Album', 'Artist')
+        self.wks.clusters.append(self.cluster)
+        self.session.handle_for(self.cluster)
+        self.clustered = _file(self.wks, 'clustered.flac')
+        self.cluster.add_file(self.clustered)
+        self.loose = _file(self.wks, 'loose.flac')
+        self.wks.unclustered_files.add_file(self.loose)
+        self.candidate = Candidate(MagicMock())
+        self.session.set_candidates(self.cluster, [Candidate(MagicMock()), self.candidate])
+
+    def _path(self, entity):
+        return self.session.path_of(self.session.handle_for(entity))
+
+    def test_track_of_a_single_disc_release_needs_no_disc(self):
+        self.assertEqual('a1.t2', self._path(self.single.tracks[1]))
+
+    def test_track_of_a_multi_disc_release_names_its_disc(self):
+        self.assertEqual('a2.d2.t2', self._path(self.multi.tracks[2]))
+
+    def test_unnumbered_track_uses_its_position(self):
+        self.assertEqual('a3.t2', self._path(self.nat.tracks[1]))
+
+    def test_file_matched_to_a_track(self):
+        self.assertEqual('a2.d2.t2.f1', self._path(self.on_track))
+
+    def test_unmatched_file_of_an_album(self):
+        self.assertEqual('a1.u.f1', self._path(self.unmatched))
+
+    def test_file_of_a_cluster(self):
+        self.assertEqual('c1.f1', self._path(self.clustered))
+
+    def test_unclustered_file(self):
+        self.assertEqual('u.f1', self._path(self.loose))
+
+    def test_candidate_of_a_cluster(self):
+        self.assertEqual('c1.m2', self._path(self.candidate))
+
+    def test_albums_and_clusters_are_reached_by_handle(self):
+        self.assertIsNone(self._path(self.single))
+        self.assertIsNone(self._path(self.cluster))
+
+    def test_file_without_a_parent_has_no_path(self):
+        self.assertIsNone(self._path(_file(self.wks, 'orphan.flac')))
+
+    def test_unknown_handle_has_no_path(self):
+        self.assertIsNone(self.session.path_of('f99'))
+        self.assertIsNone(self.session.path_of('not a handle'))
+
+    def test_every_path_resolves_back_to_its_entity(self):
+        entities = [
+            *self.single.tracks,
+            *self.multi.tracks,
+            *self.nat.tracks,
+            self.on_track,
+            self.unmatched,
+            self.clustered,
+            self.loose,
+            self.candidate,
+        ]
+        for entity in entities:
+            path = self._path(entity)
+            with self.subTest(path=path):
+                self.assertIsNotNone(path)
+                self.assertEqual(([entity], []), self._resolve(path))
+
+    def test_path_follows_the_entity_when_it_moves(self):
+        handle = self.session.handle_for(self.loose)
+        self.assertEqual('u.f1', self.session.path_of(handle))
+        self.loose.move(self.cluster)
+        self.assertEqual('c1.f2', self.session.path_of(handle))
+
+
+class ResultPathTest(_PathTestBase):
+    """Items of a command result say where their entity currently is."""
+
+    def setUp(self):
+        super().setUp()
+        self.set_config_values(setting={'va_name': 'Various Artists', 'nat_name': 'Standalone Recordings'})
+        self.reg = EngineCommandRegistry()
+        register_builtins(self.reg)
+        self.album = self._album('rel-1', [(1, 1, 'One'), (1, 2, 'Two')])
+        self.matched = _file(self.wks, 'matched.flac')
+        self.matched.move(self.album.tracks[1])
+
+    def test_items_carry_their_path(self):
+        result = dispatch(self.session, self.reg, 'tree a1')
+        paths = {item.status: item.path for item in result.items if item.status != 'track'}
+        self.assertEqual({'album': '', 'file': 'a1.t2.f1'}, paths)
+        self.assertEqual(['a1.t1', 'a1.t2'], [item.path for item in result.items if item.status == 'track'])
+
+    def test_path_is_part_of_the_serialized_item(self):
+        result = dispatch(self.session, self.reg, 'ls a1.t2')
+        self.assertEqual('a1.t2', result.to_dict()['items'][0]['path'])
+
+    def test_a_failing_path_lookup_does_not_fail_the_command(self):
+        def broken(handle):
+            raise RuntimeError('boom')
+
+        self.session.path_of = broken
+        result = dispatch(self.session, self.reg, 'ls a1.t2')
+        self.assertTrue(result.ok)
+        self.assertEqual([''], [item.path for item in result.items])
