@@ -418,8 +418,48 @@ Implemented commands (backend: both):
 | `disc read-log <path>` | the same from a CD ripper log file |
 | `save [sel]` | write tag changes to disk |
 | `move <sources> <destination>` | put files into a track (`a1.d2.t3`), a cluster, an album (matched to its tracks) or a bucket (`u`, `a1.u`), as dropping them in the GUI does; the last word is the destination |
+| `option ls [pattern]` | the options not at their default, or those matching a pattern, with where each value comes from |
+| `option get <name>` | one option: value, default, type, title and source |
+| `option set <name> <value>` | set an option for this session only |
+| `option unset <name>` | forget the session's value of an option |
+| `option save [names]` | write the options set in this session to the configuration (destructive) |
 | `remove <sel>` | drop objects from the working set (never touches disk) |
 | `trash <sel>` | move the files of the selection to the system trash (destructive) |
+
+### Options
+
+Behaviour that depends on settings (where `save` puts files and how it names
+them, what `file add` ignores, how lookups are scored, ...) is controlled with
+the `option` commands. The rule is that **nothing is written to the
+configuration unless you ask**: `option set` changes the option for the session
+only, so an experiment cannot change the settings the GUI uses, and
+`option save` is the one deliberate way to keep a value (it is confirmed by the
+console, and written as the GUI would: into the profile that sets the option if
+there is one, else into the configuration).
+
+Each option is reported with where its value comes from, which answers "why is
+`save` moving my files?": `session`, `profile <title>`, `config` (stored in the
+configuration file) or `default`. `option ls` without a pattern lists only the
+options that are not at their default.
+
+It reuses the core's own pieces. A session value is held by an in-memory
+"session" profile with the top priority, put in front of the user's profiles
+with the overrides the options dialog uses, so `config.setting[...]` returns it
+like any profile's value and no other code needs to know. The option registry
+gives each option's type, default and title, and the option's own conversion and
+bounds check the value (`true`/`false` for a yes/no option, a number within its
+range, comma-separated items or a JSON array for a list).
+
+This works for the options that take part in profiles (180 of the 192).
+Interface and plugin state, the scripts and the AcoustID and fpcalc settings
+can be shown but not changed for a session; set them in the configuration
+file.
+
+To try things on files without any risk, work on a copy of the files, and start
+the shell on a scratch configuration so that no setting of yours applies:
+`picard-cli -c /tmp/scratch.ini shell`, then set what is needed with `option
+set`. A fresh configuration has none of your settings (for instance the
+conversion of punctuation to ASCII), so results can differ from your usual ones.
 
 Not done yet: the rest of the catalog, `RemoteEngineSession` and the pipe
 response channel, gui-only commands, release versions, collections, sessions,
