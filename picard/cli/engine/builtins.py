@@ -29,7 +29,10 @@ import os
 from typing import Any
 from urllib.parse import urlparse
 
-from picard import config
+from picard import (
+    config,
+    log,
+)
 from picard.album import (
     Album,
     NatAlbum,
@@ -299,6 +302,16 @@ def _expand_input_paths(tokens: list[str]) -> 'tuple[list[str], list[str]]':
     return files, unmatched
 
 
+def _named_files(tokens: list[str]) -> set[str]:
+    """The paths among ``tokens`` that name an existing file directly (no pattern, not a directory)."""
+    named = set()
+    for token in tokens:
+        expanded = os.path.expanduser(token)
+        if not glob.has_magic(expanded) and os.path.isfile(expanded):
+            named.add(normpath(resolve_fs_path(expanded)))
+    return named
+
+
 def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Load one or more audio files into the working set (unclustered).
 
@@ -318,7 +331,12 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     # below compares like with like; and the same order too: by filename, as
     # add_files sorts the new files, not the order a directory happens to be
     # scanned in. That order decides the handles the files are given.
-    filepaths = sorted(normpath(resolve_fs_path(path)) for path in filepaths)
+    filepaths = sorted({normpath(resolve_fs_path(path)) for path in filepaths})
+    # What the user pointed at by name, as opposed to what a folder or a pattern
+    # brought in: an unsupported file among the latter (a cover image next to
+    # the tracks) is ignored silently, as the GUI does, but one named explicitly
+    # deserves to be told about.
+    named = _named_files(list(paths))
 
     settings = config.get_config().setting
     ignore_hidden = settings['ignore_hidden_files']
@@ -342,7 +360,10 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
             continue
         file = registry.open(path)
         if file is None:
-            items.append(EngineItemResult(handle='', status='unsupported', data={'path': path}))
+            if path in named:
+                items.append(EngineItemResult(handle='', status='unsupported', data={'path': path}))
+            else:
+                log.debug("File ignored (unsupported format): %r", path)
             continue
         wks.files[file.filename] = file
         wks.unclustered_files.add_file(file)

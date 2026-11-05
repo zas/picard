@@ -22,6 +22,7 @@ release MBID is moved to its album instead of being left unclustered — matchin
 the GUI.
 """
 
+import os
 from unittest.mock import (
     MagicMock,
     patch,
@@ -162,3 +163,69 @@ class FileAddPlacementTest(PicardTestCase):
             result = self._dispatch_add([f])
             self.assertTrue(result.ok)
             mock_move.assert_not_called()
+
+
+class FileAddUnsupportedTest(PicardTestCase):
+    """Unsupported files: ignored when a folder or a pattern brought them in, reported when named."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch_tagger_instance('picard.item')
+        self.set_config_values(
+            setting={
+                'ignore_file_mbids': True,
+                'ignore_hidden_files': False,
+                'ignore_regex': '',
+                'recursively_add_files': True,
+                'analyze_new_files': False,
+                'cluster_new_files': False,
+            }
+        )
+        self.tagger.acoustid_manager = MagicMock()
+        self.tagger.isrc_submit_manager = MagicMock()
+        self.reg = EngineCommandRegistry()
+        register_builtins(self.reg)
+        self.session = LocalEngineSession(MagicMock())
+        self.root = normpath(self.mktmpdir())
+        self.track = self._touch('01 track.flac')
+        self.cover = self._touch('cover.jpg')
+
+    def _touch(self, name):
+        path = os.path.join(self.root, name)
+        open(path, 'w').close()
+        return path
+
+    def _add(self, *words):
+        def open_file(path):
+            if path.endswith('.jpg'):
+                return None  # not an audio format
+            file = File(path)
+            file.state = File.State.NORMAL
+            return file
+
+        with (
+            patch('picard.cli.engine.builtins.services') as mock_services,
+            patch.object(File, 'load', lambda self, cb=None: None),
+        ):
+            mock_services.return_value.format_registry.open.side_effect = open_file
+            return dispatch(self.session, self.reg, 'file add ' + ' '.join(f'"{word}"' for word in words))
+
+    def test_unsupported_file_found_in_a_folder_is_ignored_silently(self):
+        result = self._add(self.root)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(['added'], [it.status for it in result.items])
+        self.assertEqual('01 track.flac', result.items[0].data['filename'])
+
+    def test_unsupported_file_matched_by_a_pattern_is_ignored_silently(self):
+        result = self._add(os.path.join(self.root, '*'))
+        self.assertEqual(['added'], [it.status for it in result.items])
+
+    def test_unsupported_file_named_explicitly_is_reported(self):
+        result = self._add(self.cover)
+        self.assertEqual(['unsupported'], [it.status for it in result.items])
+        self.assertEqual(self.cover, result.items[0].data['path'])
+
+    def test_named_and_found_together(self):
+        result = self._add(self.root, self.cover)
+        # Once each, although the folder brought the cover in too.
+        self.assertCountEqual(['added', 'unsupported'], [it.status for it in result.items])
