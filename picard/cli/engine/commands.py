@@ -143,10 +143,15 @@ class EngineCommand:
     destructive: bool = False
 
     def arg_kind(self, index: int) -> str:
-        """Completion kind for the positional arg at ``index`` (''/unknown)."""
-        if 0 <= index < len(self.arg_kinds):
-            return self.arg_kinds[index]
-        return ''
+        """Completion kind for the word at ``index`` (''/unknown).
+
+        The last declared arg absorbs every remaining word (see the dispatcher),
+        so its kind applies to all the words from there on: ``file add a b <TAB>``
+        still completes a path, and ``move f1 f2 <TAB>`` a selector.
+        """
+        if index < 0 or not self.arg_kinds:
+            return ''
+        return self.arg_kinds[min(index, len(self.arg_kinds) - 1)]
 
     @property
     def noun(self) -> str:

@@ -24,7 +24,10 @@ from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
 from picard.cli.engine.builtins import register_builtins
-from picard.cli.engine.commands import EngineCommandRegistry
+from picard.cli.engine.commands import (
+    EngineCommand,
+    EngineCommandRegistry,
+)
 from picard.cli.engine.completion import complete
 from picard.cli.engine.session import LocalEngineSession
 from picard.cluster import Cluster
@@ -95,6 +98,27 @@ class CompleteTest(PicardTestCase):
         self.assertIn('a1', matches)
         self.assertIn('a*', matches)
         self.assertNotIn('c*', matches)
+
+    def test_every_word_of_the_last_argument_is_completed(self):
+        # 'move' takes sources and a destination, all selectors in one argument.
+        self.assertIn('c1', self._complete('move c'))
+        self.assertIn('c1', self._complete('move c1 c'))
+        self.assertIn('u', self._complete('move c1 f1 '))
+
+    def test_path_completion_for_a_later_word(self):
+        self._load_album()
+        self.assertIn('a1.t1', self._complete('move c1 a1.'))
+
+    def test_later_words_of_a_path_argument_are_completed(self):
+        # Several paths can be given to 'file add'.
+        with patch('picard.cli.engine.completion._complete_path', return_value=['/music/b']) as complete_path:
+            self.assertEqual(['/music/b'], self._complete('file add /music/a /m'))
+        complete_path.assert_called_once_with('/m')
+
+    def test_no_completion_for_a_command_without_arguments(self):
+        registry = EngineCommandRegistry()
+        registry.register(EngineCommand(name='noop', run=lambda session, args: None))
+        self.assertEqual([], complete('noop x', 'x', registry, self.session))
 
     def test_selector_offers_the_unclustered_bucket(self):
         self.assertIn('u', self._complete('ls '))
