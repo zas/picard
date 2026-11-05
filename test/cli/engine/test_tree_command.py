@@ -126,6 +126,35 @@ class TreeCommandTest(PicardTestCase):
         self.assertEqual(0, result.items[0].data.get('depth'))
         self.assertEqual(1, result.items[1].data.get('depth'))
 
+    def test_tree_selector_track_shows_its_files(self):
+        album = Album('rel-1')
+        self.wks.albums['rel-1'] = album
+        track = Track('trk-1', album)
+        album.tracks.append(track)
+        matched = File('matched.flac')
+        self.wks.files[matched.filename] = matched
+        track.files.append(matched)
+        track_handle = self.session.handle_for(track)
+
+        result = dispatch(self.session, self.reg, f'tree {track_handle}')
+        self.assertTrue(result.ok)
+        self.assertEqual([('track', 0), ('file', 1)], [(it.status, it.data.get('depth')) for it in result.items])
+
+    def test_tree_selector_path_to_a_disc(self):
+        album = Album('rel-1')
+        album.loaded = True
+        self.wks.albums['rel-1'] = album
+        for disc, number in ((1, 1), (2, 1)):
+            track = Track(f'trk-{disc}', album)
+            track.metadata['discnumber'] = str(disc)
+            track.metadata['tracknumber'] = str(number)
+            album.tracks.append(track)
+        self.session.handle_for(album)
+
+        result = dispatch(self.session, self.reg, 'tree a1.d2')
+        self.assertTrue(result.ok)
+        self.assertEqual([('track', 0)], [(it.status, it.data.get('depth')) for it in result.items])
+
     def test_tree_selector_unresolved_reported(self):
         result = dispatch(self.session, self.reg, 'tree a999')
         self.assertTrue(result.ok)

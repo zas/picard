@@ -177,13 +177,18 @@ def _tree_item(session: EngineSession, entity: Any, kind: str, depth: int) -> En
     return EngineItemResult(handle=session.handle_for(entity), status=kind, data=data)
 
 
+def _tree_track(session: EngineSession, track: Any, items: list, depth: int = 0) -> None:
+    """Append ``track`` and the files matched to it to ``items``."""
+    items.append(_tree_item(session, track, 'track', depth))
+    for file in track.files:
+        items.append(_tree_item(session, file, 'file', depth + 1))
+
+
 def _tree_album(session: EngineSession, album: Any, items: list, depth: int = 0) -> None:
     """Append ``album`` and its tracks/matched-files/unmatched bucket to ``items``."""
     items.append(_tree_item(session, album, 'album', depth))
     for track in album.tracks:
-        items.append(_tree_item(session, track, 'track', depth + 1))
-        for file in track.files:
-            items.append(_tree_item(session, file, 'file', depth + 2))
+        _tree_track(session, track, items, depth + 1)
     for file in album.unmatched_files.files:
         items.append(_tree_item(session, file, 'unmatched', depth + 1))
 
@@ -221,8 +226,12 @@ def _cmd_tree(session: EngineSession, args: dict[str, Any]) -> EngineResult:
                 _tree_album(session, entity, items)
             elif isinstance(entity, Cluster):
                 _tree_cluster(session, entity, items)
-            else:
+            elif isinstance(entity, Track):
+                _tree_track(session, entity, items)
+            elif isinstance(entity, File):
                 items.append(_tree_item(session, entity, 'file', 0))
+            else:  # a lookup candidate: nothing below it
+                items.append(_tree_item(session, entity, 'candidate', 0))
         return EngineResult(items=items, resolved=[session.handle_for(e) for e in entities], unresolved=unresolved)
 
     wks = workspace()
