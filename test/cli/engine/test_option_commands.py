@@ -110,3 +110,87 @@ class OptionGetTest(_OptionCommandTestBase):
         # An option name is the handle of its item; it must not be looked up as a
         # path (and so does not get one).
         self.assertEqual('', self._run('option get move_files').items[0].path)
+
+
+class OptionSetTest(_OptionCommandTestBase):
+    def test_set_for_the_session(self):
+        result = self._run('option set move_files true')
+        self.assertTrue(result.ok, result.error)
+        (item,) = result.items
+        self.assertEqual(('move_files', 'session'), (item.handle, item.status))
+        self.assertIs(True, item.data['value'])
+        self.assertIs(True, self.config.setting['move_files'])
+
+    def test_the_value_is_seen_by_the_other_commands(self):
+        self._run('option set query_limit 20')
+        self.assertEqual(20, self._run('option get query_limit').items[0].data['value'])
+        self.assertEqual(['query_limit'], [i.handle for i in self._run('option ls').items])
+
+    def test_the_configuration_is_not_written(self):
+        self._run('option set move_files true')
+        self.assertNotIn('move_files', self._file_text())
+
+    def test_the_value_may_have_spaces_without_quotes(self):
+        self._run('option set move_files_to /tmp/my music/out')
+        self.assertEqual('/tmp/my music/out', self.config.setting['move_files_to'])
+
+    def test_quoted_value(self):
+        self._run('option set move_files_to "/tmp/a  b"')
+        self.assertEqual('/tmp/a  b', self.config.setting['move_files_to'])
+
+    def test_empty_value(self):
+        self._run('option set preserved_tags a,b')
+        result = self._run('option set preserved_tags ""')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual([], self.config.setting['preserved_tags'])
+
+    def test_bad_value(self):
+        for line, expected in (
+            ('option set move_files maybe', 'true or false'),
+            ('option set query_limit many', 'whole number'),
+            ('option set query_limit 500', 'out of range'),
+        ):
+            with self.subTest(line=line):
+                result = self._run(line)
+                self.assertFalse(result.ok)
+                self.assertTrue(result.error.startswith('option set: '), result.error)
+                self.assertIn(expected, result.error)
+        self.assertEqual(50, self.config.setting['query_limit'])
+
+    def test_option_that_cannot_be_set(self):
+        result = self._run('option set ui_theme dark')
+        self.assertFalse(result.ok)
+        self.assertIn('cannot be changed for a session', result.error)
+
+    def test_unknown_option(self):
+        result = self._run('option set move_file true')
+        self.assertFalse(result.ok)
+        self.assertIn('move_files', result.error)
+
+    def test_usage(self):
+        for line in ('option set', 'option set move_files'):
+            with self.subTest(line=line):
+                result = self._run(line)
+                self.assertFalse(result.ok)
+                self.assertIn('usage', result.error)
+
+
+class OptionUnsetTest(_OptionCommandTestBase):
+    def test_unset_goes_back_to_what_is_below(self):
+        self.config.setting['query_limit'] = 20
+        self._run('option set query_limit 30')
+        result = self._run('option unset query_limit')
+        self.assertTrue(result.ok, result.error)
+        (item,) = result.items
+        self.assertEqual(('query_limit', 'config', 20), (item.handle, item.status, item.data['value']))
+        self.assertEqual(20, self.config.setting['query_limit'])
+
+    def test_unknown_option(self):
+        result = self._run('option unset nonsense')
+        self.assertFalse(result.ok)
+        self.assertIn('unknown option', result.error)
+
+    def test_usage(self):
+        result = self._run('option unset')
+        self.assertFalse(result.ok)
+        self.assertIn('usage', result.error)

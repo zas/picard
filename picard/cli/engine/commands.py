@@ -88,6 +88,14 @@ class EngineSession(Protocol):
         """Describe one option: value, default, type, title and where the value comes from."""
         ...
 
+    def set_option(self, name: str, text: str) -> 'dict[str, Any]':
+        """Set an option for this session only, from its text form; describe it."""
+        ...
+
+    def unset_option(self, name: str) -> 'dict[str, Any]':
+        """Forget the session's value of an option; describe it."""
+        ...
+
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path (or None)."""
         ...

@@ -149,6 +149,14 @@ class LocalEngineSession:
         """Describe one option: value, default, type, title and where the value comes from."""
         return self._options.describe(name)
 
+    def set_option(self, name: str, text: str) -> dict[str, Any]:
+        """Set an option for this session only, from its text form; describe it."""
+        return self._options.set(name, text)
+
+    def unset_option(self, name: str) -> dict[str, Any]:
+        """Forget the session's value of an option; describe it."""
+        return self._options.unset(name)
+
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path, or None."""
         try:

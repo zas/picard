@@ -909,6 +909,44 @@ def _cmd_option_get(session: EngineSession, args: dict[str, Any]) -> EngineResul
     return EngineResult(items=[_option_item(info)])
 
 
+def _cmd_option_set(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Set an option for this session only.
+
+    ``option set <name> <value>``: the value is checked with the option's own
+    rules (true/false for a yes/no option, a number within the allowed range,
+    comma-separated items or a JSON array for a list). The rest of the line is
+    the value, so a text with spaces needs no quotes. Nothing is written to the
+    configuration; ``option save`` does that, if wanted.
+    """
+    name = args.get('name')
+    value = args.get('value')
+    if isinstance(name, list):
+        name = name[0] if name else None
+    if isinstance(value, list):
+        value = ' '.join(value)
+    if not name or value is None:
+        return EngineResult.failure("option set: usage: option set <name> <value>")
+    try:
+        info = session.set_option(name, value)
+    except OptionCommandError as e:
+        return EngineResult.failure(f"option set: {e}")
+    return EngineResult(items=[_option_item(info)])
+
+
+def _cmd_option_unset(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Forget the value an option was given in this session, back to what is below it."""
+    name = args.get('name')
+    if isinstance(name, list):
+        name = name[0] if name else None
+    if not name:
+        return EngineResult.failure("option unset: usage: option unset <name>")
+    try:
+        info = session.unset_option(name)
+    except OptionCommandError as e:
+        return EngineResult.failure(f"option unset: {e}")
+    return EngineResult(items=[_option_item(info)])
+
+
 def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Move the selected files to the system trash and drop them from the set.
 
@@ -1194,6 +1232,24 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             name='option get',
             run=_cmd_option_get,
             help="Show an option: value, default, type, title and where the value comes from.",
+            args=('name',),
+            arg_kinds=('',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='option set',
+            run=_cmd_option_set,
+            help="Set an option for this session only (nothing is written to the configuration): option set <name> <value>.",
+            args=('name', 'value'),
+            arg_kinds=('', ''),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='option unset',
+            run=_cmd_option_unset,
+            help="Forget the value an option was given in this session.",
             args=('name',),
             arg_kinds=('',),
         )
