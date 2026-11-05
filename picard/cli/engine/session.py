@@ -40,6 +40,7 @@ from picard.cli.engine.handles import HandleRegistry
 from picard.cli.engine.navigation import PathNavigator
 from picard.cli.engine.selectors import (
     SelectorError,
+    resolve_nodes,
     resolve_selector,
 )
 from picard.cluster import (
@@ -132,6 +133,19 @@ class LocalEngineSession:
         if not entities:
             return None
         return self._navigator.path_of(entities[0], self.handle_for)
+
+    def path_segments(self, base: str) -> list[str]:
+        """The segments that can follow the path ``base`` (``a1`` -> ``d*``, ``t*``, ``u``, ...)."""
+        try:
+            nodes = resolve_nodes(base, self._handles.resolve, self.enumerate_prefix, self._navigator)
+        except SelectorError:
+            return []
+        segments: list[str] = []
+        for node in nodes:
+            for segment in self._navigator.segments(node):
+                if segment not in segments:
+                    segments.append(segment)
+        return segments
 
     def enumerate_prefix(self, prefix: str) -> Iterable[Any]:
         """Yield the live entities of a handle prefix, in a stable order."""

@@ -448,3 +448,74 @@ class ResultPathTest(_PathTestBase):
         result = dispatch(self.session, self.reg, 'ls a1.t2')
         self.assertTrue(result.ok)
         self.assertEqual([''], [item.path for item in result.items])
+
+
+class SegmentsTest(_PathTestBase):
+    """What can follow a path: the basis of tab completion."""
+
+    def _segments(self, base):
+        return self.session.path_segments(base)
+
+    def test_single_disc_album(self):
+        self._album('rel-1', [(1, 1, 'One'), (1, 2, 'Two')])
+        self.assertEqual(['f*', 'u', 'd*', 'd1', 't*', 't1', 't2'], self._segments('a1'))
+
+    def test_multi_disc_album_offers_discs_not_bare_tracks(self):
+        self._album('rel-1', [(1, 1, 'A1'), (2, 1, 'B1'), (2, 2, 'B2')])
+        self.assertEqual(['f*', 'u', 'd*', 'd1', 'd2', 't*'], self._segments('a1'))
+
+    def test_unnumbered_album_offers_positions(self):
+        self._album('NATS', [(None, None, 'X'), (None, None, 'Y')])
+        self.assertEqual(['f*', 'u', 't*', 't1', 't2'], self._segments('a1'))
+
+    def test_album_without_tracks(self):
+        self._album('rel-1', [], loaded=False)
+        self.assertEqual(['f*', 'u'], self._segments('a1'))
+
+    def test_disc_offers_the_numbers_of_its_tracks(self):
+        self._album('rel-1', [(1, 1, 'A1'), (2, 1, 'B1'), (2, 2, 'B2')])
+        self.assertEqual(['t*', 'f*', 't1', 't2'], self._segments('a1.d2'))
+
+    def test_track_offers_its_files(self):
+        album = self._album('rel-1', [(1, 1, 'One')])
+        album.tracks[0].files.extend([_file(self.wks, 'a.flac'), _file(self.wks, 'b.flac')])
+        self.assertEqual(['f*', 'f1', 'f2'], self._segments('a1.t1'))
+
+    def test_cluster_offers_files_and_candidates(self):
+        cluster = Cluster('Album', 'Artist')
+        self.wks.clusters.append(cluster)
+        self.session.handle_for(cluster)
+        self.assertEqual(['f*'], self._segments('c1'))
+        self.session.set_candidates(cluster, [Candidate(MagicMock()), Candidate(MagicMock())])
+        self.assertEqual(['f*', 'm*', 'm1', 'm2'], self._segments('c1'))
+
+    def test_unclustered_bucket_offers_its_files(self):
+        self.wks.unclustered_files.add_file(_file(self.wks, 'loose.flac'))
+        self.assertEqual(['f*', 'f1'], self._segments('u'))
+
+    def test_file_offers_its_candidates(self):
+        file = _file(self.wks, 'one.flac')
+        self.session.handle_for(file)
+        self.assertEqual([], self._segments('f1'))
+        self.session.set_candidates(file, [Candidate(MagicMock())])
+        self.assertEqual(['m*', 'm1'], self._segments('f1'))
+
+    def test_numbered_segments_are_capped(self):
+        album = self._album('rel-1', [(1, 1, 'One')])
+        album.tracks[0].files.extend(_file(self.wks, f'{n}.flac') for n in range(150))
+        segments = self._segments('a1.t1')
+        self.assertEqual(1 + 100, len(segments))
+        self.assertEqual('f100', segments[-1])
+
+    def test_wildcard_base_merges_its_matches(self):
+        self._album('rel-1', [(1, 1, 'One')])
+        self._album('rel-2', [(1, 1, 'A1'), (2, 1, 'B1')])
+        segments = self._segments('a*')
+        self.assertEqual(len(segments), len(set(segments)))
+        self.assertIn('d2', segments)
+
+    def test_nothing_follows_an_unknown_or_invalid_base(self):
+        self.assertEqual([], self._segments('a9'))
+        self.assertEqual([], self._segments('a1.k1'))
+        self.assertEqual([], self._segments('a1,c1'))
+        self.assertEqual([], self._segments('!'))

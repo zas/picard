@@ -51,6 +51,9 @@ class _Session:
     def path_of(self, handle):
         return None
 
+    def path_segments(self, base):
+        return []
+
     def enumerate_prefix(self, prefix):
         return []
 

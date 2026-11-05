@@ -105,6 +105,15 @@ def _files_of_tracks(tracks: Iterable[Track]) -> list[File]:
     return [file for track in tracks for file in track.files if isinstance(file, File)]
 
 
+# The most numbered segments offered when completing under one container.
+_MAX_COMPLETIONS = 100
+
+
+def _numbered(prefix: str, count: int) -> list[str]:
+    """``prefix1`` ... ``prefixN`` (at most :data:`_MAX_COMPLETIONS` of them)."""
+    return [f"{prefix}{number}" for number in range(1, min(count, _MAX_COMPLETIONS) + 1)]
+
+
 def _position(items: Iterable, item: Any) -> 'int | None':
     """The 1-based position of ``item`` in ``items`` (by identity), or None."""
     for position, candidate in enumerate(items, 1):
@@ -164,6 +173,44 @@ class PathNavigator:
         if isinstance(node, Cluster) and node.special:
             return list(node.files)
         return [node]
+
+    def segments(self, node: Any) -> list[str]:
+        """The segments that can follow ``node``, as text (``t*``, ``d2``, ``f1``, ...).
+
+        Wildcards come first. Numbered segments are capped, so completing under
+        a container with thousands of files stays usable.
+        """
+        if isinstance(node, Album):
+            return self._album_segments(node)
+        if isinstance(node, DiscView):
+            tracks = node.tracks
+            numbers = [_number_of(track) for track in tracks]
+            return ['t*', 'f*'] + [f"t{number}" for number in numbers[:_MAX_COMPLETIONS] if number is not None]
+        if isinstance(node, Track):
+            return ['f*', *_numbered('f', len(node.files))]
+        if isinstance(node, Cluster):
+            segments = ['f*', *_numbered('f', len(node.files))]
+            candidates = [] if node.special else self._candidates_for(node)
+            if candidates:
+                segments += ['m*', *_numbered('m', len(candidates))]
+            return segments
+        if isinstance(node, File):
+            candidates = self._candidates_for(node)
+            return ['m*', *_numbered('m', len(candidates))] if candidates else []
+        return []
+
+    def _album_segments(self, album: Album) -> list[str]:
+        segments = ['f*', 'u']
+        if not album.tracks:
+            return segments
+        if not _is_numbered(album):
+            return [*segments, 't*', *_numbered('t', len(album.tracks))]
+        discs = _disc_numbers(album)
+        segments += ['d*', *(f"d{number}" for number in discs[:_MAX_COMPLETIONS]), 't*']
+        if len(discs) == 1:
+            # With one disc a track needs no disc (with several it would be ambiguous).
+            segments += [f"t{_number_of(track)}" for track in album.tracks[:_MAX_COMPLETIONS]]
+        return segments
 
     # --- where an entity is now -------------------------------------------------
 

@@ -20,6 +20,7 @@ from picard.cli.engine.selectors import (
     Segment,
     SelectorError,
     parse_selector,
+    resolve_nodes,
     resolve_selector,
 )
 
@@ -213,6 +214,9 @@ class _FakeNavigator:
     def finish(self, node):
         return list(self.tracks) if node is self.disc else [node]
 
+    def segments(self, node):
+        return ['t*']
+
 
 class ResolvePathTest(PicardTestCase):
     def setUp(self):
@@ -291,3 +295,38 @@ class ResolvePathTest(PicardTestCase):
             with self.subTest(text=text):
                 with self.assertRaises(SelectorError):
                     self._resolve(text, navigator=False)
+
+
+class ResolveNodesTest(PicardTestCase):
+    """resolve_nodes() stops short of finish(), so a view is not expanded."""
+
+    def setUp(self):
+        super().setUp()
+        self.a1 = object()
+        self.nav = _FakeNavigator()
+        self.handles = {'a1': self.a1}
+        self.wks = _FakeWorkspace(a=[self.a1])
+
+    def _nodes(self, text):
+        return resolve_nodes(text, _registry(self.handles), self.wks.enumerate_prefix, self.nav)
+
+    def test_plain_handle(self):
+        self.assertEqual([self.a1], self._nodes('a1'))
+
+    def test_path_ends_at_the_view_not_its_members(self):
+        self.assertEqual([self.nav.disc], self._nodes('a1.u'))
+
+    def test_unresolved_term_gives_nothing(self):
+        self.assertEqual([], self._nodes('a9'))
+        self.assertEqual([], self._nodes('a1.t9'))
+
+    def test_wildcard_head(self):
+        self.assertEqual([self.a1], self._nodes('a*'))
+
+    def test_only_a_single_term_is_accepted(self):
+        with self.assertRaises(SelectorError):
+            self._nodes('a1,a1.t1')
+
+    def test_navigator_errors_are_reported(self):
+        with self.assertRaises(SelectorError):
+            self._nodes('a1.k1')

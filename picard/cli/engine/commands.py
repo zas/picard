@@ -75,6 +75,10 @@ class EngineSession(Protocol):
         """Where the entity of ``handle`` currently sits, as a selector path (or None)."""
         ...
 
+    def path_segments(self, base: str) -> 'list[str]':
+        """The path segments that can follow ``base`` (``a1`` -> ``d*``, ``t*``, ...), for completion."""
+        ...
+
     def enumerate_prefix(self, prefix: str) -> Iterable[Any]:
         """Yield the live entities of a handle prefix (for wildcards / ls)."""
         ...

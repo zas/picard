@@ -120,6 +120,10 @@ class Navigator(Protocol):
         """Return the entities a path ending at ``node`` stands for."""
         ...
 
+    def segments(self, node: Any) -> Iterable[str]:
+        """Return the texts of the segments that can follow ``node`` (``t*``, ``d2``, ...)."""
+        ...
+
 
 @dataclass(frozen=True)
 class Term:
@@ -273,13 +277,32 @@ def resolve_selector(
     return entities, unresolved
 
 
-def _resolve_path(
+def resolve_nodes(
+    text: str,
+    resolve_handle: HandleResolver,
+    enumerate_prefix: Enumerator,
+    navigator: Navigator,
+) -> list[Any]:
+    """Walk a single selector term and return the nodes it ends at, unexpanded.
+
+    Unlike :func:`resolve_selector` this does not call ``navigator.finish``: a
+    path ending at a disc yields the disc itself, not its tracks. That is what
+    completion needs, to ask what can follow. An unresolved term gives ``[]``.
+    """
+    terms = parse_selector(text)
+    if len(terms) != 1:
+        raise SelectorError(f"expected a single selector term, got {text!r}")
+    nodes = _walk(terms[0], resolve_handle, enumerate_prefix, navigator)
+    return [] if nodes is None else nodes
+
+
+def _walk(
     term: Term,
     resolve_handle: HandleResolver,
     enumerate_prefix: Enumerator,
     navigator: Navigator,
 ) -> 'list[Any] | None':
-    """Walk ``term``'s path; return the entities, or None if a numbered step found nothing.
+    """Follow ``term`` and return the nodes it ends at, or None if a numbered step found nothing.
 
     A wildcard step that matches nothing is just an empty result; a step naming
     one ordinal that does not exist means the reference is unresolved.
@@ -302,13 +325,25 @@ def _resolve_path(
             nodes = _unique(stepped)
             if segment.kind != 'wildcard' and not nodes:
                 return None
-
-        entities = []
-        for node in nodes:
-            entities.extend(navigator.finish(node))
-        return entities
+        return nodes
     except SelectorError as e:
         raise SelectorError(f"{term.raw}: {e}") from None
+
+
+def _resolve_path(
+    term: Term,
+    resolve_handle: HandleResolver,
+    enumerate_prefix: Enumerator,
+    navigator: Navigator,
+) -> 'list[Any] | None':
+    """Walk ``term``'s path; return the entities it stands for, or None if unresolved."""
+    nodes = _walk(term, resolve_handle, enumerate_prefix, navigator)
+    if nodes is None:
+        return None
+    entities = []
+    for node in nodes:
+        entities.extend(navigator.finish(node))
+    return entities
 
 
 def _unique(nodes: Iterable[Any]) -> list[Any]:
