@@ -96,6 +96,10 @@ class EngineSession(Protocol):
         """Forget the session's value of an option; describe it."""
         ...
 
+    def save_options(self, names: 'list[str] | None' = None) -> 'list[dict[str, Any]]':
+        """Write the options set in this session (or just ``names``) to the configuration."""
+        ...
+
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path (or None)."""
         ...

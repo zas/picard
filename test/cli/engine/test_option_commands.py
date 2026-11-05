@@ -194,3 +194,53 @@ class OptionUnsetTest(_OptionCommandTestBase):
         result = self._run('option unset')
         self.assertFalse(result.ok)
         self.assertIn('usage', result.error)
+
+
+class OptionSaveTest(_OptionCommandTestBase):
+    def test_save_everything_set_in_the_session(self):
+        self._run('option set move_files true')
+        self._run('option set query_limit 10')
+        result = self._run('option save')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual({'move_files': 'config', 'query_limit': 'config'}, {i.handle: i.status for i in result.items})
+        self.assertIn('written', result.message)
+        self.assertIn('move_files', self._file_text())
+        self.assertEqual(10, self.config.setting['query_limit'])
+
+    def test_save_only_the_options_named(self):
+        self._run('option set move_files true')
+        self._run('option set query_limit 10')
+        result = self._run('option save move_files')
+        self.assertEqual(['move_files'], [i.handle for i in result.items])
+        self.assertEqual('session', self._run('option get query_limit').items[0].status)
+
+    def test_save_of_several_names(self):
+        self._run('option set move_files true')
+        self._run('option set query_limit 10')
+        result = self._run('option save move_files query_limit')
+        self.assertEqual(['move_files', 'query_limit'], [i.handle for i in result.items])
+
+    def test_nothing_to_save(self):
+        result = self._run('option save')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual([], result.items)
+        self.assertIn('no option was set', result.message)
+
+    def test_an_option_not_set_in_the_session_cannot_be_saved(self):
+        self._run('option set move_files true')
+        result = self._run('option save query_limit')
+        self.assertFalse(result.ok)
+        self.assertIn('has not been set', result.error)
+        self.assertTrue(result.error.startswith('option save: '))
+        self.assertNotIn('move_files', self.config.setting)
+
+    def test_unknown_option(self):
+        result = self._run('option save nonsense')
+        self.assertFalse(result.ok)
+        self.assertIn('unknown option', result.error)
+
+    def test_the_shell_asks_before_saving(self):
+        # It changes the configuration the GUI uses, so it is confirmed like trash.
+        self.assertTrue(self.reg.get('option save').destructive)
+        for name in ('option ls', 'option get', 'option set', 'option unset'):
+            self.assertFalse(self.reg.get(name).destructive, name)

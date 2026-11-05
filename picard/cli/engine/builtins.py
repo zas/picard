@@ -947,6 +947,25 @@ def _cmd_option_unset(session: EngineSession, args: dict[str, Any]) -> EngineRes
     return EngineResult(items=[_option_item(info)])
 
 
+def _cmd_option_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Write the options set in this session to the configuration, to keep them.
+
+    ``option save`` saves every option set in this session, ``option save
+    <name>...`` just those. This is the one way to change the configuration
+    from the session, and so what the GUI uses too: written as the GUI would, into
+    the profile that sets an option if there is one, else into the configuration.
+    """
+    names = args.get('names')
+    if isinstance(names, str):
+        names = [names]
+    try:
+        infos = session.save_options(names or None)
+    except OptionCommandError as e:
+        return EngineResult.failure(f"option save: {e}")
+    message = "written to the configuration" if infos else "no option was set in this session"
+    return EngineResult(items=[_option_item(info) for info in infos], message=message)
+
+
 def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Move the selected files to the system trash and drop them from the set.
 
@@ -1252,6 +1271,16 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Forget the value an option was given in this session.",
             args=('name',),
             arg_kinds=('',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='option save',
+            run=_cmd_option_save,
+            help="Write the options set in this session (or just those named) to the configuration.",
+            args=('names',),
+            arg_kinds=('',),
+            destructive=True,
         )
     )
     registry.register(

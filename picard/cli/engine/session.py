@@ -157,6 +157,10 @@ class LocalEngineSession:
         """Forget the session's value of an option; describe it."""
         return self._options.unset(name)
 
+    def save_options(self, names: 'list[str] | None' = None) -> list[dict[str, Any]]:
+        """Write the options set in this session (or just ``names``) to the configuration."""
+        return self._options.save(names)
+
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path, or None."""
         try:
