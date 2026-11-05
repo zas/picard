@@ -219,6 +219,11 @@ file of the album, matched or not), `a1.u`, `c1.f*`, `c1.m2`, `u.f*`.
 - At the top level `d` stays reserved for a disc ID / TOC (see the table
   above); under an album it means a disc of the release.
 
+The console shows the path next to the handle (`t7  a1.d2.t3  listed ...`) and
+tab-completes it: `ls a1.<TAB>` offers the segments that can follow `a1`, and so
+on down the path. A session provides this through `path_of(handle)` (the path of
+an entity) and `path_segments(base)` (what can follow a path).
+
 ## Result contract
 
 Selector-taking commands return a per-handle outcome list plus resolution info,
@@ -227,7 +232,7 @@ serializable (RemoteSession).
 
 ```text
 Result(
-  items      = [ ItemResult(handle, status, data, ...), ... ],
+  items      = [ ItemResult(handle, path, status, data), ... ],
   resolved   = [handles...],     # what the selector matched
   unresolved = [tokens...],      # tokens matching no live entity (machine-actionable)
   mints      = [handles...],     # newly created handles
@@ -237,6 +242,12 @@ Result(
 
 `unresolved` non-empty = the caller under-acted; `resolved == [] and
 unresolved == []` = valid, nothing matched.
+
+An item's `handle` is the entity's stable identity. Its `path` (`a1.d2.t3`,
+`c1.f2`, `u.f1`, `c1.m2`; empty for albums and clusters, which are reached by
+their handle) says where the entity sits *now*. The dispatcher fills it in, so
+every command reports it; a consumer that keeps a reference across several
+commands should keep the handle, and use the path to read or to type.
 
 ## Capability taxonomy (TARGET — build incrementally)
 
