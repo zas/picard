@@ -37,6 +37,7 @@ from weakref import WeakKeyDictionary
 from picard.album import Album
 from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.handles import HandleRegistry
+from picard.cli.engine.navigation import PathNavigator
 from picard.cli.engine.selectors import resolve_selector
 from picard.cluster import (
     Cluster,
@@ -85,6 +86,8 @@ class LocalEngineSession:
         # set and is collected. Keying by the object, not id(), also means a
         # new target can never inherit a dead target's candidates.
         self._candidates: WeakKeyDictionary[Any, list[Candidate]] = WeakKeyDictionary()
+        # Walks selector paths (a1.d2.t3, c1.f*, ...) through the working set.
+        self._navigator = PathNavigator(self.candidates_for)
 
     # --- candidates ---------------------------------------------------------
 
@@ -104,7 +107,7 @@ class LocalEngineSession:
 
     def resolve(self, selector: str) -> 'tuple[list[Any], list[str]]':
         """Resolve a selector string to ``(entities, unresolved_tokens)``."""
-        return resolve_selector(selector, self._handles.resolve, self.enumerate_prefix)
+        return resolve_selector(selector, self._handles.resolve, self.enumerate_prefix, self._navigator)
 
     def handle_for(self, entity: Any) -> str:
         """Return (minting if needed) the session handle for ``entity``."""
