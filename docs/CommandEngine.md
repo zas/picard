@@ -171,10 +171,53 @@ Decided semantics:
 - Reserved future: `prefix where <field>=<value>` metadata selectors.
 
 Implemented subset (`picard/cli/engine/selectors.py`): single handles (`a1`),
-type wildcards (`a*`), the universal `*`, and comma unions of those. A union
-may be written with spaces and arrive as several command-line tokens
-(`ls a1, c2` or `ls a1 c2`). Ranges, exclusion and sticky bare ordinals are
-rejected with a clear error until they are implemented.
+type wildcards (`a*`), the universal `*`, paths (below), and comma unions of
+those. A union may be written with spaces and arrive as several command-line
+tokens (`ls a1, c2` or `ls a1 c2`). Ranges, exclusion and sticky bare ordinals
+are rejected with a clear error until they are implemented.
+
+### Handles and paths
+
+Every entity keeps a plain, stable handle (`f7`, `c1`, `a1`, `t12`, `m3`): its
+identity, which follows it as it moves (a file keeps its handle from the
+unclustered bucket to a cluster to a track) and which a result always reports.
+A **path** is a second way to reach the same entities: segments separated by
+`.`, each selecting children of the previous one. A path is a *position*, looked
+up when the command runs, so it is convenient to type and to scope (`a1.d2`)
+but does not follow an entity around. Scripts that keep a reference across
+several commands should keep the handle.
+
+| segment | under | selects |
+|---|---|---|
+| `u` | (start of a path) | the files that are in no cluster |
+| `d<n>` | album | disc `n` of the release |
+| `t<n>` | album, disc | track `n` (on that disc) |
+| `f<n>` | album, disc, track, cluster | the `n`th file (`f*`: all of them) |
+| `u` | album | the album's unmatched files |
+| `m<n>` | cluster, file | the `n`th lookup candidate |
+
+Examples: `a1.d2.t3`, `a1.d2` (the tracks of disc 2), `a1.t3.f1`, `a1.f*` (every
+file of the album, matched or not), `a1.u`, `c1.f*`, `c1.m2`, `u.f*`.
+
+- `*` and numbers work in any segment (`a*.t1`, `a1.d*.t1`).
+- Discs and tracks of a release use the numbers MusicBrainz gives them (the
+  `discnumber` and `tracknumber` tags), not list positions, so `a1.d2.t3` keeps
+  its meaning when the album is reloaded. Other numbers (files, candidates) are
+  positions in the order a listing shows.
+- A release with one disc may leave the disc out (`a1.t3` is `a1.d1.t3`). With
+  several discs the disc must be named: a selector that would otherwise guess
+  (and, say, remove the wrong disc's track) is an error that lists the discs.
+- Non-album tracks have no disc or track numbers: they are numbered by
+  position and have no discs.
+- Picard has no disc object, and the unclustered bucket is not a handle-able
+  entity. A path ending at either stands for what it contains (a disc: its
+  tracks; a bucket: its files), so results only ever hold entities that have a
+  plain handle.
+- A numbered step that finds nothing is reported as unresolved (`a1.t9`), a
+  wildcard that matches nothing is an empty result, and a segment that makes no
+  sense under its parent (`f1.t1`) is an error.
+- At the top level `d` stays reserved for a disc ID / TOC (see the table
+  above); under an album it means a disc of the release.
 
 ## Result contract
 
