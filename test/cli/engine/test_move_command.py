@@ -228,6 +228,17 @@ class MoveErrorsTest(_MoveTestBase):
         self.assertFalse(result.ok)
         self.assertIn('candidate', result.error)
 
+    def test_save_and_trash_refuse_candidates_too(self):
+        (handle,) = self.session.set_candidates(self.cluster, [Candidate(MagicMock())])
+        for command in ('save', 'trash'):
+            with self.subTest(command=command):
+                result = self._move(f'{command} {handle}')
+                self.assertFalse(result.ok)
+                self.assertIn('lookup candidate', result.error)
+                self.assertNotIn('iterfiles', result.error)
+                self.assertTrue(result.error.startswith(f'{command}:'))
+        self.assertIs(self.cluster, self.first.parent_item)
+
     def test_destination_is_a_single_term(self):
         result = self._move('move f1 c1,a1')
         self.assertFalse(result.ok)

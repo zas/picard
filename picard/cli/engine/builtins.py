@@ -609,6 +609,9 @@ def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """
     selector = args.get('selector') or '*'
     entities, unresolved = session.resolve(selector)
+    rejected = _reject_candidates(session, 'save', entities, unresolved)
+    if rejected is not None:
+        return rejected
     files = list(iter_files_from_objects(entities, save=True))
     savable = [f for f in files if f.can_save]
     for file in savable:
@@ -776,6 +779,24 @@ def _cmd_remove(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(items=items, resolved=[it.handle for it in items], unresolved=unresolved)
 
 
+def _reject_candidates(
+    session: EngineSession, command: str, entities: list, unresolved: list[str]
+) -> 'EngineResult | None':
+    """A failure if ``entities`` include a lookup candidate, which holds no files.
+
+    For the commands that act on the files of a selection (``save``, ``move``,
+    ``trash``): ``save m1`` is a mistake worth saying so, not an error from deep
+    inside the command.
+    """
+    for entity in entities:
+        if isinstance(entity, Candidate):
+            return EngineResult.failure(
+                f"{command}: {session.handle_for(entity)} is a lookup candidate, it holds no files",
+                unresolved=unresolved,
+            )
+    return None
+
+
 def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Move files into a track, a cluster, an album or a bucket of unplaced files.
 
@@ -815,12 +836,9 @@ def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         )
 
     sources, unresolved = session.resolve(source_words)
-    candidates = [e for e in sources if isinstance(e, Candidate)]
-    if candidates:
-        return EngineResult.failure(
-            f"move: {session.handle_for(candidates[0])} is a lookup candidate, it holds no files",
-            unresolved=unresolved,
-        )
+    rejected = _reject_candidates(session, 'move', sources, unresolved)
+    if rejected is not None:
+        return rejected
     files = list(iter_files_from_objects(sources))
 
     wks = workspace()
@@ -868,6 +886,9 @@ def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     if not selector:
         return EngineResult.failure("trash: a selector is required (e.g. trash f1)")
     entities, unresolved = session.resolve(selector)
+    rejected = _reject_candidates(session, 'trash', entities, unresolved)
+    if rejected is not None:
+        return rejected
     files = list(iter_files_from_objects(entities))
     if not files:
         return EngineResult(items=[], unresolved=unresolved)
