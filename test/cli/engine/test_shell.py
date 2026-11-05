@@ -55,6 +55,17 @@ class RenderResultTest(PicardTestCase):
         self.assertIn('OK Computer', text)
         self.assertIn('minted', text)
 
+    def test_render_shows_the_path_after_the_handle(self):
+        out, buf = _output()
+        result = EngineResult(items=[EngineItemResult('t7', 'listed', {'title': 'Airbag'}, path='a1.d2.t3')])
+        render_result(result, out)
+        self.assertIn('t7  a1.d2.t3  listed', buf.getvalue())
+
+    def test_render_without_a_path_is_unchanged(self):
+        out, buf = _output()
+        render_result(EngineResult(items=[EngineItemResult('a1', 'listed')]), out)
+        self.assertEqual('a1  listed\n', buf.getvalue())
+
     def test_render_indents_items_by_depth(self):
         out, buf = _output()
         result = EngineResult(
