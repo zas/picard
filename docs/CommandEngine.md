@@ -417,6 +417,7 @@ Implemented commands (backend: both):
 | `disc read [device]` | read the TOC of the CD in a drive and load the matching release |
 | `disc read-log <path>` | the same from a CD ripper log file |
 | `save [sel]` | write tag changes to disk |
+| `move <sources> <destination>` | put files into a track (`a1.d2.t3`), a cluster, an album (matched to its tracks) or a bucket (`u`, `a1.u`), as dropping them in the GUI does; the last word is the destination |
 | `remove <sel>` | drop objects from the working set (never touches disk) |
 | `trash <sel>` | move the files of the selection to the system trash (destructive) |
 
