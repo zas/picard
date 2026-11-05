@@ -30,7 +30,10 @@ handle-prefix CLASSIFIER (entity -> 'f'/'c'/'a'/'t') and the prefix ENUMERATOR
 type-agnostic.
 """
 
-from collections.abc import Iterable
+from collections.abc import (
+    Iterable,
+    Sequence,
+)
 from typing import Any
 from weakref import WeakKeyDictionary
 
@@ -116,8 +119,8 @@ class LocalEngineSession:
 
     # --- EngineSession protocol ---------------------------------------------
 
-    def resolve(self, selector: str) -> 'tuple[list[Any], list[str]]':
-        """Resolve a selector string to ``(entities, unresolved_tokens)``."""
+    def resolve(self, selector: 'str | Sequence[str]') -> 'tuple[list[Any], list[str]]':
+        """Resolve a selector (a string, or the words of a command line) to ``(entities, unresolved_tokens)``."""
         return resolve_selector(selector, self._handles.resolve, self.enumerate_prefix, self._navigator)
 
     def resolve_targets(self, selector: str) -> list[Any]:

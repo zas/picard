@@ -32,6 +32,7 @@ See ``docs/CommandEngine.md``.
 from collections.abc import (
     Callable,
     Iterable,
+    Sequence,
 )
 from dataclasses import (
     dataclass,
@@ -63,8 +64,12 @@ class EngineSession(Protocol):
     GUI. Commands depend only on this surface, never on a concrete tagger.
     """
 
-    def resolve(self, selector: str) -> 'tuple[list[Any], list[str]]':
-        """Resolve a selector string to ``(entities, unresolved_tokens)``."""
+    def resolve(self, selector: 'str | Sequence[str]') -> 'tuple[list[Any], list[str]]':
+        """Resolve a selector to ``(entities, unresolved_tokens)``.
+
+        ``selector`` is a string, or the words a command line split it into
+        (``a1, c2`` arrives as ``['a1,', 'c2']``).
+        """
         ...
 
     def resolve_targets(self, selector: str) -> list[Any]:

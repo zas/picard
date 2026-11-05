@@ -30,7 +30,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from picard import config
-from picard.album import Album
+from picard.album import (
+    Album,
+    NatAlbum,
+)
 from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.commands import (
     EngineCommand,
@@ -773,6 +776,85 @@ def _cmd_remove(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     return EngineResult(items=items, resolved=[it.handle for it in items], unresolved=unresolved)
 
 
+def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Move files into a track, a cluster, an album or a bucket of unplaced files.
+
+    ``move <sources> <destination>``: the last word is the destination, a single
+    place; everything before it selects what to move (the files of the matched
+    albums, clusters and tracks, as for ``save``). The destination is one of:
+
+    - a track (``a1.d2.t3``): the files are attached to it;
+    - a cluster (``c1``);
+    - an album (``a1``): the files are matched to its tracks, as when dropped on
+      the album in the GUI;
+    - ``u`` (the files in no cluster) or an album's unmatched files (``a1.u``).
+
+    Reports each file as ``moved`` (with where it was, and its new path) or
+    ``unchanged`` when it is already there.
+    """
+    words = args.get('selectors')
+    if isinstance(words, str):
+        words = [words]
+    if not words or len(words) < 2:
+        return EngineResult.failure("move: usage: move <sources> <destination>")
+    *source_words, destination_word = words
+
+    destinations = session.resolve_targets(destination_word)
+    if not destinations:
+        return EngineResult.failure(f"move: destination {destination_word!r} matches nothing")
+    if len(destinations) > 1:
+        return EngineResult.failure(
+            f"move: destination {destination_word!r} matches {len(destinations)} places; name one"
+        )
+    (destination,) = destinations
+    if isinstance(destination, NatAlbum):
+        return EngineResult.failure("move: moving files to the non-album tracks is not supported")
+    if not isinstance(destination, (Track, Cluster, Album)):
+        return EngineResult.failure(
+            f"move: {destination_word!r} is not a place files can be moved to (use a track, a cluster, an album or u)"
+        )
+
+    sources, unresolved = session.resolve(source_words)
+    candidates = [e for e in sources if isinstance(e, Candidate)]
+    if candidates:
+        return EngineResult.failure(
+            f"move: {session.handle_for(candidates[0])} is a lookup candidate, it holds no files",
+            unresolved=unresolved,
+        )
+    files = list(iter_files_from_objects(sources))
+
+    wks = workspace()
+    paths_before = {file: session.path_of(session.handle_for(file)) for file in files}
+    parents_before = {file: file.parent_item for file in files}
+    movable = [file for file in files if file.parent_item is not destination]
+    if isinstance(destination, Album):
+        wks.move_files_to_album(movable, album=destination)
+    else:
+        for file in movable:
+            wks.move_file(file, destination)
+    notes: list[str] = []
+    _drain(session, 120, notes)
+
+    items = []
+    for file in files:
+        # Judge by where the file is now: a move can be refused, and matching to
+        # an album can leave a file on the track it was already on.
+        status = 'moved' if file.parent_item is not parents_before[file] else 'unchanged'
+        items.append(
+            EngineItemResult(
+                handle=session.handle_for(file),
+                status=status,
+                data={'filename': file.base_filename, 'from': paths_before[file] or ''},
+            )
+        )
+    return EngineResult(
+        items=items,
+        resolved=[item.handle for item in items],
+        unresolved=unresolved,
+        message=_message(notes),
+    )
+
+
 def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Move the selected files to the system trash and drop them from the set.
 
@@ -1029,6 +1111,15 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_remove,
             help="Remove the selected objects from the working set (does not touch disk).",
             args=('selector',),
+            arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='move',
+            run=_cmd_move,
+            help="Move files into a track, cluster, album or bucket: move <sources> <destination>.",
+            args=('selectors',),
             arg_kinds=('selector',),
         )
     )
