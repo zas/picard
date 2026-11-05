@@ -15,6 +15,7 @@
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
 import io
+import re
 from unittest.mock import MagicMock
 
 from test.picardtestcase import PicardTestCase
@@ -65,6 +66,53 @@ class RenderResultTest(PicardTestCase):
         out, buf = _output()
         render_result(EngineResult(items=[EngineItemResult('a1', 'listed')]), out)
         self.assertEqual('a1  listed\n', buf.getvalue())
+
+    @staticmethod
+    def _lookup_result(count, applied=0):
+        candidates = [
+            {'handle': f'm{n}', 'title': f'Release {n}', 'similarity': 1 / n, 'applied': n - 1 == applied}
+            for n in range(1, count + 1)
+        ]
+        return EngineResult(
+            items=[EngineItemResult('c1', 'matched', {'candidates': candidates})],
+            mints=['a1', *(f'm{n}' for n in range(1, count + 1))],
+        )
+
+    def test_render_shows_only_the_best_candidates_and_says_how_to_see_the_rest(self):
+        out, buf = _output()
+        render_result(self._lookup_result(25), out)
+        candidates = self._candidate_lines(buf)
+        self.assertEqual(10, len(candidates))
+        self.assertIn('m10 ', candidates[-1])
+        self.assertIn('15 more: ls c1.m*', buf.getvalue())
+
+    @staticmethod
+    def _candidate_lines(buf):
+        """The lines listing a candidate (indented, unlike the minted and 'more' lines)."""
+        return [line for line in buf.getvalue().splitlines() if re.match(r'^ {4}[* ] m\d+ ', line)]
+
+    def test_render_shows_all_candidates_when_there_are_few(self):
+        out, buf = _output()
+        render_result(self._lookup_result(10), out)
+        self.assertIn('m10 ', buf.getvalue())
+        self.assertNotIn('more:', buf.getvalue())
+
+    def test_render_always_shows_the_applied_candidate(self):
+        out, buf = _output()
+        render_result(self._lookup_result(25, applied=19), out)  # m20 was applied
+        candidates = self._candidate_lines(buf)
+        self.assertEqual(11, len(candidates))
+        self.assertIn('* m20', candidates[-1])
+        self.assertIn('14 more', buf.getvalue())
+
+    def test_render_shortens_the_list_of_minted_handles(self):
+        out, buf = _output()
+        render_result(self._lookup_result(30), out)
+        minted = [line for line in buf.getvalue().splitlines() if line.startswith('minted:')]
+        self.assertEqual(1, len(minted))
+        self.assertIn('a1, m1, m2', minted[0])
+        self.assertIn('(+19 more)', minted[0])
+        self.assertNotIn('m30', minted[0])
 
     def test_render_indents_items_by_depth(self):
         out, buf = _output()

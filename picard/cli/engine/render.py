@@ -29,6 +29,17 @@ from picard.cli.engine.result import EngineResult
 from picard.cli.output import CliOutput
 
 
+# A lookup can return dozens of candidates, most of them hopeless; show the best
+# ones and say how to see the others (the result itself keeps them all).
+_CANDIDATES_SHOWN = 10
+_MINTED_SHOWN = 12
+
+
+def _candidates_to_show(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The first candidates, plus the applied one if it is further down the list."""
+    return [cand for index, cand in enumerate(candidates) if index < _CANDIDATES_SHOWN or cand.get('applied')]
+
+
 def _entity_ref(item: dict[str, Any]) -> str:
     """Build a ``<type>:<mbid>`` MusicBrainz reference from an item dict.
 
@@ -79,7 +90,9 @@ def render_result(result: EngineResult, output: CliOutput) -> None:
             line += f"  {summary}"
         output.print(line)
         # Lookup items carry a candidate list; show it indented.
-        for cand in item.data.get('candidates', []):
+        candidates = item.data.get('candidates', [])
+        shown = _candidates_to_show(candidates)
+        for cand in shown:
             mark = '*' if cand.get('applied') else ' '
             chandle = output.d_id(cand.get('handle', '?'))
             title = cand.get('title', '')
@@ -91,9 +104,14 @@ def render_result(result: EngineResult, output: CliOutput) -> None:
             ref = _entity_ref(cand)
             ref_s = f"{output.dim(ref)}  " if ref else ''
             output.print(f"    {mark} {chandle}  {ref_s}{title}{score_s}")
+        if len(shown) < len(candidates):
+            output.print(output.dim(f"      … {len(candidates) - len(shown)} more: ls {item.handle}.m*"))
 
     if result.mints:
-        output.print(output.dim("minted: " + ', '.join(result.mints)))
+        minted = ', '.join(result.mints[:_MINTED_SHOWN])
+        if len(result.mints) > _MINTED_SHOWN:
+            minted += f" … (+{len(result.mints) - _MINTED_SHOWN} more)"
+        output.print(output.dim("minted: " + minted))
     if result.unresolved:
         output.warning("unresolved: " + ', '.join(result.unresolved))
     if result.message:
