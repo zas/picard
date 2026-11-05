@@ -26,6 +26,13 @@ This module implements a documented SUBSET of that grammar:
 - a type wildcard: ``a*`` (all albums), ``c*``, ``f*``, ``t*``
 - the universal wildcard: ``*`` (all top-level objects)
 - a comma-separated union of the above: ``a1, c2, f3``
+- a PATH into the working set: segments separated by ``.``, each one selecting
+  children of the previous one (``a1.d2.t3``, ``c1.f*``, ``u.f*``, ``c1.m2``).
+  A segment is a type prefix plus an ordinal or ``*``; ``u`` (a bucket of
+  unplaced files) takes no number. Paths are positions, resolved when the
+  command runs; the stable identity of an entity remains its plain handle.
+  What a segment means under a given parent is decided by the injected
+  :class:`Navigator`, so this module stays independent of the entity types.
 
 Not yet implemented (reserved; the parse/resolve shape leaves room for them so
 they slot in without reshaping): bare-ordinal sticky prefixes (``a1,2,3``),
@@ -47,12 +54,20 @@ from collections.abc import (
     Sequence,
 )
 from dataclasses import dataclass
-from typing import Any
+from typing import (
+    Any,
+    Protocol,
+)
 
 
 # Handle prefixes the subset recognises. Kept explicit so an unknown prefix is
 # a clear error. Extend here (plus the enumerator) as entity kinds are added.
-KNOWN_PREFIXES = frozenset({'f', 'c', 'a', 't', 'm', 'v', 'd', 'k'})
+KNOWN_PREFIXES = frozenset({'f', 'c', 'a', 't', 'm', 'v', 'd', 'k', 'u'})
+
+# Prefixes that name a single thing in their scope and so take no number: ``u``
+# is the bucket of unplaced files (top level: the unclustered files; under an
+# album: its unmatched files).
+SINGLETON_PREFIXES = frozenset({'u'})
 
 # Prefixes that make up the universal top-level set ``*`` (mirrors the GUI panes:
 # unclustered files, clusters, albums/NAT). NOT tracks.
@@ -73,6 +88,40 @@ class SelectorError(ValueError):
 
 
 @dataclass(frozen=True)
+class Segment:
+    """One ``.``-separated step of a path: ``t3``, ``d*`` or ``u``.
+
+    ``kind`` is ``'ordinal'`` (value: int), ``'wildcard'`` or ``'single'`` (a
+    prefix that takes no number, see :data:`SINGLETON_PREFIXES`).
+    """
+
+    prefix: str
+    kind: str
+    value: Any = None
+
+
+class Navigator(Protocol):
+    """Walks a path through the working set; implemented next to the entity types.
+
+    A *node* is whatever the navigator wants to step from: usually an entity,
+    but it may also be a lightweight view (e.g. one disc of an album) that
+    :meth:`finish` expands into entities. ``None`` stands for the root.
+    """
+
+    def step(self, node: Any, segment: Segment) -> Iterable[Any]:
+        """Return the nodes ``segment`` selects under ``node``.
+
+        Raise :class:`SelectorError` for a segment that is not valid under
+        ``node`` (so the user is told why, rather than getting nothing).
+        """
+        ...
+
+    def finish(self, node: Any) -> Iterable[Any]:
+        """Return the entities a path ending at ``node`` stands for."""
+        ...
+
+
+@dataclass(frozen=True)
 class Term:
     """One parsed selector term.
 
@@ -86,6 +135,7 @@ class Term:
     value: Any  # int (ordinal) | None (wildcard) | tuple[int, int] (range)
     negate: bool = False
     raw: str = ''  # original token text, for unresolved reporting
+    path: tuple[Segment, ...] = ()  # segments after the first, for ``a1.t3``
 
 
 def parse_selector(text: 'str | Sequence[str]') -> list[Term]:
@@ -120,20 +170,37 @@ def _parse_token(token: str) -> Term:
     if '-' in token:
         raise SelectorError(f"ranges ('-') are not supported yet: {token!r}")
 
+    head, *tail = token.split('.')
+
     # Universal wildcard.
-    if token == '*':
+    if head == '*':
+        if tail:
+            raise SelectorError(f"the universal '*' cannot be followed by a path: {token!r}")
         return Term(prefix='', kind='wildcard', value=None, raw=token)
 
-    prefix, rest = _split_prefix(token)
+    first = _parse_segment(head, token)
+    path = tuple(_parse_segment(part, token) for part in tail)
+    return Term(prefix=first.prefix, kind=first.kind, value=first.value, raw=token, path=path)
+
+
+def _parse_segment(text: str, token: str) -> Segment:
+    """Parse one path segment (``a1``, ``t*``, ``u``) of ``token``."""
+    if not text:
+        raise SelectorError(f"empty path segment in {token!r}")
+    prefix, rest = _split_prefix(text)
     if prefix is None:
         raise SelectorError(f"selector term must start with a type prefix: {token!r}")
     if prefix not in KNOWN_PREFIXES:
         raise SelectorError(f"unknown selector prefix {prefix!r} in {token!r}")
 
+    if prefix in SINGLETON_PREFIXES:
+        if rest:
+            raise SelectorError(f"{prefix!r} takes no number in {token!r}")
+        return Segment(prefix, 'single')
     if rest == '*':
-        return Term(prefix=prefix, kind='wildcard', value=None, raw=token)
+        return Segment(prefix, 'wildcard')
     if rest.isdigit():
-        return Term(prefix=prefix, kind='ordinal', value=int(rest), raw=token)
+        return Segment(prefix, 'ordinal', int(rest))
     if rest == '':
         raise SelectorError(f"selector term {token!r} has a prefix but no ordinal or '*'")
     # Bare-ordinal sticky prefixes are part of the full grammar, not the subset.
@@ -154,11 +221,14 @@ def resolve_selector(
     text: 'str | Sequence[str]',
     resolve_handle: HandleResolver,
     enumerate_prefix: Enumerator,
+    navigator: 'Navigator | None' = None,
 ) -> 'tuple[list[Any], list[str]]':
     """Resolve ``text`` to ``(entities, unresolved)``.
 
     ``resolve_handle(handle)`` returns the entity for a handle or None.
     ``enumerate_prefix(prefix)`` yields the live entities for a wildcard.
+    ``navigator`` walks the ``.`` paths (``a1.t3``); without one, a path is a
+    :class:`SelectorError`.
 
     Entities are de-duplicated by identity, preserving first-appearance order.
     Tokens that match no live entity are collected in ``unresolved``.
@@ -176,7 +246,16 @@ def resolve_selector(
             entities.append(entity)
 
     for term in terms:
-        if term.kind == 'ordinal':
+        if term.path or term.kind == 'single':
+            if navigator is None:
+                raise SelectorError(f"paths are not supported here: {term.raw!r}")
+            found = _resolve_path(term, resolve_handle, enumerate_prefix, navigator)
+            if found is None:
+                unresolved.append(term.raw)
+            else:
+                for entity in found:
+                    add(entity)
+        elif term.kind == 'ordinal':
             handle = f"{term.prefix}{term.value}"
             entity = resolve_handle(handle)
             if entity is None:
@@ -192,3 +271,52 @@ def resolve_selector(
             raise SelectorError(f"unsupported term kind: {term.kind}")
 
     return entities, unresolved
+
+
+def _resolve_path(
+    term: Term,
+    resolve_handle: HandleResolver,
+    enumerate_prefix: Enumerator,
+    navigator: Navigator,
+) -> 'list[Any] | None':
+    """Walk ``term``'s path; return the entities, or None if a numbered step found nothing.
+
+    A wildcard step that matches nothing is just an empty result; a step naming
+    one ordinal that does not exist means the reference is unresolved.
+    """
+    try:
+        if term.kind == 'ordinal':
+            entity = resolve_handle(f"{term.prefix}{term.value}")
+            nodes = [] if entity is None else [entity]
+        elif term.kind == 'wildcard':
+            nodes = list(enumerate_prefix(term.prefix))
+        else:
+            nodes = _unique(navigator.step(None, Segment(term.prefix, 'single')))
+        if term.kind == 'ordinal' and not nodes:
+            return None
+
+        for segment in term.path:
+            stepped = []
+            for node in nodes:
+                stepped.extend(navigator.step(node, segment))
+            nodes = _unique(stepped)
+            if segment.kind != 'wildcard' and not nodes:
+                return None
+
+        entities = []
+        for node in nodes:
+            entities.extend(navigator.finish(node))
+        return entities
+    except SelectorError as e:
+        raise SelectorError(f"{term.raw}: {e}") from None
+
+
+def _unique(nodes: Iterable[Any]) -> list[Any]:
+    """Drop duplicate nodes (by identity), keeping first-appearance order."""
+    seen: set[int] = set()
+    result = []
+    for node in nodes:
+        if id(node) not in seen:
+            seen.add(id(node))
+            result.append(node)
+    return result

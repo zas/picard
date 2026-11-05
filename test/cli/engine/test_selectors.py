@@ -17,6 +17,7 @@
 from test.picardtestcase import PicardTestCase
 
 from picard.cli.engine.selectors import (
+    Segment,
     SelectorError,
     parse_selector,
     resolve_selector,
@@ -147,3 +148,146 @@ class ResolveSelectorTest(PicardTestCase):
         entities, unresolved = resolve_selector('a*', _registry({}), wks.enumerate_prefix)
         self.assertEqual([], entities)
         self.assertEqual([], unresolved)
+
+
+class ParsePathTest(PicardTestCase):
+    def test_path_segments(self):
+        (term,) = parse_selector('a1.d2.t3')
+        self.assertEqual(('a', 'ordinal', 1), (term.prefix, term.kind, term.value))
+        self.assertEqual((Segment('d', 'ordinal', 2), Segment('t', 'ordinal', 3)), term.path)
+        self.assertEqual('a1.d2.t3', term.raw)
+
+    def test_wildcard_segments(self):
+        (term,) = parse_selector('a*.t*')
+        self.assertEqual('wildcard', term.kind)
+        self.assertEqual((Segment('t', 'wildcard'),), term.path)
+
+    def test_plain_term_has_no_path(self):
+        (term,) = parse_selector('a1')
+        self.assertEqual((), term.path)
+
+    def test_singleton_segment_takes_no_number(self):
+        (term,) = parse_selector('a1.u')
+        self.assertEqual((Segment('u', 'single'),), term.path)
+
+    def test_singleton_can_start_a_path(self):
+        (term,) = parse_selector('u.f*')
+        self.assertEqual(('u', 'single'), (term.prefix, term.kind))
+        self.assertEqual((Segment('f', 'wildcard'),), term.path)
+
+    def test_paths_in_a_union(self):
+        terms = parse_selector('a1.t1, c2.f*')
+        self.assertEqual(['a1.t1', 'c2.f*'], [t.raw for t in terms])
+
+    def test_path_from_command_line_tokens(self):
+        terms = parse_selector(['a1.t1,', 'c2.f*'])
+        self.assertEqual(['a1.t1', 'c2.f*'], [t.raw for t in terms])
+
+    def test_rejects_malformed_paths(self):
+        for text in ('a1.', '.t1', 'a1..t1', 'a1.t', 'a1.x1', 'a.t1', 'a1.t1x', '*.f*', 'u1', 'u*', 'a1.u2', 'a1.t1-3'):
+            with self.subTest(text=text):
+                with self.assertRaises(SelectorError):
+                    parse_selector(text)
+
+
+class _FakeNavigator:
+    """A tiny tree: albums hold tracks; ``d1`` is a view that finishes to its tracks."""
+
+    def __init__(self):
+        self.tracks = [object(), object(), object()]
+        self.disc = object()
+        self.steps = []
+
+    def step(self, node, segment):
+        self.steps.append((node, segment))
+        if segment.prefix == 'u':
+            return [self.disc]
+        if segment.prefix == 'k':
+            raise SelectorError("no such thing here")
+        if segment.kind == 'wildcard':
+            return list(self.tracks)
+        if segment.kind == 'ordinal':
+            return self.tracks[segment.value - 1 : segment.value]
+        return []
+
+    def finish(self, node):
+        return list(self.tracks) if node is self.disc else [node]
+
+
+class ResolvePathTest(PicardTestCase):
+    def setUp(self):
+        super().setUp()
+        self.a1 = object()
+        self.nav = _FakeNavigator()
+        self.handles = {'a1': self.a1}
+        self.wks = _FakeWorkspace(a=[self.a1])
+
+    def _resolve(self, text, navigator=True):
+        return resolve_selector(
+            text,
+            _registry(self.handles),
+            self.wks.enumerate_prefix,
+            self.nav if navigator else None,
+        )
+
+    def test_ordinal_child(self):
+        entities, unresolved = self._resolve('a1.t2')
+        self.assertEqual([self.nav.tracks[1]], entities)
+        self.assertEqual([], unresolved)
+        self.assertEqual([(self.a1, Segment('t', 'ordinal', 2))], self.nav.steps)
+
+    def test_wildcard_child(self):
+        entities, _ = self._resolve('a1.t*')
+        self.assertEqual(self.nav.tracks, entities)
+
+    def test_wildcard_head_steps_from_every_match(self):
+        self.wks = _FakeWorkspace(a=[self.a1, object()])
+        self._resolve('a*.t1')
+        self.assertEqual(2, len(self.nav.steps))
+
+    def test_missing_ordinal_child_is_unresolved(self):
+        entities, unresolved = self._resolve('a1.t9')
+        self.assertEqual([], entities)
+        self.assertEqual(['a1.t9'], unresolved)
+
+    def test_missing_head_is_unresolved_without_walking(self):
+        entities, unresolved = self._resolve('a9.t1')
+        self.assertEqual([], entities)
+        self.assertEqual(['a9.t1'], unresolved)
+        self.assertEqual([], self.nav.steps)
+
+    def test_wildcard_matching_nothing_is_not_unresolved(self):
+        self.nav.tracks = []
+        entities, unresolved = self._resolve('a1.t*')
+        self.assertEqual([], entities)
+        self.assertEqual([], unresolved)
+
+    def test_singleton_head_starts_from_the_root(self):
+        entities, _ = self._resolve('u.t*')
+        self.assertEqual((None, Segment('u', 'single')), self.nav.steps[0])
+        self.assertEqual(self.nav.tracks, entities)
+
+    def test_finish_expands_views(self):
+        entities, _ = self._resolve('a1.u')
+        self.assertEqual(self.nav.tracks, entities)
+
+    def test_results_are_deduplicated_across_terms(self):
+        entities, _ = self._resolve('a1.t1,a1.t*')
+        self.assertEqual(self.nav.tracks, entities)
+
+    def test_paths_mix_with_plain_terms(self):
+        entities, unresolved = self._resolve('a1,a1.t1,a9')
+        self.assertEqual([self.a1, self.nav.tracks[0]], entities)
+        self.assertEqual(['a9'], unresolved)
+
+    def test_navigator_error_names_the_term(self):
+        with self.assertRaises(SelectorError) as ctx:
+            self._resolve('a1.k1')
+        self.assertIn('a1.k1', str(ctx.exception))
+        self.assertIn('no such thing here', str(ctx.exception))
+
+    def test_path_without_navigator_is_an_error(self):
+        for text in ('a1.t1', 'u'):
+            with self.subTest(text=text):
+                with self.assertRaises(SelectorError):
+                    self._resolve(text, navigator=False)
