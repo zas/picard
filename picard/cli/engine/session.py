@@ -120,6 +120,17 @@ class LocalEngineSession:
         """Resolve a selector string to ``(entities, unresolved_tokens)``."""
         return resolve_selector(selector, self._handles.resolve, self.enumerate_prefix, self._navigator)
 
+    def resolve_targets(self, selector: str) -> list[Any]:
+        """Resolve one selector term to the places it names, without expanding them.
+
+        :meth:`resolve` turns a path ending at a disc or a bucket into its tracks
+        or files, which is what a command acting on them wants. A command that
+        puts things *into* a place (``move``) needs the place itself: ``u`` is
+        the unclustered bucket, not the files in it. Returns ``[]`` if nothing
+        matches; raises :class:`SelectorError` unless ``selector`` is one term.
+        """
+        return resolve_nodes(selector, self._handles.resolve, self.enumerate_prefix, self._navigator)
+
     def handle_for(self, entity: Any) -> str:
         """Return (minting if needed) the session handle for ``entity``."""
         return self._handles.handle_for(entity)

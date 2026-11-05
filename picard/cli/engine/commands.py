@@ -67,6 +67,10 @@ class EngineSession(Protocol):
         """Resolve a selector string to ``(entities, unresolved_tokens)``."""
         ...
 
+    def resolve_targets(self, selector: str) -> list[Any]:
+        """Resolve one selector term to the places it names, unexpanded (``u`` stays a bucket)."""
+        ...
+
     def handle_for(self, entity: Any) -> str:
         """Return (minting if needed) the session handle for ``entity``."""
         ...

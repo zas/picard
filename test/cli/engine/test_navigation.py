@@ -519,3 +519,44 @@ class SegmentsTest(_PathTestBase):
         self.assertEqual([], self._segments('a1.k1'))
         self.assertEqual([], self._segments('a1,c1'))
         self.assertEqual([], self._segments('!'))
+
+
+class ResolveTargetsTest(_PathTestBase):
+    """resolve_targets() names a place; resolve() would expand it into its contents."""
+
+    def setUp(self):
+        super().setUp()
+        self.album = self._album('rel-1', [(1, 1, 'A1'), (2, 1, 'B1')])
+        self.loose = _file(self.wks, 'loose.flac')
+        self.wks.unclustered_files.add_file(self.loose)
+        self.cluster = Cluster('Album', 'Artist')
+        self.wks.clusters.append(self.cluster)
+        self.session.handle_for(self.cluster)
+
+    def test_bucket_is_the_bucket_not_its_files(self):
+        self.assertEqual([self.wks.unclustered_files], self.session.resolve_targets('u'))
+        self.assertEqual(([self.loose], []), self._resolve('u'))
+
+    def test_album_bucket(self):
+        self.assertEqual([self.album.unmatched_files], self.session.resolve_targets('a1.u'))
+
+    def test_disc_is_a_disc_not_its_tracks(self):
+        (disc,) = self.session.resolve_targets('a1.d2')
+        self.assertEqual(2, disc.number)
+        self.assertEqual([self.album.tracks[1]], disc.tracks)
+
+    def test_plain_handles_and_tracks(self):
+        self.assertEqual([self.cluster], self.session.resolve_targets('c1'))
+        self.assertEqual([self.album.tracks[1]], self.session.resolve_targets('a1.d2.t1'))
+
+    def test_nothing_matches(self):
+        self.assertEqual([], self.session.resolve_targets('c9'))
+        self.assertEqual([], self.session.resolve_targets('a1.d3.t1'))
+
+    def test_only_one_term_is_accepted(self):
+        with self.assertRaises(SelectorError):
+            self.session.resolve_targets('c1,a1')
+
+    def test_ambiguous_track_is_still_an_error(self):
+        with self.assertRaises(SelectorError):
+            self.session.resolve_targets('a1.t1')
