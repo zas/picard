@@ -407,7 +407,7 @@ Implemented commands (backend: both):
 |---|---|
 | `ls [sel]` | list top-level entities (or the selection) with their handles |
 | `tree [sel]` | the working set as an indented tree, like the GUI panes |
-| `file add <paths>` | load files, directories and globs; applies the GUI's ignore rules and placement policy; skips files already loaded |
+| `file add <paths>` | load files, directories and globs, in filename order like the GUI; applies the GUI's ignore rules and placement policy; skips files already loaded |
 | `cluster [sel]` | group files (default: unclustered) into clusters |
 | `cluster lookup [sel]` | search MusicBrainz for clusters, auto-apply the best match, expose the alternatives as `m` handles |
 | `match <cluster> <m>` | apply another candidate of that cluster |

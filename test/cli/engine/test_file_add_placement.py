@@ -92,6 +92,15 @@ class FileAddPlacementTest(PicardTestCase):
             mock_services.return_value.format_registry.open.side_effect = lambda p: by_path[p]
             return dispatch(self.session, self.reg, 'file add x')
 
+    def test_files_are_added_in_filename_order(self):
+        # A directory scan returns files in no particular order; the handles
+        # (f1, f2, ...) must follow the filenames, as in the GUI.
+        files = [self._make_file(name) for name in ('03 c.flac', '01 a.flac', '02 b.flac')]
+        result = self._dispatch_add(files)
+        self.assertEqual(['01 a.flac', '02 b.flac', '03 c.flac'], [it.data['filename'] for it in result.items])
+        self.assertEqual(['f1', 'f2', 'f3'], [it.handle for it in result.items])
+        self.assertEqual(['f1', 'f2', 'f3'], result.mints)
+
     def test_already_loaded_file_is_not_added_twice(self):
         f = self._make_file('plain.flac')
         first = self._dispatch_add([f])

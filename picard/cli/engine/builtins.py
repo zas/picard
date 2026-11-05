@@ -310,6 +310,11 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         paths = [paths]
 
     filepaths, unmatched = _expand_input_paths(list(paths))
+    # Same normalisation as the GUI's add_files, so the "already loaded" check
+    # below compares like with like; and the same order too: by filename, as
+    # add_files sorts the new files, not the order a directory happens to be
+    # scanned in. That order decides the handles the files are given.
+    filepaths = sorted(normpath(resolve_fs_path(path)) for path in filepaths)
 
     settings = config.get_config().setting
     ignore_hidden = settings['ignore_hidden_files']
@@ -321,9 +326,6 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     items = []
     notes: list[str] = []
     for path in filepaths:
-        # Same normalisation as the GUI's add_files, so the "already loaded"
-        # check below compares like with like.
-        path = normpath(resolve_fs_path(path))
         if is_ignored_file(path, ignore_hidden, ignoreregex):
             items.append(EngineItemResult(handle='', status='ignored', data={'path': path}))
             continue
