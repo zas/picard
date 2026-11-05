@@ -141,6 +141,10 @@ class LocalEngineSession:
         """Return (minting if needed) the session handle for ``entity``."""
         return self._handles.handle_for(entity)
 
+    def option_names(self) -> list[str]:
+        """The names of all the options, sorted, for completion."""
+        return self._options.names()
+
     def list_options(self, pattern: 'str | None' = None) -> list[dict[str, Any]]:
         """Describe the options matching ``pattern`` (all those not at their default without one)."""
         return self._options.matching(pattern)

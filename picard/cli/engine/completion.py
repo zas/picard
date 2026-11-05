@@ -24,6 +24,8 @@ decides what to complete from the command registry and the command's declared
 - command name (first word(s)) -> matching ``noun verb`` names
 - a ``path`` arg -> filesystem paths (``~`` expanded, directory-aware)
 - a ``device`` arg -> detected CD/DVD drives (cross-platform)
+- an ``option`` arg -> option names, and an ``option-value`` arg the values
+  that make sense for the option named by the previous word
 - a ``selector`` / ``handle`` arg -> live session handles + wildcards, and
   after a ``.`` the path segments that can follow (``a1.`` -> ``a1.d1``,
   ``a1.t*``, ...); in a comma-separated union the last term is completed
@@ -73,6 +75,21 @@ def _cdrom_devices() -> list[str]:
         return get_cdrom_drives()
     except Exception:
         return []
+
+
+def _option_values(session, name: str) -> list[str]:
+    """Values worth offering for the option ``name``: true/false, or its current value."""
+    try:
+        info = session.describe_option(name)
+    except ValueError:  # not an option
+        return []
+    if not info['settable']:
+        return []
+    if info['type'] == 'bool':
+        return ['true', 'false']
+    if info['type'] == 'list':
+        return []
+    return [str(info['value'])]
 
 
 def _live_handles(session) -> list[str]:
@@ -147,6 +164,10 @@ def complete(line: str, text: str, registry, session) -> list[str]:
         arg_matches = _complete_path(text)
     elif kind == 'device':
         arg_matches = [d for d in _cdrom_devices() if d.startswith(text)]
+    elif kind == 'option':
+        arg_matches = [name for name in session.option_names() if name.startswith(text)]
+    elif kind == 'option-value' and rest:
+        arg_matches = [value for value in _option_values(session, rest[0]) if value.startswith(text)]
     elif kind in {'selector', 'handle'}:
         arg_matches = _complete_selector(session, text, wildcards=(kind == 'selector'))
 

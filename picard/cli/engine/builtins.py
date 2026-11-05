@@ -1243,7 +1243,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_option_ls,
             help="List the options not at their default, or those matching a pattern, with where their value comes from.",
             args=('pattern',),
-            arg_kinds=('',),
+            arg_kinds=('option',),
         )
     )
     registry.register(
@@ -1252,7 +1252,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_option_get,
             help="Show an option: value, default, type, title and where the value comes from.",
             args=('name',),
-            arg_kinds=('',),
+            arg_kinds=('option',),
         )
     )
     registry.register(
@@ -1261,7 +1261,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_option_set,
             help="Set an option for this session only (nothing is written to the configuration): option set <name> <value>.",
             args=('name', 'value'),
-            arg_kinds=('', ''),
+            arg_kinds=('option', 'option-value'),
         )
     )
     registry.register(
@@ -1270,7 +1270,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_option_unset,
             help="Forget the value an option was given in this session.",
             args=('name',),
-            arg_kinds=('',),
+            arg_kinds=('option',),
         )
     )
     registry.register(
@@ -1279,7 +1279,7 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             run=_cmd_option_save,
             help="Write the options set in this session (or just those named) to the configuration.",
             args=('names',),
-            arg_kinds=('',),
+            arg_kinds=('option',),
             destructive=True,
         )
     )

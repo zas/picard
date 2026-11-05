@@ -80,6 +80,10 @@ class EngineSession(Protocol):
         """Return (minting if needed) the session handle for ``entity``."""
         ...
 
+    def option_names(self) -> 'list[str]':
+        """The names of all the options, sorted, for completion."""
+        ...
+
     def list_options(self, pattern: 'str | None' = None) -> 'list[dict[str, Any]]':
         """Describe the options matching ``pattern`` (all those not at their default without one)."""
         ...
@@ -152,7 +156,9 @@ class EngineCommand:
     args: tuple[str, ...] = field(default_factory=tuple)
     # Completion hint per positional arg, parallel to ``args``: one of
     # 'path' (filesystem path), 'device' (CD/DVD drive), 'selector' (handle
-    # selector / wildcard), 'handle' (a single handle), or '' (no completion).
+    # selector / wildcard), 'handle' (a single handle), 'option' (option name),
+    # 'option-value' (value of the option named by the previous word), or ''
+    # (no completion).
     # Used by the shell's
     # tab-completer. Missing entries default to no completion.
     arg_kinds: tuple[str, ...] = field(default_factory=tuple)
