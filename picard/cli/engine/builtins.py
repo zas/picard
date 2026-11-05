@@ -40,6 +40,7 @@ from picard.cli.engine.commands import (
     EngineCommandRegistry,
     EngineSession,
 )
+from picard.cli.engine.options import OptionCommandError
 from picard.cli.engine.result import (
     EngineItemResult,
     EngineResult,
@@ -873,6 +874,41 @@ def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
+def _option_item(info: dict[str, Any]) -> EngineItemResult:
+    """A result item for an option: its name is the handle, where its value comes from the status."""
+    data = {key: info[key] for key in ('value', 'default', 'type', 'title', 'settable')}
+    return EngineItemResult(handle=info['name'], status=info['source'], data=data)
+
+
+def _cmd_option_ls(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """List options with their value and where it comes from.
+
+    ``option ls`` lists the options that are not at their default value: set in
+    the configuration, by a profile, or in this session. ``option ls <pattern>``
+    lists the options whose name or title contains the pattern (or matches it,
+    as a glob if it has ``*``, ``?`` or ``[``), whatever their value.
+    """
+    pattern = args.get('pattern')
+    if isinstance(pattern, list):
+        pattern = ' '.join(pattern)
+    infos = session.list_options(pattern or None)
+    return EngineResult(items=[_option_item(info) for info in infos])
+
+
+def _cmd_option_get(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Show one option: its value, default, type, title and where the value comes from."""
+    name = args.get('name')
+    if isinstance(name, list):
+        name = name[0] if name else None
+    if not name:
+        return EngineResult.failure("option get: usage: option get <name>")
+    try:
+        info = session.describe_option(name)
+    except OptionCommandError as e:
+        return EngineResult.failure(f"option get: {e}")
+    return EngineResult(items=[_option_item(info)])
+
+
 def _cmd_trash(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Move the selected files to the system trash and drop them from the set.
 
@@ -1142,6 +1178,24 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Move files into a track, cluster, album or bucket: move <sources> <destination>.",
             args=('selectors',),
             arg_kinds=('selector',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='option ls',
+            run=_cmd_option_ls,
+            help="List the options not at their default, or those matching a pattern, with where their value comes from.",
+            args=('pattern',),
+            arg_kinds=('',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='option get',
+            run=_cmd_option_get,
+            help="Show an option: value, default, type, title and where the value comes from.",
+            args=('name',),
+            arg_kinds=('',),
         )
     )
     registry.register(

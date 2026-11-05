@@ -41,6 +41,7 @@ from picard.album import Album
 from picard.cli.engine.candidates import Candidate
 from picard.cli.engine.handles import HandleRegistry
 from picard.cli.engine.navigation import PathNavigator
+from picard.cli.engine.options import SessionOptions
 from picard.cli.engine.selectors import (
     SelectorError,
     resolve_nodes,
@@ -93,6 +94,8 @@ class LocalEngineSession:
         # set and is collected. Keying by the object, not id(), also means a
         # new target can never inherit a dead target's candidates.
         self._candidates: WeakKeyDictionary[Any, list[Candidate]] = WeakKeyDictionary()
+        # The options of the session: values set for it, over the configuration.
+        self._options = SessionOptions()
         # Walks selector paths (a1.d2.t3, c1.f*, ...) through the working set.
         self._navigator = PathNavigator(self.candidates_for, self._candidate_owner)
 
@@ -137,6 +140,14 @@ class LocalEngineSession:
     def handle_for(self, entity: Any) -> str:
         """Return (minting if needed) the session handle for ``entity``."""
         return self._handles.handle_for(entity)
+
+    def list_options(self, pattern: 'str | None' = None) -> list[dict[str, Any]]:
+        """Describe the options matching ``pattern`` (all those not at their default without one)."""
+        return self._options.matching(pattern)
+
+    def describe_option(self, name: str) -> dict[str, Any]:
+        """Describe one option: value, default, type, title and where the value comes from."""
+        return self._options.describe(name)
 
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path, or None."""

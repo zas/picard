@@ -80,6 +80,14 @@ class EngineSession(Protocol):
         """Return (minting if needed) the session handle for ``entity``."""
         ...
 
+    def list_options(self, pattern: 'str | None' = None) -> 'list[dict[str, Any]]':
+        """Describe the options matching ``pattern`` (all those not at their default without one)."""
+        ...
+
+    def describe_option(self, name: str) -> 'dict[str, Any]':
+        """Describe one option: value, default, type, title and where the value comes from."""
+        ...
+
     def path_of(self, handle: str) -> 'str | None':
         """Where the entity of ``handle`` currently sits, as a selector path (or None)."""
         ...
