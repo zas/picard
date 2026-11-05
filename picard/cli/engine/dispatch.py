@@ -35,6 +35,7 @@ from picard.cli.engine.commands import (
     EngineSession,
 )
 from picard.cli.engine.result import EngineResult
+from picard.cli.engine.selectors import SelectorError
 
 
 def split_command_name(tokens: list[str], registry: EngineCommandRegistry) -> 'tuple[str, list[str]]':
@@ -79,6 +80,9 @@ def dispatch(session: EngineSession, registry: EngineCommandRegistry, line: str)
     args = _bind_args(command.args, rest)
     try:
         return command.run(session, args)
+    except SelectorError as e:
+        # The user's selector is at fault (malformed, ambiguous, ...), not the command.
+        return EngineResult.failure(f"{name}: invalid selector: {e}")
     except Exception as e:  # a command bug must not crash the frontend
         return EngineResult.failure(f"command {name!r} failed: {e}")
 

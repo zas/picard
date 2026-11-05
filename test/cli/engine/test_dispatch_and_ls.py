@@ -162,6 +162,14 @@ class LsCommandTest(PicardTestCase):
                 self.assertTrue(r.ok, r.error)
                 self.assertEqual({'a1', 'c1'}, {it.handle for it in r.items})
 
+    def test_bad_selector_is_reported_as_such(self):
+        for line in ('ls !a1', 'ls a1.', 'ls z9'):
+            with self.subTest(line=line):
+                r = dispatch(self.session, self.reg, line)
+                self.assertFalse(r.ok)
+                self.assertIn('invalid selector', r.error)
+                self.assertNotIn('failed', r.error)
+
     def test_ls_album_item_carries_release_ref(self):
         r = dispatch(self.session, self.reg, 'ls a*')
         data = r.items[0].data
