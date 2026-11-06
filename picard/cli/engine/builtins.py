@@ -789,7 +789,9 @@ def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     place; everything before it selects what to move (the files of the matched
     albums, clusters and tracks, as for ``save``). The destination is one of:
 
-    - a track (``a1.d2.t3``): the files are attached to it;
+    - a track (``a1.d2.t3``): the files are attached to it, one after the other
+      to the following tracks of the album (then to its unmatched files), as
+      when several files are dropped on a track in the GUI;
     - a cluster (``c1``);
     - an album (``a1``): the files are matched to its tracks, as when dropped on
       the album in the GUI;
@@ -830,11 +832,7 @@ def _cmd_move(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     paths_before = {file: session.path_of(session.handle_for(file)) for file in files}
     parents_before = {file: file.parent_item for file in files}
     movable = [file for file in files if file.parent_item is not destination]
-    if isinstance(destination, Album):
-        wks.move_files_to_album(movable, album=destination)
-    else:
-        for file in movable:
-            wks.move_file(file, destination)
+    wks.move_files(movable, destination)
     notes: list[str] = []
     _drain(session, 120, notes)
 

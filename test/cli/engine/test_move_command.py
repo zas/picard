@@ -84,11 +84,21 @@ class MoveToTrackTest(_MoveTestBase):
         self.assertEqual('c1.f1', item.data['from'])
         self.assertEqual('a1.d2.t1.f1', item.path)
 
-    def test_several_files_to_a_track(self):
+    def test_several_files_go_to_the_following_tracks_as_in_the_gui(self):
         result = self._move('move f1 f2 a1.d1.t2')
         self.assertTrue(result.ok, result.error)
-        self.assertEqual([self.album.tracks[1]] * 2, [self.first.parent_item, self.second.parent_item])
+        self.assertEqual(
+            [self.album.tracks[1], self.album.tracks[2]], [self.first.parent_item, self.second.parent_item]
+        )
         self.assertEqual(['moved', 'moved'], [it.status for it in result.items])
+
+    def test_files_beyond_the_last_track_go_to_the_unmatched_files(self):
+        result = self._move('move f1 f2 f3 a1.d2.t1')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(
+            [self.album.tracks[2], self.album.unmatched_files, self.album.unmatched_files],
+            [self.first.parent_item, self.second.parent_item, self.loose.parent_item],
+        )
 
     def test_track_without_a_disc_on_a_multi_disc_release_is_an_error(self):
         result = self._move('move f1 a1.t1')
