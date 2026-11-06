@@ -407,17 +407,17 @@ Implemented commands (backend: both):
 |---|---|
 | `ls [sel]` | list top-level entities (or the selection) with their handles |
 | `tree [sel]` | the working set as an indented tree, like the GUI panes |
-| `file add <paths>` | load files, directories and globs, in filename order like the GUI; applies the GUI's ignore rules and placement policy; skips files already loaded, and unsupported files it finds in a folder (one named explicitly is reported) |
+| `file add <paths>` | load files, directories and globs, in filename order like the GUI; applies the GUI's ignore rules and placement policy (files with MusicBrainz IDs go to their album or track, `cluster_new_files` and `analyze_new_files` are honoured); skips files already loaded, and unsupported files it finds in a folder (one named explicitly is reported) |
 | `cluster [sel]` | group files (default: unclustered) into clusters |
 | `cluster lookup [sel]` | search MusicBrainz for clusters, auto-apply the best match, expose the alternatives as `m` handles (the console lists the best 10; `ls c1.m*` lists them all) |
 | `match <cluster> <m>` | apply another candidate of that cluster |
 | `lookup [sel]` | metadata lookup (autotag) of the selected objects |
 | `scan [sel]` | identify files by AcoustID fingerprint |
-| `album load <mbid\|url>` | load a release as an empty album |
-| `disc read [device]` | read the TOC of the CD in a drive and load the matching release |
+| `album load <mbid\|url>` | load a release as an empty album; the reference may be a bare MBID, `release:<mbid>` or a MusicBrainz release URL |
+| `disc read [device]` | read the TOC of the CD in a drive (by default the first of the `cd_lookup_device` option, as the GUI does) and load the matching release |
 | `disc read-log <path>` | the same from a CD ripper log file |
 | `save [sel]` | write tag changes to disk |
-| `move <sources> <destination>` | put files into a track (`a1.d2.t3`), a cluster, an album (matched to its tracks) or a bucket (`u`, `a1.u`), as dropping them in the GUI does; the last word is the destination |
+| `move <sources> <destination>` | put files into a track (`a1.d2.t3`), a cluster, an album (matched to its tracks) or a bucket (`u`, `a1.u`), as dropping them in the GUI does (several files dropped on a track go to the following tracks of the album); the last word is the destination |
 | `option ls [pattern]` | the options not at their default, or those matching a pattern, with where each value comes from |
 | `option get <name>` | one option: value, default, type, title and source |
 | `option set <name> <value>` | set an option for this session only |
