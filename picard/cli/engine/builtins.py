@@ -24,6 +24,8 @@ frontend renders the result.
 both frontends call it so they share one vocabulary.
 """
 
+from collections.abc import Callable
+from functools import partial
 import glob
 import os
 from typing import Any
@@ -56,6 +58,7 @@ from picard.util import (
     normpath,
     resolve_fs_path,
 )
+from picard.util.cdrom import get_configured_lookup_device
 from picard.util.mbentity import parse_mb_entity
 from picard.workspace import workspace
 
@@ -1000,22 +1003,30 @@ def _cmd_lookup(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
-def _disc_lookup_and_report(session: EngineSession, disc) -> EngineResult:
-    """Look up a populated ``disc`` and report the album it matched.
+def _disc_lookup_and_report(
+    session: EngineSession, disc, read: Callable[[], object], read_failure: str
+) -> EngineResult:
+    """Read a disc, look it up and report the album it matched.
 
-    Shared tail of the disc commands: issues the disc-id lookup and drains it
-    (and any album load the headless auto-load scheduled), then reports the
-    matched album — or ``no_match`` when nothing unambiguous was found. The
-    matched album is read from the disc-presentation facade (not by diffing the
-    album registry), so a release already loaded in the session is still
-    reported as a match rather than a spurious ``no_match``.
+    Shared tail of the disc commands: ``read`` (``disc.read`` or
+    ``disc.read_log`` with its arguments bound) runs on a worker thread, as for
+    the GUI, then the disc-id lookup is issued; both are drained, with any album
+    load the headless auto-load scheduled. A failure to read is reported with
+    ``read_failure`` as its message. Otherwise the matched album is reported, or
+    ``no_match`` when nothing unambiguous was found. The matched album is read
+    from the disc-presentation facade (not by diffing the album registry), so a
+    release already loaded in the session is still reported as a match rather
+    than a spurious ``no_match``.
     """
     dp = disc_presentation()
     dp.reset_last_loaded()
-    disc.lookup()
+    errors: list[Exception] = []
+    disc.read_and_lookup(read, on_error=errors.append)
     notes: list[str] = []
     drained = _drain(session, 120, notes)
 
+    if errors:
+        return EngineResult.failure(f"{read_failure}: {errors[0]}")
     album = dp.last_loaded_album
     if album is None:
         status = 'no_match' if drained else 'timeout'
@@ -1034,8 +1045,9 @@ def _disc_lookup_and_report(session: EngineSession, disc) -> EngineResult:
 def _cmd_disc_read(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Read the TOC from an audio CD in the drive and load the matching release.
 
-    ``disc read [device]`` reads the disc in ``device`` (or the default drive
-    when omitted), computes its disc ID, and looks it up on MusicBrainz.
+    ``disc read [device]`` reads the disc in ``device`` (or, when omitted, in the
+    first drive of the ``cd_lookup_device`` setting, as the GUI does, else the
+    default drive), computes its disc ID, and looks it up on MusicBrainz.
     Headless, a single unambiguous match is auto-loaded (carrying the disc id
     and any ISRCs read from the disc); an ambiguous result loads nothing (no
     picker).
@@ -1048,15 +1060,11 @@ def _cmd_disc_read(session: EngineSession, args: dict[str, Any]) -> EngineResult
     device = args.get('device')
     if isinstance(device, list):
         device = device[0] if device else None
+    device = device or get_configured_lookup_device()
 
     disc = picard.disc.Disc()
-    try:
-        disc.read(device)
-    except Exception as e:
-        where = device or 'the default drive'
-        return EngineResult.failure(f"disc read: could not read {where}: {e}")
-
-    return _disc_lookup_and_report(session, disc)
+    where = device or 'the default drive'
+    return _disc_lookup_and_report(session, disc, partial(disc.read, device), f"disc read: could not read {where}")
 
 
 def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineResult:
@@ -1080,12 +1088,9 @@ def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineRe
         return EngineResult.failure("disc read-log: usage: disc read-log <path>")
 
     disc = picard.disc.Disc()
-    try:
-        disc.read_log(path)
-    except Exception as e:
-        return EngineResult.failure(f"disc read-log: could not parse {path!r}: {e}")
-
-    return _disc_lookup_and_report(session, disc)
+    return _disc_lookup_and_report(
+        session, disc, partial(disc.read_log, path), f"disc read-log: could not parse {path!r}"
+    )
 
 
 def register_builtins(registry: EngineCommandRegistry) -> None:

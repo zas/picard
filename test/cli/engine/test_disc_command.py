@@ -39,6 +39,16 @@ from picard.disc.presentation import disc_presentation
 from picard.workspace import workspace
 
 
+def _run_task_inline(func, next_func=None, **kwargs):
+    """Stand-in for thread.run_task: run the work and the callback right away."""
+    try:
+        result = func()
+    except Exception as e:
+        next_func(error=e)
+    else:
+        next_func(result=result)
+
+
 class DiscReadLogCommandTest(PicardTestCase):
     def setUp(self):
         super().setUp()
@@ -47,6 +57,9 @@ class DiscReadLogCommandTest(PicardTestCase):
         register_builtins(self.reg)
         self.session = LocalEngineSession(MagicMock())
         self.wks = workspace()
+        patcher = patch('picard.disc.thread.run_task', side_effect=_run_task_inline)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_missing_discid_library_fails(self):
         with patch.object(picard.disc, 'discid', None):
@@ -144,6 +157,9 @@ class DiscReadCommandTest(PicardTestCase):
         register_builtins(self.reg)
         self.session = LocalEngineSession(MagicMock())
         self.wks = workspace()
+        patcher = patch('picard.disc.thread.run_task', side_effect=_run_task_inline)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_missing_discid_library_fails(self):
         with patch.object(picard.disc, 'discid', None):
@@ -158,7 +174,8 @@ class DiscReadCommandTest(PicardTestCase):
             result = dispatch(self.session, self.reg, 'disc read /dev/cdrom')
         self.assertFalse(result.ok)
 
-    def test_default_device_when_omitted(self):
+    def test_default_device_when_omitted_and_none_configured(self):
+        self.set_config_values({'cd_lookup_device': ''})
         seen = {}
 
         def fake_read(self_disc, device=None):
@@ -172,8 +189,35 @@ class DiscReadCommandTest(PicardTestCase):
         ):
             result = dispatch(self.session, self.reg, 'disc read')
         self.assertTrue(result.ok)
-        # No device given -> None passed through (Disc.read resolves the default).
+        # Nothing given and nothing configured -> None (python-discid picks the drive).
         self.assertIsNone(seen['device'])
+
+    def test_first_configured_drive_when_omitted(self):
+        # As the GUI does when no drive is chosen.
+        self.set_config_values({'cd_lookup_device': ' /dev/sr1 , /dev/sr0'})
+        seen = {}
+
+        def fake_read(self_disc, device=None):
+            seen['device'] = device
+            self_disc.id = 'disc-xyz'
+
+        with (
+            patch.object(picard.disc, 'discid', MagicMock()),
+            patch.object(picard.disc.Disc, 'read', fake_read),
+            patch.object(picard.disc.Disc, 'lookup', lambda self_disc: None),
+        ):
+            dispatch(self.session, self.reg, 'disc read')
+        self.assertEqual('/dev/sr1', seen['device'])
+
+    def test_read_failure_message_names_the_drive_and_the_error(self):
+        with (
+            patch.object(picard.disc, 'discid', MagicMock()),
+            patch.object(picard.disc.Disc, 'read', side_effect=OSError("no disc in drive")),
+        ):
+            result = dispatch(self.session, self.reg, 'disc read /dev/cdrom')
+        self.assertFalse(result.ok)
+        self.assertIn('could not read /dev/cdrom', result.error)
+        self.assertIn('no disc in drive', result.error)
 
     def test_explicit_device_is_passed_through(self):
         seen = {}

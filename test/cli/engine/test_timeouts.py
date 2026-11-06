@@ -25,6 +25,7 @@ from unittest.mock import (
     patch,
 )
 
+from test.cli.engine.test_disc_command import _run_task_inline
 from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
@@ -101,6 +102,7 @@ class TimedOutCommandsTest(_TimeoutTestBase):
             patch.object(picard.disc, 'discid', MagicMock()),
             patch.object(picard.disc.Disc, 'read_log', fake_read_log),
             patch.object(picard.disc.Disc, 'lookup', lambda self_disc: None),
+            patch('picard.disc.thread.run_task', side_effect=_run_task_inline),
         ):
             disc_presentation().reset_last_loaded()
             result = dispatch(self.session, self.reg, 'disc read-log some.log')
