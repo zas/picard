@@ -31,7 +31,6 @@ from urllib.parse import urlparse
 
 from picard import (
     config,
-    log,
 )
 from picard.album import (
     Album,
@@ -52,11 +51,8 @@ from picard.cluster import Cluster
 import picard.disc
 from picard.disc.presentation import disc_presentation
 from picard.file import File
-from picard.services import services
 from picard.track import Track
 from picard.util import (
-    compile_ignore_regex,
-    is_ignored_file,
     iter_files_from_objects,
     mbid_validate,
     normpath,
@@ -308,12 +304,14 @@ def _named_files(tokens: list[str]) -> set[str]:
 
 
 def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
-    """Load one or more audio files into the working set (unclustered).
+    """Load one or more audio files into the working set.
 
-    Accepts files, directories (walked) and globs. Each resolved file is opened
-    with the format registry, registered in the working set's file registry and
-    unclustered bucket, then loaded; the async loads are drained before
-    returning. Successfully loaded files are minted as ``f`` handles.
+    Accepts files, directories (walked) and globs. The files are added with
+    ``Workspace.add_files``, as when they are dropped in the GUI: opened with the
+    format registry, loaded, then placed (on their album or track if they carry
+    MusicBrainz IDs, clustered or scanned if so configured, else left
+    unclustered). The loads are drained before returning. Successfully loaded
+    files are minted as ``f`` handles.
     """
     paths = args.get('paths')
     if not paths:
@@ -322,75 +320,45 @@ def _cmd_file_add(session: EngineSession, args: dict[str, Any]) -> EngineResult:
         paths = [paths]
 
     filepaths, unmatched = _expand_input_paths(list(paths))
-    # Same normalisation as the GUI's add_files, so the "already loaded" check
-    # below compares like with like; and the same order too: by filename, as
-    # add_files sorts the new files, not the order a directory happens to be
-    # scanned in. That order decides the handles the files are given.
-    filepaths = sorted({normpath(resolve_fs_path(path)) for path in filepaths})
     # What the user pointed at by name, as opposed to what a folder or a pattern
     # brought in: an unsupported file among the latter (a cover image next to
     # the tracks) is ignored silently, as the GUI does, but one named explicitly
     # deserves to be told about.
     named = _named_files(list(paths))
 
-    settings = config.get_config().setting
-    ignore_hidden = settings['ignore_hidden_files']
-    ignoreregex = compile_ignore_regex(settings['ignore_regex'])
-
     wks = workspace()
-    registry = services().format_registry
-    loaded = []
-    items = []
+    opened = wks.add_files(filepaths)
     notes: list[str] = []
-    for path in filepaths:
-        if is_ignored_file(path, ignore_hidden, ignoreregex):
-            items.append(EngineItemResult(handle='', status='ignored', data={'path': path}))
-            continue
-        existing = wks.files.get(path)
-        if existing is not None:
-            # Never open a second File for a path that is already in the set.
-            items.append(
-                EngineItemResult(handle=session.handle_for(existing), status='already_loaded', data={'path': path})
-            )
-            continue
-        file = registry.open(path)
-        if file is None:
-            if path in named:
-                items.append(EngineItemResult(handle='', status='unsupported', data={'path': path}))
-            else:
-                log.debug("File ignored (unsupported format): %r", path)
-            continue
-        wks.files[file.filename] = file
-        wks.unclustered_files.add_file(file)
-        file.load(lambda _f: None)
-        loaded.append(file)
-
-    # Drain all the scheduled loads together.
+    # Drain the loads, and with them the placement of each file and the album
+    # loads and matching it schedules.
     _drain(session, 120, notes)
 
-    # Apply the same per-file placement policy the GUI uses after a load:
-    # honour embedded MusicBrainz IDs (auto-move to the matching album/track/
-    # NAT) and, when configured, the analyze fallback. Files with no embedded
-    # IDs stay in the unclustered bucket. This keeps `file add` behaviour in the
-    # shell consistent with dropping files into the GUI.
-    for file in loaded:
-        if file.state != File.State.ERROR:
-            wks.place_loaded_file(file)
-    # Placement may have scheduled album/NAT loads (and matching); drain them.
-    _drain(session, 120, notes)
+    # Report in filename order, whatever the outcome, like the GUI adds them, and
+    # once for each path, although a folder and a name can bring the same one.
+    # That order decides the handles the files are given.
+    entries: list[tuple[str, str, File | None]] = [(path, 'ignored', None) for path in dict.fromkeys(opened.ignored)]
+    entries += [(file.filename, 'already_loaded', file) for file in dict.fromkeys(opened.already_loaded)]
+    entries += [(path, 'unsupported', None) for path in dict.fromkeys(opened.unsupported) if path in named]
+    entries += [(file.filename, 'loaded', file) for file in opened.opened]
 
+    items = []
     mints = []
-    for file in loaded:
-        if file.state == File.State.ERROR:
-            items.append(EngineItemResult(handle='', status='error', data={'path': file.filename}))
-            continue
-        handle = session.handle_for(file)
-        mints.append(handle)
-        # A file whose load had not finished when we gave up is not "added" yet.
-        status = 'pending' if file.state == File.State.PENDING else 'added'
-        items.append(EngineItemResult(handle=handle, status=status, data=describe_entity(file)))
+    for path, outcome, file in sorted(entries, key=lambda entry: entry[0]):
+        if file is None:
+            items.append(EngineItemResult(handle='', status=outcome, data={'path': path}))
+        elif outcome == 'already_loaded':
+            # Never open a second File for a path that is already in the set.
+            items.append(EngineItemResult(handle=session.handle_for(file), status=outcome, data={'path': path}))
+        elif file.state == File.State.ERROR:
+            items.append(EngineItemResult(handle='', status='error', data={'path': path}))
+        else:
+            handle = session.handle_for(file)
+            mints.append(handle)
+            # A file whose load had not finished when we gave up is not "added" yet.
+            status = 'pending' if file.state == File.State.PENDING else 'added'
+            items.append(EngineItemResult(handle=handle, status=status, data=describe_entity(file)))
 
-    ok = any(it.status in {'added', 'pending'} for it in items) or (not loaded and not unmatched)
+    ok = any(it.status in {'added', 'pending'} for it in items) or (not opened.opened and not unmatched)
     return EngineResult(ok=ok, items=items, mints=mints, unresolved=unmatched, message=_message(notes))
 
 

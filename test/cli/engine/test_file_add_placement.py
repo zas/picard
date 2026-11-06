@@ -60,6 +60,7 @@ class FileAddPlacementTest(PicardTestCase):
             }
         )
         self.tagger.acoustid_manager = MagicMock()
+        self.tagger.acoustid_client = MagicMock()
         self.tagger.isrc_submit_manager = MagicMock()
         self.reg = EngineCommandRegistry()
         register_builtins(self.reg)
@@ -87,8 +88,8 @@ class FileAddPlacementTest(PicardTestCase):
         by_path = {f.filename: f for f in files}
         with (
             patch('picard.cli.engine.builtins._expand_input_paths', return_value=(paths, [])),
-            patch('picard.cli.engine.builtins.services') as mock_services,
-            patch.object(File, 'load', lambda self, cb=None: None),
+            patch('picard.workspace.services') as mock_services,
+            patch.object(File, 'load', lambda self, callback: callback(self)),
         ):
             mock_services.return_value.format_registry.open.side_effect = lambda p: by_path[p]
             return dispatch(self.session, self.reg, 'file add x')
@@ -164,6 +165,31 @@ class FileAddPlacementTest(PicardTestCase):
             self.assertTrue(result.ok)
             mock_move.assert_not_called()
 
+    def test_unplaced_files_are_clustered_when_cluster_new_files_is_set(self):
+        # As in the GUI: the files left over once every load is done are clustered.
+        self.set_config_values(setting={'cluster_new_files': True})
+        files = [self._make_file(name) for name in ('01 a.flac', '02 b.flac')]
+        with patch.object(self.wks, 'cluster') as mock_cluster:
+            result = self._dispatch_add(files)
+        self.assertTrue(result.ok)
+        mock_cluster.assert_called_once_with(files)
+
+    def test_files_are_not_clustered_unless_asked(self):
+        files = [self._make_file(name) for name in ('01 a.flac', '02 b.flac')]
+        with patch.object(self.wks, 'cluster') as mock_cluster:
+            self._dispatch_add(files)
+        mock_cluster.assert_not_called()
+
+    def test_files_with_a_release_mbid_are_not_clustered(self):
+        self.set_config_values(setting={'cluster_new_files': True})
+        tagged = self._make_file('tagged.flac', albumid=_VALID_ALBUM_MBID)
+        with (
+            patch.object(self.wks, 'cluster') as mock_cluster,
+            patch.object(self.wks, 'move_file_to_album'),
+        ):
+            self._dispatch_add([tagged])
+        mock_cluster.assert_not_called()
+
 
 class FileAddUnsupportedTest(PicardTestCase):
     """Unsupported files: ignored when a folder or a pattern brought them in, reported when named."""
@@ -182,6 +208,7 @@ class FileAddUnsupportedTest(PicardTestCase):
             }
         )
         self.tagger.acoustid_manager = MagicMock()
+        self.tagger.acoustid_client = MagicMock()
         self.tagger.isrc_submit_manager = MagicMock()
         self.reg = EngineCommandRegistry()
         register_builtins(self.reg)
@@ -204,8 +231,8 @@ class FileAddUnsupportedTest(PicardTestCase):
             return file
 
         with (
-            patch('picard.cli.engine.builtins.services') as mock_services,
-            patch.object(File, 'load', lambda self, cb=None: None),
+            patch('picard.workspace.services') as mock_services,
+            patch.object(File, 'load', lambda self, callback: callback(self)),
         ):
             mock_services.return_value.format_registry.open.side_effect = open_file
             return dispatch(self.session, self.reg, 'file add ' + ' '.join(f'"{word}"' for word in words))
