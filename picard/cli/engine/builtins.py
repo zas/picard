@@ -597,15 +597,12 @@ def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     rejected = _reject_candidates(session, 'save', entities, unresolved)
     if rejected is not None:
         return rejected
-    files = list(iter_files_from_objects(entities, save=True))
-    savable = [f for f in files if f.can_save]
-    for file in savable:
-        file.save()
+    saved = workspace().save(entities)
     notes: list[str] = []
     _drain(session, 120, notes)
 
     items = []
-    for file in savable:
+    for file in saved:
         if file.state == File.State.ERROR:
             status = 'error'
         elif file.state == File.State.PENDING:
