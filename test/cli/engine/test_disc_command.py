@@ -27,6 +27,7 @@ from unittest.mock import (
     patch,
 )
 
+from test.cli.engine.test_navigation import _file
 from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
@@ -34,6 +35,7 @@ from picard.cli.engine.builtins import register_builtins
 from picard.cli.engine.commands import EngineCommandRegistry
 from picard.cli.engine.dispatch import dispatch
 from picard.cli.engine.session import LocalEngineSession
+from picard.cluster import Cluster
 import picard.disc
 from picard.disc.presentation import disc_presentation
 from picard.workspace import workspace
@@ -270,3 +272,104 @@ class DiscReadCommandTest(PicardTestCase):
         self.assertEqual(1, len(result.items))
         self.assertEqual('no_match', result.items[0].status)
         self.assertEqual([], result.mints)
+
+
+_TAG = '5023F08C+100000+4+150+30000+50000+90000'
+_TOC = '1+4+100000+150+30000+50000+90000'
+
+
+class DiscReadTagsCommandTest(PicardTestCase):
+    def setUp(self):
+        super().setUp()
+        self.patch_tagger_instance('picard.item')
+        self.tagger.acoustid_manager = MagicMock()
+        self.tagger.isrc_submit_manager = MagicMock()
+        self.tagger.acoustid_client = MagicMock()
+        self.reg = EngineCommandRegistry()
+        register_builtins(self.reg)
+        self.session = LocalEngineSession(MagicMock())
+        self.wks = workspace()
+        self.cluster = Cluster('Album', 'Artist')
+        self.wks.clusters.append(self.cluster)
+        self.files = [_file(self.wks, f'0{n}.flac') for n in range(1, 5)]
+        for file in self.files:
+            file.metadata['itunes_cddb_1'] = _TAG
+            self.cluster.add_file(file)
+        self.session.handle_for(self.cluster)
+
+    def _lookup_by_toc(self, releases):
+        """A stand-in for Disc.lookup_by_toc: the TOC lookup answered with ``releases``."""
+        calls = []
+
+        def fake(self_disc, toc_string, skip_dialog=False, files_to_match=None):
+            calls.append((toc_string, skip_dialog, files_to_match))
+            disc_presentation().present_releases(
+                self_disc, releases, files_to_match=files_to_match, skip_dialog=skip_dialog
+            )
+
+        return calls, patch.object(picard.disc.Disc, 'lookup_by_toc', fake)
+
+    def test_single_match_is_loaded_and_the_files_matched_to_it(self):
+        calls, patcher = self._lookup_by_toc([{'id': 'rel-1'}])
+        album = Album('rel-1')
+        with (
+            patcher,
+            patch.object(self.wks, 'load_album', return_value=album),
+            patch.object(self.wks, 'move_files_to_album') as match,
+        ):
+            result = dispatch(self.session, self.reg, 'disc read-tags c1')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual([(_TOC, True, self.files)], calls)
+        match.assert_called_once_with(self.files, album=album)
+        self.assertEqual('loaded', result.items[0].status)
+        self.assertTrue(result.mints[0].startswith('a'))
+        self.assertEqual(['c1'], result.resolved)
+
+    def test_no_match_reports_no_match(self):
+        calls, patcher = self._lookup_by_toc([])
+        with patcher:
+            result = dispatch(self.session, self.reg, 'disc read-tags c1')
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual('no_match', result.items[0].status)
+        self.assertEqual([], result.mints)
+
+    def test_several_matches_load_nothing(self):
+        calls, patcher = self._lookup_by_toc([{'id': 'rel-1'}, {'id': 'rel-2'}])
+        with patcher, patch.object(self.wks, 'load_album') as load:
+            result = dispatch(self.session, self.reg, 'disc read-tags c1')
+        self.assertEqual('no_match', result.items[0].status)
+        load.assert_not_called()
+
+    def test_a_selector_is_required(self):
+        result = dispatch(self.session, self.reg, 'disc read-tags')
+        self.assertFalse(result.ok)
+        self.assertIn('selector is required', result.error)
+
+    def test_files_without_the_tag_are_reported(self):
+        for file in self.files:
+            del file.metadata['itunes_cddb_1']
+        calls, patcher = self._lookup_by_toc([])
+        with patcher:
+            result = dispatch(self.session, self.reg, 'disc read-tags c1')
+        self.assertFalse(result.ok)
+        self.assertIn('Disc information could not be found', result.error)
+        self.assertEqual([], calls)
+
+    def test_files_that_do_not_match_the_disc_are_reported(self):
+        calls, patcher = self._lookup_by_toc([])
+        with patcher:
+            result = dispatch(self.session, self.reg, 'disc read-tags c1.f1')
+        self.assertFalse(result.ok)
+        self.assertIn('does not match number of selected files (1)', result.error)
+        self.assertEqual([], calls)
+
+    def test_unresolved_selector_is_reported(self):
+        result = dispatch(self.session, self.reg, 'disc read-tags c99')
+        self.assertFalse(result.ok)
+        self.assertEqual(['c99'], result.unresolved)
+
+    def test_needs_no_discid_library(self):
+        calls, patcher = self._lookup_by_toc([])
+        with patch.object(picard.disc, 'discid', None), patcher:
+            result = dispatch(self.session, self.reg, 'disc read-tags c1')
+        self.assertTrue(result.ok, result.error)

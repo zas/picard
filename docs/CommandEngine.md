@@ -416,6 +416,7 @@ Implemented commands (backend: both):
 | `album load <mbid\|url>` | load a release as an empty album; the reference may be a bare MBID, `release:<mbid>` or a MusicBrainz release URL |
 | `disc read [device]` | read the TOC of the CD in a drive (by default the first of the `cd_lookup_device` option, as the GUI does) and load the matching release |
 | `disc read-log <path>` | the same from a CD ripper log file |
+| `disc read-tags <sel>` | the same from the disc information in the tags (`itunes_cddb_1`) of the files of the selection, which are matched to the release; needs no drive |
 | `save [sel]` | write tag changes to disk |
 | `move <sources> <destination>` | put files into a track (`a1.d2.t3`), a cluster, an album (matched to its tracks) or a bucket (`u`, `a1.u`), as dropping them in the GUI does (several files dropped on a track go to the following tracks of the album); the last word is the destination |
 | `option ls [pattern]` | the options not at their default, or those matching a pattern, with where each value comes from |

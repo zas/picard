@@ -1027,7 +1027,12 @@ def _disc_lookup_and_report(
 
     if errors:
         return EngineResult.failure(f"{read_failure}: {errors[0]}")
-    album = dp.last_loaded_album
+    return _disc_match_result(session, disc, drained, notes)
+
+
+def _disc_match_result(session: EngineSession, disc, drained: bool, notes: list[str]) -> EngineResult:
+    """Report the album a disc lookup matched, or ``no_match`` / ``timeout``."""
+    album = disc_presentation().last_loaded_album
     if album is None:
         status = 'no_match' if drained else 'timeout'
         return EngineResult(
@@ -1091,6 +1096,42 @@ def _cmd_disc_read_log(session: EngineSession, args: dict[str, Any]) -> EngineRe
     return _disc_lookup_and_report(
         session, disc, partial(disc.read_log, path), f"disc read-log: could not parse {path!r}"
     )
+
+
+def _cmd_disc_read_tags(session: EngineSession, args: dict[str, Any]) -> EngineResult:
+    """Identify a disc from the disc information in the tags of its files.
+
+    ``disc read-tags <selector>`` reads the ``itunes_cddb_1`` tag of the files of
+    the selection (an album, a cluster, ...), builds the table of contents from
+    it and looks it up on MusicBrainz, as the GUI does for "Lookup CD from tags".
+    The selection must be the files of the disc, one per track. Headless, a
+    single match is auto-loaded and the files are matched to it; an ambiguous
+    result loads nothing (no picker). Needs no CD drive and no python-discid.
+    """
+    selector = args.get('selector')
+    if not selector:
+        return EngineResult.failure("disc read-tags: a selector is required (e.g. disc read-tags c1)")
+    entities, unresolved = session.resolve(selector)
+    rejected = _reject_candidates(session, 'disc read-tags', entities, unresolved)
+    if rejected is not None:
+        return rejected
+    files = list(iter_files_from_objects(entities))
+    if not files:
+        return EngineResult.failure(f"disc read-tags: no file in {selector!r}", unresolved=unresolved)
+    try:
+        toc_string = picard.disc.toc_string_from_tags(files)
+    except picard.disc.DiscTagsError as e:
+        return EngineResult.failure(f"disc read-tags: {e}", unresolved=unresolved)
+
+    disc_presentation().reset_last_loaded()
+    disc = picard.disc.Disc()
+    disc.lookup_by_toc(toc_string, skip_dialog=True, files_to_match=files)
+    notes: list[str] = []
+    drained = _drain(session, 120, notes)
+    result = _disc_match_result(session, disc, drained, notes)
+    result.resolved = [session.handle_for(e) for e in entities]
+    result.unresolved = unresolved
+    return result
 
 
 def register_builtins(registry: EngineCommandRegistry) -> None:
@@ -1275,5 +1316,14 @@ def register_builtins(registry: EngineCommandRegistry) -> None:
             help="Identify a disc from a CD ripper log file and load the matching release.",
             args=('path',),
             arg_kinds=('path',),
+        )
+    )
+    registry.register(
+        EngineCommand(
+            name='disc read-tags',
+            run=_cmd_disc_read_tags,
+            help="Identify a disc from the disc information in the tags of the selected files and load the matching release.",
+            args=('selector',),
+            arg_kinds=('selector',),
         )
     )
