@@ -61,7 +61,6 @@ from picard.util import (
     mbid_validate,
     normpath,
     resolve_fs_path,
-    scan_paths_recursive,
 )
 from picard.workspace import workspace
 
@@ -258,15 +257,11 @@ def _expand_input_paths(tokens: list[str]) -> 'tuple[list[str], list[str]]':
     """Expand user path tokens to concrete paths, recursing into directories.
 
     Each token is ``~``-expanded and glob-expanded (so ``dir/*`` works inside
-    the REPL, where no shell expands it). Directories are walked via
-    scan_paths_recursive (respecting the recursively_add_files /
-    ignore_hidden_files settings). Returns ``(files, unmatched_tokens)`` where
+    the REPL, where no shell expands it). Directories are walked by
+    ``Workspace.scan_paths`` (respecting the recursively_add_files /
+    ignore_hidden_files settings), as when adding paths in the GUI. Returns ``(files, unmatched_tokens)`` where
     unmatched tokens are those matching no existing path.
     """
-    settings = config.get_config().setting
-    recursive = settings['recursively_add_files']
-    ignore_hidden = settings['ignore_hidden_files']
-
     roots: list[str] = []
     unmatched: list[str] = []
     for token in tokens:
@@ -298,7 +293,7 @@ def _expand_input_paths(tokens: list[str]) -> 'tuple[list[str], list[str]]':
             roots.append(joined)
             unmatched = []
 
-    files = list(scan_paths_recursive(roots, recursive, ignore_hidden))
+    files = list(workspace().scan_paths(roots))
     return files, unmatched
 
 
