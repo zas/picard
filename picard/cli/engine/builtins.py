@@ -27,7 +27,6 @@ both frontends call it so they share one vocabulary.
 import glob
 import os
 from typing import Any
-from urllib.parse import urlparse
 
 from picard import (
     config,
@@ -54,10 +53,10 @@ from picard.file import File
 from picard.track import Track
 from picard.util import (
     iter_files_from_objects,
-    mbid_validate,
     normpath,
     resolve_fs_path,
 )
+from picard.util.mbentity import parse_mb_entity
 from picard.workspace import workspace
 
 
@@ -618,28 +617,6 @@ def _cmd_save(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     )
 
 
-def _extract_release_mbid(text: str) -> 'str | None':
-    """Extract a release MBID from a bare id, a ``release:<mbid>`` reference, or a URL.
-
-    Accepts ``<mbid>``, the ``release:<mbid>`` reference shown by ``ls`` / ``tree``,
-    ``https://musicbrainz.org/release/<mbid>`` (any host, optional trailing
-    path/query), or an ``mbid://`` URI. Returns the MBID if valid, else None.
-    """
-    text = text.strip()
-    # The listings display releases as ``release:<mbid>``; accept that round-trip.
-    if text.startswith('release:'):
-        text = text[len('release:') :].strip()
-    if mbid_validate(text):
-        return text
-    parsed = urlparse(text)
-    if parsed.scheme in {'http', 'https', 'mbid'}:
-        # Take the last path segment (…/release/<mbid>) or the netloc for mbid://.
-        candidate = (parsed.path.rstrip('/').rsplit('/', 1)[-1]) or parsed.netloc
-        if mbid_validate(candidate):
-            return candidate
-    return None
-
-
 def _cmd_album_load(session: EngineSession, args: dict[str, Any]) -> EngineResult:
     """Load a release by MBID (or MusicBrainz release URL) as an empty album.
 
@@ -652,9 +629,14 @@ def _cmd_album_load(session: EngineSession, args: dict[str, Any]) -> EngineResul
         return EngineResult.failure("album load: usage: album load <mbid|url>")
     if isinstance(arg, list):
         arg = arg[0] if arg else ''
-    mbid = _extract_release_mbid(arg)
-    if mbid is None:
+    # Same reading of a MusicBrainz reference as the GUI: a bare MBID, the
+    # ``release:<mbid>`` shown by ``ls`` / ``tree``, a URL, ...
+    ref = parse_mb_entity(arg, default_entity='release')
+    if ref is None:
         return EngineResult.failure(f"album load: not a release MBID or URL: {arg!r}")
+    if ref.entity != 'release':
+        return EngineResult.failure(f"album load: {arg!r} is a {ref.entity}, not a release")
+    mbid = ref.id
 
     album = workspace().load_album(mbid)
     notes: list[str] = []

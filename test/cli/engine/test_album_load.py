@@ -22,10 +22,7 @@ from unittest.mock import (
 from test.picardtestcase import PicardTestCase
 
 from picard.album import Album
-from picard.cli.engine.builtins import (
-    _extract_release_mbid,
-    register_builtins,
-)
+from picard.cli.engine.builtins import register_builtins
 from picard.cli.engine.commands import EngineCommandRegistry
 from picard.cli.engine.dispatch import dispatch
 from picard.cli.engine.session import LocalEngineSession
@@ -33,31 +30,6 @@ from picard.workspace import workspace
 
 
 _MBID = '1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d'
-
-
-class ExtractReleaseMbidTest(PicardTestCase):
-    def test_bare_mbid(self):
-        self.assertEqual(_MBID, _extract_release_mbid(_MBID))
-
-    def test_release_url(self):
-        self.assertEqual(_MBID, _extract_release_mbid(f'https://musicbrainz.org/release/{_MBID}'))
-
-    def test_release_url_trailing_slash(self):
-        self.assertEqual(_MBID, _extract_release_mbid(f'https://musicbrainz.org/release/{_MBID}/'))
-
-    def test_mbid_uri(self):
-        self.assertEqual(_MBID, _extract_release_mbid(f'mbid://{_MBID}'))
-
-    def test_release_colon_reference(self):
-        # The form shown by `ls` / `tree` output (release:<mbid>) round-trips.
-        self.assertEqual(_MBID, _extract_release_mbid(f'release:{_MBID}'))
-
-    def test_release_colon_reference_invalid_mbid(self):
-        self.assertIsNone(_extract_release_mbid('release:not-an-mbid'))
-
-    def test_invalid(self):
-        self.assertIsNone(_extract_release_mbid('not-an-mbid'))
-        self.assertIsNone(_extract_release_mbid('https://example.com/foo'))
 
 
 class AlbumLoadCommandTest(PicardTestCase):
@@ -91,6 +63,38 @@ class AlbumLoadCommandTest(PicardTestCase):
         result = dispatch(self.session, self.reg, f'album load https://musicbrainz.org/release/{_MBID}')
         self.assertTrue(result.ok)
         self.assertEqual([_MBID], self._loaded)
+
+    def test_accepted_spellings(self):
+        for text in (
+            _MBID,
+            f'release:{_MBID}',  # the form shown by `ls` / `tree` round-trips
+            f'mbid://{_MBID}',
+            f'https://musicbrainz.org/release/{_MBID}',
+            f'https://musicbrainz.org/release/{_MBID}/',
+            f'https://musicbrainz.org/release/{_MBID}/cover-art',
+        ):
+            with self.subTest(text=text):
+                self._loaded.clear()
+                workspace().albums.clear()
+                result = dispatch(self.session, self.reg, f'album load {text}')
+                self.assertTrue(result.ok, result.error)
+                self.assertEqual([_MBID], self._loaded)
+
+    def test_rejected_spellings(self):
+        for text in ('nope', 'release:not-an-mbid', 'https://example.com/foo'):
+            with self.subTest(text=text):
+                result = dispatch(self.session, self.reg, f'album load {text}')
+                self.assertFalse(result.ok)
+                self.assertIn('not a release MBID or URL', result.error)
+        self.assertEqual([], self._loaded)
+
+    def test_other_entities_are_not_loaded_as_releases(self):
+        for entity in ('artist', 'recording', 'release-group'):
+            with self.subTest(entity=entity):
+                result = dispatch(self.session, self.reg, f'album load https://musicbrainz.org/{entity}/{_MBID}')
+                self.assertFalse(result.ok)
+                self.assertIn(f'is a {entity}, not a release', result.error)
+        self.assertEqual([], self._loaded)
 
     def test_load_invalid_is_failure(self):
         result = dispatch(self.session, self.reg, 'album load nope')
