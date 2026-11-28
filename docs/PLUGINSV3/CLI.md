@@ -1132,8 +1132,11 @@ appear in order:
 5. Short description
 6. Categories — comma-separated numbers for multiple (e.g. `1,3`)
 7. License — defaults to last used value or GPL-2.0-or-later
-8. Initialize git repository? — yes/no (default: yes)
-9. Create initial git commit? — yes/no (default: yes) — only if "Initialize git repository?" is yes.
+8. Interfaces — the interfaces the plugin works with (`qt-gui`, `headless`), comma-separated numbers for
+   multiple (e.g. `1,2`), written as `interfaces` in the MANIFEST. Defaults to `qt-gui`
+9. Include translation support (i18n)? — yes/no (default: no)
+10. Initialize git repository? — yes/no (default: yes)
+11. Create initial git commit? — yes/no (default: yes) — only if "Initialize git repository?" is yes.
 
 Author name, email, and license are persisted across runs.
 

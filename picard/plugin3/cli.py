@@ -90,8 +90,25 @@ from picard.plugin3.registry import (
     RegistryFetchError,
     RegistryParseError,
 )
-from picard.plugin3.validator import MAX_NAME_LENGTH
+from picard.plugin3.validator import (
+    DEFAULT_INTERFACES,
+    INTERFACES,
+    MAX_NAME_LENGTH,
+)
 from picard.util.filenaming import replace_extension
+
+
+def _select_numbered(text, choices):
+    """Return the choices selected by a string of comma-separated numbers (1 is the first choice).
+
+    What is not a number of a choice is ignored.
+    """
+    selected = set()
+    for part in text.split(','):
+        part = part.strip()
+        if part.isdigit() and 1 <= int(part) <= len(choices):
+            selected.add(choices[int(part) - 1])
+    return selected
 
 
 def get_display_locale(args):
@@ -1916,17 +1933,7 @@ class PluginCLI(BaseCLI):
         for i, cat in enumerate(VALID_CATEGORIES, 1):
             self._out.info(f'{self._out.d_number(i)}. {cat}')
         cat_input = input(f'{self._out.bold("Category numbers")} (comma-separated, optional): ').strip()
-        categories = None
-        if cat_input:
-            cats = set()
-            for part in cat_input.split(','):
-                part = part.strip()
-                if part.isdigit():
-                    idx = int(part) - 1
-                    if 0 <= idx < len(VALID_CATEGORIES):
-                        cats.add(VALID_CATEGORIES[idx])
-            if cats:
-                categories = sorted(cats)
+        categories = sorted(_select_numbered(cat_input, VALID_CATEGORIES)) or None
 
         # License (optional, show choices)
         default_license = saved.get('license', '') or 'GPL-2.0-or-later'
@@ -1954,6 +1961,18 @@ class PluginCLI(BaseCLI):
             'author_email': author_email,
             'license': license_id,
         }
+
+        # Interfaces (comma-separated numbers for multiple), the default if none is valid
+        self._out.print(f'{self._out.bold("Interfaces")} (the ones the plugin works with):')
+        for i, interface in enumerate(INTERFACES, 1):
+            self._out.info(f'{self._out.d_number(i)}. {interface}')
+        default_interfaces = ', '.join(DEFAULT_INTERFACES)
+        interfaces_input = input(
+            f'{self._out.bold("Interface numbers")} (comma-separated) [{self._out.dim(default_interfaces)}]: '
+        ).strip()
+        selected_interfaces = _select_numbered(interfaces_input, INTERFACES)
+        # In the order of INTERFACES
+        interfaces = [i for i in INTERFACES if i in selected_interfaces] or list(DEFAULT_INTERFACES)
 
         with_i18n = getattr(self._args, 'with_translations', False) or self._out.yesno(
             'Include translation support (i18n)?', default='N'
@@ -1983,6 +2002,7 @@ class PluginCLI(BaseCLI):
                 categories=categories or [],
                 license_id=license_id,
                 license_url=license_url,
+                interfaces=interfaces,
                 with_i18n=with_i18n,
                 source_locale=source_locale,
             ),

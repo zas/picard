@@ -1496,6 +1496,7 @@ class TestPluginCLIInitInteractive(PicardTestCase):
         description='',
         category='',
         license='',
+        interfaces='',
         with_i18n='n',
         git_initialization='y',
         git_commit='y',
@@ -1508,7 +1509,7 @@ class TestPluginCLIInitInteractive(PicardTestCase):
         inputs = [name, target_path, author]
         if author:
             inputs.append(email)
-        inputs.extend([description, category, license, with_i18n, git_initialization, git_commit])
+        inputs.extend([description, category, license, interfaces, with_i18n, git_initialization, git_commit])
         return inputs
 
     def test_interactive_full(self):
@@ -1529,6 +1530,35 @@ class TestPluginCLIInitInteractive(PicardTestCase):
         self.assertIn('authors = ["Alice"]', manifest)
         self.assertIn('description = "A test plugin"', manifest)
         self.assertIn('categories = ["metadata"]', manifest)
+
+    def _interactive_interfaces(self, answer):
+        """Run the interactive init answering `answer` to the interfaces question, return the manifest."""
+        # Each case has its own directory: it must not exist yet
+        target = Path(self.mktmpdir()) / 'my-plugin'
+        inputs = self._init_inputs(name='My Plugin', interfaces=answer)
+        with patch('builtins.input', side_effect=inputs):
+            exit_code, _stdout, stderr = run_cli(MockPluginManager(), verb='init', target_dir=str(target))
+        self.assertEqual(ExitCode.SUCCESS, exit_code, stderr)
+        return (target / 'MANIFEST.toml').read_text(encoding='utf-8')
+
+    @subtest_cases(
+        "answer,expected",
+        {
+            'default is the GUI': ('', '["qt-gui"]'),
+            'GUI': ('1', '["qt-gui"]'),
+            'headless only': ('2', '["headless"]'),
+            'both': ('1,2', '["qt-gui", "headless"]'),
+            'both, spaces': (' 1 , 2 ', '["qt-gui", "headless"]'),
+            'both, any order': ('2,1', '["qt-gui", "headless"]'),
+            'duplicates': ('2,2', '["headless"]'),
+            'invalid gives the default': ('x', '["qt-gui"]'),
+            'out of range gives the default': ('0,9', '["qt-gui"]'),
+            'valid ones are kept': ('2,9', '["headless"]'),
+        },
+    )
+    def test_interactive_interfaces(self, answer, expected):
+        manifest = self._interactive_interfaces(answer)
+        self.assertIn(f'interfaces = {expected}\n', manifest)
 
     def test_interactive_minimal(self):
         """Interactive mode with only name provided."""
