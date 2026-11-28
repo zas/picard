@@ -38,6 +38,7 @@ from picard.extension_points import (
 from picard.git.utils import is_local_path
 from picard.plugin3.constants import REGISTRY_TRUST_LEVELS
 from picard.plugin3.installable import UrlInstallablePlugin
+from picard.plugin3.manager.errors import PluginInterfaceIncompatibleError
 from picard.plugin3.plugin import (
     Plugin,
     PluginState,
@@ -127,7 +128,11 @@ class PluginLifecycleManager:
 
     def enable_plugin(self, plugin: Plugin):
         """Enable a plugin and save to config."""
+        # Reads the manifest if not done yet (e.g. right after a git install)
         uuid, metadata = self.manager._get_plugin_uuid_and_metadata(plugin)
+        if not self.manager.is_plugin_compatible(plugin):
+            raise PluginInterfaceIncompatibleError(plugin.plugin_id, plugin.interfaces, self.manager.interface)
+
         assert plugin.state is not None
         log.debug('Enabling plugin %s (UUID %s, current state: %s)', plugin.plugin_id, uuid, plugin.state.value)
 

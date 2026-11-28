@@ -59,6 +59,27 @@ def _create_manager(plugins_dir):
 class TestLocalNonGitPlugin(PicardTestCase):
     """Tests for non-git local plugin lifecycle."""
 
+    def test_install_plugin_not_supporting_the_interface(self):
+        """The plugin is installed, but not enabled, when it does not support the running interface."""
+        with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as plugins_dir:
+            uuid = generate_uuid()
+            plugin_dir, plugin_name = _create_plugin_dir(tmp_dir, uuid)
+            manifest = plugin_dir / 'MANIFEST.toml'
+            manifest.write_text(
+                create_test_manifest_content(name='Test LNG Plugin', uuid=uuid, interfaces=['headless'])
+            )
+            manager = PluginManager(MockPluginTagger(interface='qt-gui'))
+            manager._primary_plugin_dir = Path(plugins_dir)
+            manager._plugin_dirs.append(manager._primary_plugin_dir)
+
+            plugin_id = manager.install_plugin(str(plugin_dir), enable_after_install=True)
+
+            self.assertEqual(plugin_id, plugin_name)
+            plugin = manager.plugin_id_to_plugin(plugin_id)
+            self.assertIsNotNone(plugin)
+            self.assertNotIn(plugin.uuid, manager._enabled_plugins)
+            self.assertTrue(plugin_dir.exists())
+
     def test_install_and_metadata(self):
         """Install a local non-git plugin and verify metadata."""
         with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as plugins_dir:

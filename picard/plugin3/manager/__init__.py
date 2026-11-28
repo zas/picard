@@ -51,6 +51,7 @@ from picard.plugin3.manager.errors import (  # noqa: F401
     PluginBlacklistedError,
     PluginCommitPinnedError,
     PluginDirtyError,
+    PluginInterfaceIncompatibleError,
     PluginManagerError,
     PluginManifestError,
     PluginManifestInvalidError,

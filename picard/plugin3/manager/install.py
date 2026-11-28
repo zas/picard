@@ -36,6 +36,7 @@ from picard.plugin3.manager.errors import (
     PluginAlreadyInstalledError,
     PluginBlacklistedError,
     PluginDirtyError,
+    PluginInterfaceIncompatibleError,
     PluginUUIDConflictError,
 )
 from picard.plugin3.plugin import (
@@ -205,6 +206,9 @@ class PluginInstaller:
         if enable_after_install:
             try:
                 self.manager.enable_plugin(plugin)
+            except PluginInterfaceIncompatibleError as e:
+                # Not a failure: the plugin just can't be used with this interface
+                log.warning('%s, it is installed but not enabled', e)
             except Exception as e:
                 log.error('Plugin installation failed during enable: %s', e)
                 final_path = self.manager._primary_plugin_dir / plugin_name
@@ -273,6 +277,9 @@ class PluginInstaller:
         if enable_after_install:
             try:
                 self.manager.enable_plugin(plugin)
+            except PluginInterfaceIncompatibleError as e:
+                # Not a failure: the plugin just can't be used with this interface
+                log.warning('%s, it is installed but not enabled', e)
             except Exception as e:
                 log.error('Local plugin installation failed during enable: %s', e)
                 self.manager._plugins.remove(plugin)

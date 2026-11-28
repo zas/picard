@@ -117,6 +117,19 @@ class PluginNoUUIDError(PluginManifestError):
         super().__init__(f"Plugin {plugin_id} has no UUID")
 
 
+class PluginInterfaceIncompatibleError(PluginManagerError):
+    """Raised when trying to enable a plugin that does not support the running interface."""
+
+    def __init__(self, plugin_id, supported, interface):
+        self.plugin_id = plugin_id
+        self.supported = tuple(supported)
+        self.interface = interface
+        supports = ', '.join(self.supported) if self.supported else 'no interface'
+        super().__init__(
+            f"Plugin {plugin_id} supports {supports}, but Picard is running as {interface}: it cannot be enabled"
+        )
+
+
 class PluginCommitPinnedError(PluginManagerError):
     """Raised when trying to update a commit-pinned plugin."""
 

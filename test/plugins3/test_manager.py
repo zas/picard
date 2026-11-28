@@ -35,6 +35,7 @@ from test.plugins3.helpers import (
     MockPlugin,
     MockPluginTagger,
     backend_init_and_commit,
+    create_test_manifest_content,
     create_test_registry,
     make_manifest,
     skip_if_no_git_backend,
@@ -53,6 +54,7 @@ from picard.git.factory import (
 from picard.git.ops import GitOperations
 from picard.plugin3.manager import (
     PluginDirtyError,
+    PluginInterfaceIncompatibleError,
     PluginManager,
     PluginManifestInvalidError,
     PluginNoUUIDError,
@@ -1025,6 +1027,92 @@ class TestPluginInterfaceCompatibility(PicardTestCase):
         self.assertEqual(manager.plugins, [gui_only])
         self.assertEqual(manager._enabled_plugins, {gui_only.uuid})
         self.assertEqual(manager._init_failed_plugins, [])
+
+    def test_enable_plugin_refuses_incompatible_plugin(self):
+        manager = self._manager('headless')
+        plugin = self._plugin('gui-only')
+        manager._plugins = [plugin]
+
+        with self.assertRaises(PluginInterfaceIncompatibleError) as context:
+            manager.enable_plugin(plugin)
+
+        self.assertEqual(context.exception.plugin_id, 'gui-only')
+        self.assertEqual(context.exception.supported, ('qt-gui',))
+        self.assertEqual(context.exception.interface, 'headless')
+        self.assertIn('qt-gui', str(context.exception))
+        self.assertIn('headless', str(context.exception))
+        plugin.load_module.assert_not_called()
+        plugin.enable.assert_not_called()
+        self.assertNotIn(plugin.uuid, manager._enabled_plugins)
+
+    def test_enable_plugin_reads_the_manifest_first(self):
+        """A plugin whose manifest is not read yet (as right after a git install) is checked on its manifest."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = Path(tmpdir) / 'not-read'
+            plugin_dir.mkdir()
+            (plugin_dir / 'MANIFEST.toml').write_text(create_test_manifest_content(uuid=generate_uuid()))
+            (plugin_dir / '__init__.py').write_text('def enable(api):\n    pass\n')
+            manager = self._manager('qt-gui')
+            plugin = Plugin(Path(tmpdir), 'not-read')
+            manager._plugins = [plugin]
+            self.assertIsNone(plugin.manifest)
+
+            manager.enable_plugin(plugin)
+
+            self.assertEqual(plugin.state, PluginState.ENABLED)
+            self.assertIn(plugin.uuid, manager._enabled_plugins)
+            plugin.disable()
+
+    def test_incompatible_error_without_interfaces(self):
+        error = PluginInterfaceIncompatibleError('p', (), 'qt-gui')
+        self.assertEqual(
+            str(error), 'Plugin p supports no interface, but Picard is running as qt-gui: it cannot be enabled'
+        )
+
+    def test_enable_plugin_compatible_plugin(self):
+        manager = self._manager('headless')
+        plugin = self._plugin('headless-only', ['headless'])
+        manager._plugins = [plugin]
+
+        manager.enable_plugin(plugin)
+
+        plugin.enable.assert_called_once_with(manager._tagger)
+        self.assertIn(plugin.uuid, manager._enabled_plugins)
+
+    def test_enable_plugin_without_interface(self):
+        """Without a running interface (picard-cli plugins) the plugin is only flagged as enabled."""
+        manager = PluginManager()
+        plugin = self._plugin('gui-only')
+        manager._plugins = [plugin]
+
+        manager.enable_plugin(plugin)
+
+        self.assertIn(plugin.uuid, manager._enabled_plugins)
+
+    def _installer_manager(self, enable_error):
+        manager = _create_manager()
+        manager._primary_plugin_dir = Path('/nonexistent/plugins')
+        manager._cleanup_failed_plugin_install = Mock()
+        manager.enable_plugin = Mock(side_effect=enable_error)
+        return manager
+
+    def test_install_keeps_incompatible_plugin(self):
+        """Not supporting the interface is not an installation failure: nothing is rolled back."""
+        error = PluginInterfaceIncompatibleError('p', ('qt-gui',), 'headless')
+        manager = self._installer_manager(error)
+
+        plugin = manager._installer._create_and_register_plugin('p', make_manifest(), True)
+
+        self.assertIn(plugin, manager.plugins)
+        manager._cleanup_failed_plugin_install.assert_not_called()
+
+    def test_install_rolls_back_on_other_enable_errors(self):
+        manager = self._installer_manager(RuntimeError('boom'))
+
+        with self.assertRaises(RuntimeError):
+            manager._installer._create_and_register_plugin('p', make_manifest(), True)
+
+        manager._cleanup_failed_plugin_install.assert_called_once()
 
     def test_init_plugins_loads_everything_without_interface(self):
         manager = PluginManager(MockPluginTagger())
