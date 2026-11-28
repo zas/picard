@@ -64,6 +64,7 @@ from picard.extension_points.event_hooks import register_file_post_save_processo
 from picard.formats import DEFAULT_FORMATS
 from picard.formats.registry import FormatRegistry
 from picard.options import init_options
+from picard.plugin3.validator import INTERFACE_HEADLESS
 from picard.services import set_services_provider
 from picard.util import thread
 from picard.util.qt import install_qt_message_handler
@@ -82,6 +83,9 @@ class HeadlessTagger(WorkspaceHost, QtCore.QCoreApplication):
     # signals must exist for File state transitions / load completion to emit.
     tagger_stats_changed = QtCore.pyqtSignal()
     file_loaded = QtCore.pyqtSignal(object)
+
+    # The interface plugins are loaded for (see picard.plugin3.interfaces)
+    interface = INTERFACE_HEADLESS
 
     def __init__(self, argv, config_file=None):
         super().__init__(argv)

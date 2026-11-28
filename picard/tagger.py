@@ -133,6 +133,7 @@ from picard.i18n import (
 from picard.i18n.qt import Translators
 from picard.isrcsubmit import ISRCSubmitManager
 from picard.options import init_options
+from picard.plugin3.validator import INTERFACE_QT_GUI
 
 
 try:
@@ -240,6 +241,9 @@ class Tagger(WorkspaceHost, QtWidgets.QApplication):
     album_removed = QtCore.pyqtSignal(Album)
     file_loaded = QtCore.pyqtSignal(File)
     _qt_translators_updated = QtCore.pyqtSignal()
+
+    # The interface plugins are loaded for (see picard.plugin3.interfaces)
+    interface = INTERFACE_QT_GUI
 
     __instance: 'Tagger'
 
