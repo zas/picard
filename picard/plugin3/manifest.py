@@ -29,6 +29,8 @@ from picard.plugin3.constants import (
     DEFAULT_SOURCE_LOCALE,
 )
 from picard.plugin3.validator import (
+    DEFAULT_INTERFACES,
+    check_manifest_warnings,
     generate_uuid,
     validate_manifest_dict,
 )
@@ -166,6 +168,26 @@ class PluginManifest:
     def source_locale(self) -> str:
         """Get source locale for translations, defaults to 'en'."""
         return self._data.get('source_locale', DEFAULT_SOURCE_LOCALE)
+
+    @property
+    def interfaces(self) -> tuple[str, ...]:
+        """Get the interfaces the plugin supports.
+
+        Defaults to ``DEFAULT_INTERFACES`` when not declared (or when the
+        declaration is malformed, which ``validate()`` reports).
+        """
+        interfaces = self._data.get('interfaces')
+        if isinstance(interfaces, list) and interfaces and all(isinstance(i, str) for i in interfaces):
+            return tuple(interfaces)
+        return tuple(DEFAULT_INTERFACES)
+
+    def warnings(self) -> list:
+        """Check the manifest for problems that do not make it invalid.
+
+        Returns:
+            List of warning messages. Empty if there is nothing to report.
+        """
+        return check_manifest_warnings(self._data)
 
     def validate(self) -> list:
         """Validate manifest and return list of errors.

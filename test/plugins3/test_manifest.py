@@ -255,3 +255,51 @@ api = ["3.0"]
 """
         manifest = _manifest_from_toml(manifest_content)
         self.assertEqual(manifest.report_bugs_to, '')
+
+
+_MANIFEST_BASE = """
+uuid = "550e8400-e29b-41d4-a716-446655440000"
+name = "Test"
+version = "1.0.0"
+description = "Test"
+api = ["3.0"]
+"""
+
+
+class TestPluginManifestInterfaces(PicardTestCase):
+    def test_interfaces_default_when_absent(self):
+        manifest = _manifest_from_toml(_MANIFEST_BASE)
+        self.assertEqual(manifest.interfaces, ('qt-gui',))
+
+    def test_interfaces_declared(self):
+        manifest = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["qt-gui", "headless"]\n')
+        self.assertEqual(manifest.interfaces, ('qt-gui', 'headless'))
+
+    def test_interfaces_headless_only(self):
+        manifest = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["headless"]\n')
+        self.assertEqual(manifest.interfaces, ('headless',))
+
+    def test_interfaces_unknown_identifier_is_kept(self):
+        manifest = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["qt-gui", "web"]\n')
+        self.assertEqual(manifest.interfaces, ('qt-gui', 'web'))
+
+    def test_interfaces_malformed_falls_back_to_default(self):
+        """A malformed value is rejected by validate(); the property must still not fail."""
+        for value in ('"headless"', '[]', '[1, 2]', '{ a = 1 }'):
+            with self.subTest(value=value):
+                manifest = _manifest_from_toml(_MANIFEST_BASE + f'interfaces = {value}\n')
+                self.assertEqual(manifest.interfaces, ('qt-gui',))
+
+    def test_interfaces_validate(self):
+        self.assertEqual(_manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["headless"]\n').validate(), [])
+        errors = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = []\n').validate()
+        self.assertIn("Field 'interfaces' must contain at least one interface if present", errors)
+
+    def test_warnings_missing_interfaces(self):
+        warnings = _manifest_from_toml(_MANIFEST_BASE).warnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("'interfaces'", warnings[0])
+
+    def test_warnings_none_when_declared(self):
+        manifest = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["qt-gui"]\n')
+        self.assertEqual(manifest.warnings(), [])
