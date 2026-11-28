@@ -80,11 +80,13 @@ def generate_manifest(project: PluginProjectConfig) -> str:
         str: MANIFEST.toml content
     """
     generated_uuid = generate_uuid()
+    interfaces_str = ', '.join(f'"{toml_escape(i)}"' for i in project.interfaces)
     lines = [
         f'uuid = "{generated_uuid}"',
         f'name = "{toml_escape(project.name)}"',
         f'description = "{toml_escape(project.description or "A Picard plugin")}"',
         'api = ["3.0"]',
+        f'interfaces = [{interfaces_str}]',
     ]
     if project.authors:
         authors_str = ', '.join(f'"{toml_escape(a)}"' for a in project.authors)

@@ -32,6 +32,7 @@ from picard.plugin3.init_templates import (
     slugify_name,
 )
 from picard.plugin3.project_config import PluginProjectConfig
+from picard.plugin3.validator import check_manifest_warnings
 
 
 class TestSlugifyName(PicardTestCase):
@@ -96,6 +97,19 @@ class TestGenerateManifest(PicardTestCase):
         )
         self.assertIn('license = "GPL-2.0-or-later"', result)
         self.assertIn('license_url = "https://www.gnu.org/licenses/gpl-2.0.html"', result)
+
+    def test_interfaces_default_is_explicit(self):
+        result = generate_manifest(PluginProjectConfig(name='Test'))
+        self.assertIn('interfaces = ["qt-gui"]', result)
+
+    def test_with_interfaces(self):
+        result = generate_manifest(PluginProjectConfig(name='Test', interfaces=['qt-gui', 'headless']))
+        self.assertIn('interfaces = ["qt-gui", "headless"]', result)
+
+    def test_interfaces_manifest_has_no_warning(self):
+        manifest = tomllib.loads(generate_manifest(PluginProjectConfig(name='Test', interfaces=['headless'])))
+        self.assertEqual(manifest['interfaces'], ['headless'])
+        self.assertEqual(check_manifest_warnings(manifest), [])
 
     def test_with_categories(self):
         result = generate_manifest(PluginProjectConfig(name='Test', categories=['metadata', 'ui']))

@@ -27,6 +27,7 @@ from dataclasses import (
 from pathlib import Path
 
 from picard.plugin3.constants import DEFAULT_SOURCE_LOCALE
+from picard.plugin3.validator import DEFAULT_INTERFACES
 
 
 @dataclass
@@ -45,6 +46,7 @@ class PluginProjectConfig:
     authors: list[str] = field(default_factory=list)
     maintainers: list[str] = field(default_factory=list)
     categories: list[str] = field(default_factory=list)
+    interfaces: list[str] = field(default_factory=lambda: list(DEFAULT_INTERFACES))
     license_id: str = ''
     license_url: str = ''
     long_description: str = ''
