@@ -344,6 +344,12 @@ def validate_manifest_dict(manifest_data):
     return errors
 
 
+def _api_version_key(version):
+    """Return (major, minor) of an API version string, None if it is not one."""
+    match = re.match(r'^(\d+)\.(\d+)$', version.strip()) if isinstance(version, str) else None
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
 def check_manifest_warnings(manifest_data):
     """Check manifest dictionary for problems that do not make it invalid.
 
@@ -379,5 +385,24 @@ def check_manifest_warnings(manifest_data):
                     f"Unknown interface '{interface}' in 'interfaces' (known interfaces: {', '.join(INTERFACES)})"
                 )
             seen.add(interface)
+
+        # A Picard not supporting the interfaces ignores them: it would load the plugin in its
+        # GUI, if it supports one of the declared API versions. Only for a valid declaration,
+        # a malformed one is an error.
+        api = manifest_data.get('api')
+        declared = interfaces and all(isinstance(i, str) for i in interfaces)
+        if declared and INTERFACE_QT_GUI not in interfaces and isinstance(api, list):
+            minimum = _api_version_key(INTERFACES_API_VERSION)
+            older = []
+            for version in api:
+                key = _api_version_key(version)
+                if key is not None and key < minimum:
+                    older.append(repr(version))
+            if older:
+                warnings.append(
+                    f"A plugin not supporting '{INTERFACE_QT_GUI}' should only declare API versions from "
+                    f"{INTERFACES_API_VERSION} (here: {', '.join(older)}): an older Picard ignores 'interfaces' "
+                    "and would load it in its GUI"
+                )
 
     return warnings

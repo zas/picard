@@ -489,9 +489,9 @@ class TestManifestWarnings(PicardTestCase):
         self.assertIn("Unknown interface 'web'", warnings[0])
 
     def test_warning_duplicate_interface(self):
-        warnings = check_manifest_warnings(_valid_manifest(interfaces=['headless', 'headless']))
+        warnings = check_manifest_warnings(_valid_manifest(interfaces=['qt-gui', 'qt-gui']))
         self.assertEqual(len(warnings), 1)
-        self.assertIn("Duplicate interface 'headless'", warnings[0])
+        self.assertIn("Duplicate interface 'qt-gui'", warnings[0])
 
     @subtest_cases(
         "interfaces",
@@ -504,3 +504,34 @@ class TestManifestWarnings(PicardTestCase):
     def test_no_warning_for_malformed_interfaces(self, interfaces):
         """Malformed values are reported as errors by the validator, not as warnings."""
         self.assertEqual(check_manifest_warnings(_valid_manifest(interfaces=interfaces)), [])
+
+    @subtest_cases(
+        "interfaces,api",
+        {
+            'headless only, API 3.0': (['headless'], ['3.0']),
+            'headless only, API 3.0 and 3.1': (['headless'], ['3.0', '3.1']),
+            'unknown interface only, API 3.0': (['web'], ['3.0']),
+        },
+    )
+    def test_warning_plugin_without_gui_loadable_by_older_picard(self, interfaces, api):
+        """A Picard supporting only API 3.0 ignores the interfaces: it would load the plugin in its GUI."""
+        warnings = check_manifest_warnings(_valid_manifest(interfaces=interfaces, api=api))
+        api_warnings = [w for w in warnings if 'API' in w]
+        self.assertEqual(len(api_warnings), 1, warnings)
+        self.assertIn('3.1', api_warnings[0])
+        self.assertIn("'3.0'", api_warnings[0])
+
+    @subtest_cases(
+        "interfaces,api",
+        {
+            'headless only, API 3.1': (['headless'], ['3.1']),
+            'headless only, newer API': (['headless'], ['3.1', '4.0']),
+            'GUI and headless, API 3.0': (['qt-gui', 'headless'], ['3.0']),
+            'GUI only, API 3.0': (['qt-gui'], ['3.0']),
+            'malformed API version': (['headless'], ['x', '3.1']),
+            'API not an array': (['headless'], '3.0'),
+        },
+    )
+    def test_no_api_warning(self, interfaces, api):
+        warnings = check_manifest_warnings(_valid_manifest(interfaces=interfaces, api=api))
+        self.assertEqual([w for w in warnings if 'API' in w], [])

@@ -402,7 +402,8 @@ Vollständige deutsche Beschreibung hier...
 - Only declare `"headless"` if the plugin works without any GUI: no Qt widgets, no
   use of the main window (`api.tagger.window`)
 - Unknown values are accepted, with a warning, so a manifest written for a newer Picard still loads
-- The missing field, unknown or duplicate values are reported as warnings by `picard-cli plugins validate`
+- The missing field, unknown or duplicate values are reported as warnings by `picard-cli plugins validate`,
+  as an API version older than 3.1 declared by a plugin not supporting `"qt-gui"` (see below)
 - A plugin is only loaded by an interface it declares: the Qt GUI loads plugins declaring `"qt-gui"`,
   the shell (`picard-cli shell`) the ones declaring `"headless"`
 - A plugin not loaded because of its interfaces stays listed, and keeps its enabled state (shared by all

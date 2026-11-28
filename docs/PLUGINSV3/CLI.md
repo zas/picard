@@ -985,7 +985,8 @@ Plugin Information:
 ```
 
 A valid manifest can still get warnings (printed after the information, on the error output),
-for example when `interfaces` is not declared, or contains an unknown or a duplicate value:
+for example when `interfaces` is not declared, or contains an unknown or a duplicate value, or when a
+plugin not supporting `qt-gui` declares an API version older than 3.1 (an older Picard would load it in its GUI):
 
 ```text
 ⚠ Field 'interfaces' is missing, the plugin is assumed to support only qt-gui. Declare the supported interfaces explicitly (known interfaces: qt-gui, headless)
