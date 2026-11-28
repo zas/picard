@@ -14,8 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
+from argparse import ArgumentParser
 import io
 import os
+from types import SimpleNamespace
 from unittest.mock import (
     MagicMock,
     patch,
@@ -40,9 +42,11 @@ from picard.cli.engine.session import LocalEngineSession
 from picard.cli.output import CliOutput
 from picard.cli.shell import (
     History,
+    ShellSubcommand,
     _history_size,
     _needs_confirmation,
     _prompt,
+    _run_shell,
     run_repl,
     run_system_command,
 )
@@ -689,3 +693,59 @@ class ShellHistoryCommandTest(PicardTestCase):
         out, buf = _output()
         render_result(self._run('shell history 3'), out)
         self.assertEqual([' 8  line 8', ' 9  line 9', '10  line 10'], buf.getvalue().splitlines())
+
+
+class ShellPluginsTest(PicardTestCase):
+    """The shell loads the plugins supporting the headless interface, unless told not to."""
+
+    def _parse(self, *argv):
+        parser = ArgumentParser()
+        ShellSubcommand().setup_parser(parser)
+        return parser.parse_args(argv)
+
+    def test_plugins_are_loaded_by_default(self):
+        self.assertFalse(self._parse().no_plugins)
+
+    def test_no_plugins_option(self):
+        self.assertTrue(self._parse('-P').no_plugins)
+        self.assertTrue(self._parse('--no-plugins').no_plugins)
+
+    def _run(self, load_report=([], []), **args):
+        """Run the shell with everything but the loading of the plugins replaced."""
+        events = MagicMock()
+        app = events.app
+        app.load_plugins.return_value = load_report
+        events.session_class.side_effect = lambda _app: SimpleNamespace(history=None)
+        args = SimpleNamespace(debug=False, debug_opts=None, no_color=True, yes=True, config_file=None, **args)
+        with (
+            patch('picard.cli.headless.HeadlessTagger', return_value=app),
+            patch('picard.cli.engine.session.LocalEngineSession', events.session_class),
+            patch('picard.cli._bootstrap.init_logging', events.init_logging),
+            patch('picard.cli.shell.run_repl'),
+            patch('picard.cli.shell._setup_readline', return_value=None),
+            patch('picard.cli.shell.pyqtRemoveInputHook'),
+            patch('picard.cli.shell.set_notifier_sink'),
+            patch('picard.cli.output.CliOutput', events.output_class),
+        ):
+            _run_shell(args)
+        return events
+
+    def test_plugins_not_loaded_are_reported(self):
+        events = self._run(load_report=([('bad', 'malware')], [('broken', 'boom')]), no_plugins=False)
+
+        warnings = [call.args[0] for call in events.output_class.return_value.warning.call_args_list]
+        self.assertIn('Plugin bad is blacklisted, it was disabled: malware', warnings)
+        self.assertIn('Plugin broken failed to load: boom', warnings)
+
+    def test_plugins_loaded_once_logging_is_set_up_before_the_session(self):
+        events = self._run(no_plugins=False)
+
+        names = [
+            call[0] for call in events.mock_calls if call[0] in {'init_logging', 'app.load_plugins', 'session_class'}
+        ]
+        self.assertEqual(names, ['init_logging', 'app.load_plugins', 'session_class'])
+
+    def test_plugins_not_loaded_with_no_plugins(self):
+        events = self._run(no_plugins=True)
+
+        events.app.load_plugins.assert_not_called()

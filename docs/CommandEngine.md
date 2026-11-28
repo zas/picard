@@ -28,6 +28,16 @@ The point is that what a command does is what the GUI does: it calls the same
 builds the same views of the data (`picard.tagdiff.build_tag_diff` for the tags
 the metadata box shows), so the two cannot drift apart.
 
+### Plugins
+
+The shell loads the enabled plugins that declare the `headless` interface in
+their `MANIFEST.toml` (see `interfaces` in
+[MANIFEST.md](PLUGINSV3/MANIFEST.md)), once, before the first command. A plugin
+that does not declare it is not loaded (it only supports the Qt GUI by
+default), but stays enabled: whether a plugin is enabled is shared by all the
+interfaces. `picard-cli shell --no-plugins` (`-P`) loads none. The plugins are
+managed with `picard-cli plugins`, the shell has no plugin command yet.
+
 ## Commands
 
 | command | what it does |

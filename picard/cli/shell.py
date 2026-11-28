@@ -239,6 +239,7 @@ class ShellSubcommand(Subcommand):
 
     def setup_parser(self, parser: ArgumentParser):
         parser.description = 'Start an interactive console to drive the tagging engine (experimental).'
+        parser.add_argument('-P', '--no-plugins', action='store_true', help="do not load any plugins")
         parser.set_defaults(run_command=_run_shell)
 
 
@@ -437,12 +438,20 @@ def _run_shell(args):
 
     config_file = getattr(args, 'config_file', None)
     app = HeadlessTagger([], config_file=config_file)
+    init_logging(args)
+    output = CliOutput(color=False if is_color_disabled(args) else None)
+    # Plugins may extend the core (formats, processors, script functions), so
+    # they are loaded before any command is run.
+    if not getattr(args, 'no_plugins', False):
+        blacklisted, failed = app.load_plugins()
+        for plugin_id, reason in blacklisted:
+            output.warning(f"Plugin {plugin_id} is blacklisted, it was disabled: {reason}")
+        for plugin_id, error in failed:
+            output.warning(f"Plugin {plugin_id} failed to load: {error}")
     # PyQt hooks input() to run the Qt event loop while it waits, and with that hook
     # a Ctrl-C does not interrupt the prompt until the next line is read. The
     # event loop is pumped by the commands (run_until_idle), not by the prompt.
     pyqtRemoveInputHook()
-    init_logging(args)
-    output = CliOutput(color=False if is_color_disabled(args) else None)
 
     registry = EngineCommandRegistry()
     register_builtins(registry)
