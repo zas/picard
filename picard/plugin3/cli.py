@@ -457,6 +457,7 @@ class PluginCLI(BaseCLI):
 
                     # State
                     self._out.info(f'  State: {plugin.state.value}')
+                    self._out.info(f'  Interfaces: {", ".join(plugin.manifest.interfaces)}')
 
                     # Version with git info
                     metadata = self._manager._get_plugin_metadata(plugin.uuid) if plugin.uuid else None
@@ -579,6 +580,8 @@ class PluginCLI(BaseCLI):
 
         api_versions = plugin.manifest._data.get('api', [])
         self._out.print(f'API Versions: {", ".join(api_versions)}')
+
+        self._out.print(f'Interfaces: {", ".join(plugin.manifest.interfaces)}')
 
         if plugin.manifest.license:
             self._out.print(f'License: {plugin.manifest.license}')
@@ -1398,6 +1401,11 @@ class PluginCLI(BaseCLI):
 
         return result, None
 
+    def _show_manifest_warnings(self, manifest):
+        """Show the problems of a valid manifest that are not errors."""
+        for warning in manifest.warnings():
+            self._out.warning(warning)
+
     def _cmd_validate(self, url, ref=None):
         """Validate a plugin from git URL or local directory."""
 
@@ -1455,6 +1463,8 @@ class PluginCLI(BaseCLI):
                 api_versions = manifest._data.get('api', [])
                 self._out.info(f'  API versions: {", ".join(api_versions)}')
 
+                self._out.info(f'  Interfaces: {", ".join(manifest.interfaces)}')
+
                 # Show license fields if present
                 if manifest.license:
                     self._out.info(f'  License: {manifest.license}')
@@ -1478,6 +1488,7 @@ class PluginCLI(BaseCLI):
                 if min_python:
                     self._out.info(f'  Min Python version: {min_python}')
 
+                self._show_manifest_warnings(manifest)
                 return ExitCode.SUCCESS
 
             except PluginManifestNotFoundError:
@@ -1568,6 +1579,8 @@ class PluginCLI(BaseCLI):
             api_versions = manifest._data.get('api', [])
             self._out.info(f'  API versions: {", ".join(api_versions)}')
 
+            self._out.info(f'  Interfaces: {", ".join(manifest.interfaces)}')
+
             # Show license fields if present
             if manifest.license:
                 self._out.info(f'  License: {manifest.license}')
@@ -1588,6 +1601,7 @@ class PluginCLI(BaseCLI):
             if min_python:
                 self._out.info(f'  Min Python version: {min_python}')
 
+            self._show_manifest_warnings(manifest)
             return ExitCode.SUCCESS
 
         except Exception as e:

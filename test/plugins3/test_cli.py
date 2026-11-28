@@ -43,6 +43,7 @@ from test.plugins3.helpers import (
     create_test_plugin_dir,
     get_backend_repo,
     load_plugin_manifest,
+    make_manifest,
     run_cli,
     skip_if_no_git_backend,
 )
@@ -943,6 +944,100 @@ class TestPluginCLIValidate(PicardTestCase):
             self.assertIn('Categories: metadata, ui', output_text)
             self.assertIn('Homepage: https://example.com', output_text)
             self.assertIn('Min Python version: 3.9', output_text)
+
+
+class TestPluginCLIInterfaces(PicardTestCase):
+    """The interfaces declared in MANIFEST.toml are shown by info and validate, validate also warns."""
+
+    def _info(self, interfaces):
+        plugin = MockPlugin(manifest=make_manifest(interfaces))
+        manager = MockPluginManager(plugins=[plugin])
+        manager.find_plugin = Mock(return_value=plugin)
+        manager._get_plugin_metadata = Mock(return_value=None)
+        return run_cli(manager, verb='info', plugin='test-plugin')
+
+    def test_list_shows_interfaces(self):
+        plugins = [
+            MockPlugin('both', manifest=make_manifest(['qt-gui', 'headless'], name='both')),
+            MockPlugin('default', manifest=make_manifest(name='default')),
+        ]
+        manager = MockPluginManager(plugins=plugins)
+        manager._get_plugin_metadata = Mock(return_value=None)
+        exit_code, stdout, _stderr = run_cli(manager, verb='list')
+        self.assertEqual(exit_code, ExitCode.SUCCESS)
+        self.assertIn('Interfaces: qt-gui, headless', stdout)
+        self.assertIn('Interfaces: qt-gui\n', stdout)
+
+    def test_info_shows_declared_interfaces(self):
+        exit_code, stdout, _stderr = self._info(['qt-gui', 'headless'])
+        self.assertEqual(exit_code, ExitCode.SUCCESS)
+        self.assertIn('Interfaces: qt-gui, headless', stdout)
+
+    def test_info_shows_default_interfaces(self):
+        exit_code, stdout, _stderr = self._info(None)
+        self.assertEqual(exit_code, ExitCode.SUCCESS)
+        self.assertIn('Interfaces: qt-gui', stdout)
+
+    def _validate(self, **fields):
+        skip_if_no_git_backend()
+        manager = create_mock_manager_with_manifest_validation()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = create_test_plugin_dir(
+                tmpdir, 'test-plugin', create_test_manifest_content(**fields), add_git=True
+            )
+            stdout = StringIO()
+            stderr = StringIO()
+            output = PluginCliOutput(stdout=stdout, stderr=stderr, color=False)
+            result = PluginCLI(manager, MockCliArgs(), output=output)._cmd_validate(str(plugin_dir))
+        return result, stdout.getvalue(), stderr.getvalue()
+
+    def test_validate_declared_interfaces(self):
+        result, stdout, stderr = self._validate(interfaces=['qt-gui', 'headless'])
+        self.assertEqual(result, ExitCode.SUCCESS)
+        self.assertIn('Interfaces: qt-gui, headless', stdout)
+        self.assertNotIn('⚠', stderr)
+
+    def test_validate_warns_when_interfaces_are_not_declared(self):
+        result, stdout, stderr = self._validate()
+        self.assertEqual(result, ExitCode.SUCCESS)
+        self.assertIn('Interfaces: qt-gui', stdout)
+        self.assertIn("⚠ Field 'interfaces' is missing", stderr)
+
+    def test_validate_warns_about_unknown_interface(self):
+        result, _stdout, stderr = self._validate(interfaces=['qt-gui', 'web'])
+        self.assertEqual(result, ExitCode.SUCCESS)
+        self.assertIn("⚠ Unknown interface 'web'", stderr)
+
+    def test_validate_git_url_shows_interfaces_and_warnings(self):
+        """The git URL branch of validate (a clone) reports the same as the local one."""
+        skip_if_no_git_backend()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = create_test_plugin_dir(
+                tmpdir, 'test-plugin', create_test_manifest_content(interfaces=['qt-gui', 'web']), add_git=True
+            )
+
+            # As for a remote repository: the source is cloned (here copied, a local
+            # path cannot be cloned shallowly), not read in place
+            def clone(target, **kwargs):
+                shutil.copytree(plugin_dir, target)
+
+            with (
+                patch('picard.plugin3.cli.get_local_repository_path', return_value=None),
+                patch('picard.plugin3.cli.PluginSourceGit') as source,
+            ):
+                source.return_value.sync.side_effect = clone
+                exit_code, stdout, stderr = run_cli(
+                    create_mock_manager_with_manifest_validation(), verb='validate', source='https://example.com/p.git'
+                )
+        self.assertEqual(exit_code, ExitCode.SUCCESS, stderr)
+        self.assertIn('Cloning', stdout)
+        self.assertIn('Interfaces: qt-gui, web', stdout)
+        self.assertIn("⚠ Unknown interface 'web'", stderr)
+
+    def test_validate_fails_on_malformed_interfaces(self):
+        result, _stdout, stderr = self._validate(interfaces=[])
+        self.assertEqual(result, ExitCode.ERROR)
+        self.assertIn("Field 'interfaces' must contain at least one interface", stderr)
 
 
 class TestPluginCLIManifest(PicardTestCase):

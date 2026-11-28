@@ -43,7 +43,10 @@ from picard.plugin3.plugin import (
 )
 from picard.plugin3.registry import PluginRegistry
 from picard.plugin3.validation import PluginValidation
-from picard.plugin3.validator import generate_uuid
+from picard.plugin3.validator import (
+    DEFAULT_INTERFACES,
+    generate_uuid,
+)
 
 import pytest
 
@@ -240,6 +243,7 @@ class MockPlugin(Plugin):
             self.manifest.uuid = uuid
             self.manifest.version = version
             self.manifest.name = Mock(return_value=display_name)
+            self.manifest.interfaces = tuple(DEFAULT_INTERFACES)
 
         # Set uuid shortcut property
         self.uuid = uuid

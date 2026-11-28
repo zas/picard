@@ -247,6 +247,7 @@ Installed plugins:
     UUID: 891a96e7-0e29-41d4-a716-446655440000
     Registry ID: listenbrainz
     State: LOADED
+    Interfaces: qt-gui, headless
     Version: 2.1.0 (main @a1b2c3d)
     Source: https://github.com/metabrainz/picard-plugins
     Path: ~/.local/share/MusicBrainz/Picard/plugins3/listenbrainz
@@ -256,6 +257,7 @@ Installed plugins:
     UUID: f4e5d6c7-8a9b-4c5d-6e7f-8a9b0c1d2e3f
     Registry ID: discogs
     State: LOADED
+    Interfaces: qt-gui
     Version: 1.5.0 (dev @f4e5d6c)
     Source: https://github.com/metabrainz/picard-plugins
     Path: ~/.local/share/MusicBrainz/Picard/plugins3/discogs
@@ -978,7 +980,15 @@ Plugin Information:
   Authors: John Doe
   Description: A great plugin for Picard
   API versions: 3.0
+  Interfaces: qt-gui, headless
   License: GPL-2.0-or-later
+```
+
+A valid manifest can still get warnings (printed after the information, on the error output),
+for example when `interfaces` is not declared, or contains an unknown or a duplicate value:
+
+```text
+⚠ Field 'interfaces' is missing, the plugin is assumed to support only qt-gui. Declare the supported interfaces explicitly (known interfaces: qt-gui, headless)
 ```
 
 **Error output:**
