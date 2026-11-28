@@ -563,7 +563,12 @@ class WorkspaceSaveTest(PicardTestCase):
     def test_saves_every_file_and_returns_them(self):
         file1, file2 = self._file('file1'), self._file('file2')
         objects = [object()]
-        with patch('picard.workspace.iter_files_from_objects', return_value=iter((file1, file2))) as mock_iter:
+        # Batched at once: with the real batches a slow machine would start the second
+        # save only from the event loop (the batching is tested in test_workspace_save_dispatch)
+        with (
+            patch('picard.workspace.iter_files_from_objects', return_value=iter((file1, file2))) as mock_iter,
+            patch('picard.workspace.thread.process_in_batches', side_effect=run_batches),
+        ):
             saved = Workspace().save(objects)
         mock_iter.assert_called_once_with(objects, save=True)
         file1.save.assert_called_once_with()
