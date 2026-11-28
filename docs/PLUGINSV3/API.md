@@ -148,6 +148,9 @@ def enable(api):
 
 ### `interface`
 
+*Added in API 3.1*: a plugin using it declares `api = ["3.1"]` in its `MANIFEST.toml`,
+an older Picard does not have it.
+
 The interface Picard is running as: `'qt-gui'` in the Qt GUI, `'headless'` in the
 shell (the value is `None` only if the application does not declare an interface).
 It is one of the interfaces a plugin can declare in its `MANIFEST.toml`

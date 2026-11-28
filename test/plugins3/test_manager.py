@@ -942,6 +942,18 @@ class TestPluginManager(PicardTestCase):
         self.assertEqual(plugin.plugin_id, 'example')
         self.assertEqual(plugin.manifest.name(), 'Example plugin')
 
+    def test_api_version_3_1_is_supported(self):
+        """API 3.1 (plugin interfaces): a plugin requiring it is loaded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_dir = Path(tmpdir) / 'needs-3-1'
+            plugin_dir.mkdir()
+            (plugin_dir / 'MANIFEST.toml').write_text(
+                create_test_manifest_content(uuid=generate_uuid(), api_versions=['3.1'], interfaces=['headless']),
+                encoding='utf-8',
+            )
+            plugin = _create_manager()._load_plugin(Path(tmpdir), 'needs-3-1')
+        self.assertIsNotNone(plugin)
+
     def test_api_version_compatibility_incompatible_old(self):
         """Test that plugins with old incompatible API versions are rejected."""
         manager = _create_manager()

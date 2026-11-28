@@ -410,6 +410,11 @@ Vollständige deutsche Beschreibung hier...
   stays disabled
 - In a plugin declaring `"headless"`, the registrations that only make sense in a GUI (actions,
   options page) are ignored by the shell, see `interface` in [API.md](API.md)
+- `interfaces` is part of API 3.1. An older Picard (API 3.0 only) ignores it: it loads the plugin in
+  its GUI, whatever it declares. So a plugin that must not run in the GUI (`["headless"]` alone), or
+  that uses `api.interface`, declares `api = ["3.1"]`: an older Picard does not load it. A plugin
+  supporting `"qt-gui"` without using `api.interface` can keep supporting API 3.0, e.g.
+  `api = ["3.0", "3.1"]`
 
 ### `categories`
 - Optional

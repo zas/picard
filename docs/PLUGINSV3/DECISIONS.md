@@ -586,6 +586,9 @@ for other interfaces later (e.g. a web interface)?
 - The registrations that only make sense in a GUI (actions, options page) are ignored when the interface has
   no GUI, so supporting both interfaces needs no special code
 - `api.interface` gives the running interface to plugins that need it
+- Both are part of plugin API 3.1. An older Picard ignores the field and loads every plugin in its GUI;
+  a plugin that must not run there, or uses `api.interface`, declares `api = ["3.1"]`, which an older
+  Picard refuses
 - Plugins are loaded by the shell once, before the first command, and `--no-plugins` loads none
 
 **Alternatives considered:**

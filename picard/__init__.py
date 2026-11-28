@@ -64,7 +64,8 @@ if PICARD_BUILD_VERSION_STR:
     PICARD_FANCY_VERSION_STR = f"{PICARD_FANCY_VERSION_STR} ({PICARD_BUILD_VERSION_STR})"
 
 # Keep those ordered
-api_versions = ("3.0",)
+# 3.1: plugin interfaces (MANIFEST.toml "interfaces", PluginApi.interface)
+api_versions = ("3.0", "3.1")
 
 api_versions_tuple = tuple(Version.from_string(v) for v in api_versions)
 
