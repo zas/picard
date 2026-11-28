@@ -63,6 +63,7 @@ from picard.ui.util import (
 from picard.ui.widgets.pluginformat import (
     commit_date_display,
     html_ref_format,
+    unsupported_interface_text,
 )
 from picard.ui.widgets.refselector import RefSelectorWidget
 
@@ -253,6 +254,9 @@ class PluginListWidget(QtWidgets.QWidget):
             except (AttributeError, Exception):
                 pass
 
+            if not self.plugin_manager.is_plugin_compatible(plugin):
+                self._mark_incompatible(item, plugin)
+
             # Column 2: Version (without update suffix)
             item.setText(COLUMN_VERSION, self._get_clean_version_display(plugin))
             self._set_version_tooltip(item, plugin)
@@ -275,6 +279,16 @@ class PluginListWidget(QtWidgets.QWidget):
         # Update do not update list to match installed plugins list
         installed_plugins_ids = {plugin.plugin_id for plugin in plugins}
         self._resync_do_not_update(installed_plugins_ids)
+
+    def _mark_incompatible(self, item, plugin):
+        """Dim a plugin that does not support the running interface, and tell why."""
+        reason = _("Not loaded.") + ' ' + unsupported_interface_text(plugin, self.plugin_manager.interface)
+        description = item.toolTip(COLUMN_PLUGIN)
+        item.setToolTip(COLUMN_PLUGIN, f'{reason}\n\n{description}' if description else reason)
+        item.setForeground(
+            COLUMN_PLUGIN,
+            self.palette().color(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.Text),
+        )
 
     def _resync_do_not_update(self, plugin_id_set):
         """Resync do not update persist list with installed plugins list"""

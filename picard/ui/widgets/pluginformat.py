@@ -31,6 +31,14 @@ _CURRENT_LABEL = N_("current")
 _COMMIT_DATE_LABEL = N_("Commit date: {date}")
 
 
+def unsupported_interface_text(plugin, interface: str) -> str:
+    """Say why a plugin is not loaded by the running interface."""
+    return _("This plugin supports {interfaces}, but Picard is running as {interface}.").format(
+        interfaces=', '.join(plugin.interfaces) or '-',
+        interface=interface,
+    )
+
+
 def format_commit_date(timestamp: int) -> str:
     """Format a unix timestamp for display."""
     return time.strftime(DEFAULT_TIME_FORMAT, time.localtime(timestamp))

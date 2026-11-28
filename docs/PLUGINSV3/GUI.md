@@ -138,6 +138,8 @@ The plugin GUI provides a user-friendly interface for discovering, installing, a
 - Git ref (commit hash, tag, or branch@commit)
 - Enabled/disabled checkbox
 - Update indicator if available
+- Plugins not supporting the Qt GUI (see `interfaces` in [MANIFEST.md](MANIFEST.md)) are dimmed,
+  with the reason as tooltip. They are not loaded and cannot be enabled
 - Sorted by: enabled first, then alphabetically
 
 **Actions:**
