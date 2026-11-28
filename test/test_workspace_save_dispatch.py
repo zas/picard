@@ -25,6 +25,8 @@ number of files per batch is deterministic) are replaced.
 """
 
 from itertools import count
+import time
+import unittest
 from unittest.mock import (
     MagicMock,
     Mock,
@@ -38,6 +40,19 @@ from test.picardtestcase import PicardTestCase
 from picard.file import File
 from picard.util import thread
 from picard.workspace import workspace
+
+
+# Upper bound of event loop turns to wait for, so a bug cannot hang the suite.
+MAX_WAITS = 1000
+
+
+def finish_pending_batches():
+    """Let the batch dispatches still waiting for the event loop finish, return whether they did."""
+    for _ in range(MAX_WAITS):
+        if not thread.pending_batches():
+            return True
+        QTest.qWait(1)
+    return False
 
 
 class SaveFile(File):
@@ -57,11 +72,14 @@ class WorkspaceSaveDispatchTest(PicardTestCase):
     # past the deadline: a budget of 3.5 lets 3 files start per batch.
     FILES_PER_BATCH = 3
     TIME_BUDGET = 3.5
-    # Upper bound of event loop turns to wait for, so a bug cannot hang the suite.
-    MAX_WAITS = 1000
 
     def setUp(self):
         super().setUp()
+        # A dispatch left by an earlier test (one not running the event loop, or
+        # failing) has a real time budget: under the fake clock below it would never
+        # make progress, and no dispatch would ever end. Finish it first.
+        if not finish_pending_batches():
+            self.fail('a batch dispatch left by an earlier test does not finish')
         self.patch_tagger_instance('picard.item')
         self.set_config_values(
             {
@@ -124,11 +142,8 @@ class WorkspaceSaveDispatchTest(PicardTestCase):
             self._finish(callback)
 
     def _wait_for_dispatch(self):
-        for _ in range(self.MAX_WAITS):
-            if not thread.pending_batches():
-                return
-            QTest.qWait(1)
-        self.fail('the dispatch did not finish')
+        if not finish_pending_batches():
+            self.fail('the dispatch did not finish')
 
     def _selection_refresh_count(self, files):
         return sum(len(file.selection_refreshes()) for file in files)
@@ -162,7 +177,7 @@ class WorkspaceSaveDispatchTest(PicardTestCase):
         self.wks.save(files)
         # The save thread is faster than the dispatch: everything queued so far
         # finishes before the next batch starts.
-        for _ in range(self.MAX_WAITS):
+        for _ in range(MAX_WAITS):
             if not thread.pending_batches():
                 break
             self._finish_all()
@@ -278,7 +293,7 @@ class WorkspaceSaveDispatchTest(PicardTestCase):
         files = self._make_files(10)
         self.wks.save(files)
         seen = []
-        for _ in range(self.MAX_WAITS):
+        for _ in range(MAX_WAITS):
             if not thread.pending_batches():
                 break
             seen.append(len(self.queued))
@@ -286,3 +301,27 @@ class WorkspaceSaveDispatchTest(PicardTestCase):
         self.assertEqual(10, len(self.queued))
         self.assertEqual(sorted(seen), seen)
         self.assertLess(seen[0], 10)
+
+
+class DispatchLeftByAnEarlierTestTest(unittest.TestCase):
+    """A dispatch left unfinished by an earlier test does not break the dispatch tests.
+
+    A test that does not run the event loop (or fails before) can leave a batch
+    waiting for it. Under the fake clock of the dispatch tests such a batch,
+    which has a real time budget, would never make progress: every wait for the
+    end of a dispatch would time out.
+    """
+
+    def test_dispatch_tests_finish_it_first(self):
+        def slow(item):
+            time.sleep(0.002)
+
+        # The first item uses up the budget: the second waits for the event loop.
+        thread.process_in_batches([1, 2], slow, 'left over', time_budget=0.001)
+        self.assertEqual(1, thread.pending_batches())
+
+        result = unittest.TestResult()
+        WorkspaceSaveDispatchTest('test_saves_are_started_in_several_batches').run(result)
+
+        self.assertEqual([], [str(test) for test, _trace in result.failures + result.errors])
+        self.assertEqual(0, thread.pending_batches())
