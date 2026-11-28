@@ -317,4 +317,6 @@ class TestGenerateManifestTemplate(PicardTestCase):
         self.assertEqual(manifest.warnings(), [])
 
     def test_template_documents_headless(self):
-        self.assertIn('headless', generate_manifest_template())
+        template = generate_manifest_template()
+        self.assertIn('headless', template)
+        self.assertIn('api = ["3.1"]', template)

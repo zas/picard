@@ -30,7 +30,9 @@ from picard.plugin3.constants import (
 )
 from picard.plugin3.validator import (
     DEFAULT_INTERFACES,
+    INTERFACE_QT_GUI,
     INTERFACES,
+    INTERFACES_API_VERSION,
     check_manifest_warnings,
     generate_uuid,
     validate_manifest_dict,
@@ -238,6 +240,7 @@ api = ["3.0"]
 
 # Interfaces the plugin works with, one or more of: {interfaces_str}
 # Add "headless" only if the plugin works without the GUI (no Qt widgets, no UI-only features).
+# A plugin without "{INTERFACE_QT_GUI}" needs api = ["{INTERFACES_API_VERSION}"]: an older Picard would load it in its GUI.
 interfaces = [{default_interfaces_str}]
 
 # Optional fields

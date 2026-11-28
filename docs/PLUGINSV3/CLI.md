@@ -1045,6 +1045,7 @@ api = ["3.0"]
 
 # Interfaces the plugin works with, one or more of: "qt-gui", "headless"
 # Add "headless" only if the plugin works without the GUI (no Qt widgets, no UI-only features).
+# A plugin without "qt-gui" needs api = ["3.1"]: an older Picard would load it in its GUI.
 interfaces = ["qt-gui"]
 
 # Optional fields (recommended)
@@ -1149,7 +1150,7 @@ Author name, email, and license are persisted across runs.
 | `--parent-dir DIR` | Parent directory where the project is created (default: current directory) |
 | `--author NAME` | Author name for MANIFEST.toml |
 | `--category CATEGORY` | Plugin category (metadata, coverart, ui, etc.). Several can be given, comma-separated or repeating the option. An unknown category is an error |
-| `--interface INTERFACE` | Interfaces the plugin works with (`qt-gui`, `headless`; default: `qt-gui`). Several can be given, comma-separated or repeating the option. An unknown interface is an error. In interactive mode, the default answer |
+| `--interface INTERFACE` | Interfaces the plugin works with (`qt-gui`, `headless`; default: `qt-gui`). Several can be given, comma-separated or repeating the option. An unknown interface is an error. In interactive mode, the default answer. A plugin without `qt-gui` gets `api = ["3.1"]`, so that an older Picard does not load it in its GUI |
 | `--with-translations` | Include translation support (locale files and examples) |
 | `--no-git` | Skip initialization of the git repository (works in both interactive and non-interactive modes) |
 | `--no-commit` | Skip initial git commit (works in both interactive and non-interactive modes) |

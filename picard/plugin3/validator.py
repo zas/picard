@@ -47,6 +47,9 @@ INTERFACE_QT_GUI = 'qt-gui'
 INTERFACE_HEADLESS = 'headless'
 INTERFACES = [INTERFACE_QT_GUI, INTERFACE_HEADLESS]
 DEFAULT_INTERFACES = [INTERFACE_QT_GUI]
+# The plugin API version introducing the interfaces: an older Picard ignores them, and
+# loads every plugin in its GUI
+INTERFACES_API_VERSION = '3.1'
 
 # String length constraints for MANIFEST.toml fields
 MAX_NAME_LENGTH = 100

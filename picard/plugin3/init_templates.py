@@ -26,7 +26,11 @@ import unicodedata
 
 from picard.plugin3.constants import DEFAULT_SOURCE_LOCALE
 from picard.plugin3.project_config import PluginProjectConfig
-from picard.plugin3.validator import generate_uuid
+from picard.plugin3.validator import (
+    INTERFACE_QT_GUI,
+    INTERFACES_API_VERSION,
+    generate_uuid,
+)
 
 
 def slugify_name(name: str) -> str:
@@ -81,11 +85,14 @@ def generate_manifest(project: PluginProjectConfig) -> str:
     """
     generated_uuid = generate_uuid()
     interfaces_str = ', '.join(f'"{toml_escape(i)}"' for i in project.interfaces)
+    # A plugin that must not run in the GUI requires the API introducing the
+    # interfaces: an older Picard would load it in its GUI
+    api_version = '3.0' if INTERFACE_QT_GUI in project.interfaces else INTERFACES_API_VERSION
     lines = [
         f'uuid = "{generated_uuid}"',
         f'name = "{toml_escape(project.name)}"',
         f'description = "{toml_escape(project.description or "A Picard plugin")}"',
-        'api = ["3.0"]',
+        f'api = ["{api_version}"]',
         f'interfaces = [{interfaces_str}]',
     ]
     if project.authors:

@@ -106,6 +106,17 @@ class TestGenerateManifest(PicardTestCase):
         result = generate_manifest(PluginProjectConfig(name='Test', interfaces=['qt-gui', 'headless']))
         self.assertIn('interfaces = ["qt-gui", "headless"]', result)
 
+    def test_api_version_of_a_headless_only_plugin(self):
+        """A plugin without qt-gui requires API 3.1: an older Picard would load it in its GUI."""
+        result = generate_manifest(PluginProjectConfig(name='Test', interfaces=['headless']))
+        self.assertIn('api = ["3.1"]', result)
+
+    def test_api_version_of_a_plugin_supporting_the_gui(self):
+        for interfaces in (['qt-gui'], ['qt-gui', 'headless']):
+            with self.subTest(interfaces=interfaces):
+                result = generate_manifest(PluginProjectConfig(name='Test', interfaces=interfaces))
+                self.assertIn('api = ["3.0"]', result)
+
     def test_interfaces_manifest_has_no_warning(self):
         manifest = tomllib.loads(generate_manifest(PluginProjectConfig(name='Test', interfaces=['headless'])))
         self.assertEqual(manifest['interfaces'], ['headless'])
