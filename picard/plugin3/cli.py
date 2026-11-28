@@ -98,6 +98,17 @@ from picard.plugin3.validator import (
 from picard.util.filenaming import replace_extension
 
 
+def _select_named(values, choices):
+    """Return the choices named by option values, in the order of the choices, and the unknown names.
+
+    Each value may be a comma-separated list, as the option may also be given
+    several times.
+    """
+    names = [name.strip() for value in values or () for name in value.split(',') if name.strip()]
+    unknown = [name for name in dict.fromkeys(names) if name not in choices]
+    return [choice for choice in choices if choice in names], unknown
+
+
 def _select_numbered(text, choices):
     """Return the choices selected by a string of comma-separated numbers (1 is the first choice).
 
@@ -2045,9 +2056,12 @@ class PluginCLI(BaseCLI):
             project.authors = [parsed_name]
             if parsed_email and not author_email:
                 author_email = parsed_email
-        category = getattr(self._args, 'category', None)
-        if category and not project.categories:
-            project.categories = [category]
+        categories, unknown = _select_named(getattr(self._args, 'category', None), VALID_CATEGORIES)
+        if unknown:
+            self._out.error(f'Unknown category: {", ".join(unknown)} (known categories: {", ".join(VALID_CATEGORIES)})')
+            return ExitCode.ERROR
+        if categories and not project.categories:
+            project.categories = categories
 
         # Check --with-translations flag
         if not project.with_i18n:

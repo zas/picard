@@ -194,7 +194,12 @@ class PluginsSubcommand(Subcommand):
         p_init = verb_parsers.add_parser('init', help='create a new plugin project')
         p_init.add_argument('name', nargs='?', default='', metavar='NAME', help="plugin name (interactive if omitted)")
         p_init.add_argument('--author', metavar='NAME', help="author name")
-        p_init.add_argument('--category', metavar='CATEGORY', help="plugin category")
+        p_init.add_argument(
+            '--category',
+            metavar='CATEGORY',
+            action='append',
+            help="plugin category, several can be given (comma-separated, or the option repeated)",
+        )
         p_init.add_argument('--target-dir', metavar='DIR', help="override directory name")
         p_init.add_argument('--parent-dir', metavar='DIR', help="parent directory (default: current directory)")
         p_init.add_argument('--with-translations', action='store_true', help="include translation support")

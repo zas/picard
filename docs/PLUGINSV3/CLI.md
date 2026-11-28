@@ -1147,7 +1147,7 @@ Author name, email, and license are persisted across runs.
 | `--target-dir NAME` | Override project directory name (relative to `--parent-dir`, default: `picard-plugin-<slug>`) |
 | `--parent-dir DIR` | Parent directory where the project is created (default: current directory) |
 | `--author NAME` | Author name for MANIFEST.toml |
-| `--category CATEGORY` | Plugin category (metadata, coverart, ui, etc.) |
+| `--category CATEGORY` | Plugin category (metadata, coverart, ui, etc.). Several can be given, comma-separated or repeating the option. An unknown category is an error |
 | `--with-translations` | Include translation support (locale files and examples) |
 | `--no-git` | Skip initialization of the git repository (works in both interactive and non-interactive modes) |
 | `--no-commit` | Skip initial git commit (works in both interactive and non-interactive modes) |
@@ -1163,6 +1163,9 @@ picard-cli plugins init "My Cool Plugin"
 
 # Non-interactive with all options
 picard-cli plugins init "My Cool Plugin" --author "Jane Doe" --category metadata
+
+# Several categories
+picard-cli plugins init "My Cool Plugin" --category metadata,scripting
 
 # Create in a specific parent directory
 picard-cli plugins init "My Cool Plugin" --parent-dir ~/dev

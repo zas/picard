@@ -1319,11 +1319,41 @@ class TestPluginCLIInit(PicardTestCase):
         """--init --category sets categories in MANIFEST."""
         target = self.tmpdir / 'test-plugin'
         exit_code, stdout, stderr = run_cli(
-            MockPluginManager(), verb='init', name='Test', target_dir=str(target), category='metadata'
+            MockPluginManager(), verb='init', name='Test', target_dir=str(target), category=['metadata']
         )
         self.assertEqual(ExitCode.SUCCESS, exit_code)
         manifest = (target / 'MANIFEST.toml').read_text(encoding='utf-8')
         self.assertIn('categories = ["metadata"]', manifest)
+
+    @subtest_cases(
+        "category,expected",
+        {
+            'comma-separated': (['metadata,ui'], '["metadata", "ui"]'),
+            'repeated': (['metadata', 'ui'], '["metadata", "ui"]'),
+            'both': (['ui,coverart', 'metadata'], '["metadata", "coverart", "ui"]'),
+            'duplicates and spaces': ([' ui , ui', 'ui'], '["ui"]'),
+        },
+    )
+    def test_init_with_several_categories(self, category, expected):
+        """Several categories, in the order of CATEGORIES."""
+        target = Path(self.mktmpdir()) / 'test-plugin'
+        exit_code, _stdout, stderr = run_cli(
+            MockPluginManager(), verb='init', name='Test', target_dir=str(target), category=category
+        )
+        self.assertEqual(ExitCode.SUCCESS, exit_code, stderr)
+        manifest = (target / 'MANIFEST.toml').read_text(encoding='utf-8')
+        self.assertIn(f'categories = {expected}\n', manifest)
+
+    def test_init_with_unknown_category(self):
+        """A typo is an error, nothing is created."""
+        target = self.tmpdir / 'test-plugin'
+        exit_code, _stdout, stderr = run_cli(
+            MockPluginManager(), verb='init', name='Test', target_dir=str(target), category=['metadata,metdata']
+        )
+        self.assertEqual(ExitCode.ERROR, exit_code)
+        self.assertIn("Unknown category: metdata", stderr)
+        self.assertIn('metadata, coverart', stderr)
+        self.assertFalse(target.exists())
 
     def test_init_default_directory_name(self):
         """--init without --target-dir uses picard-plugin-<slug> in cwd."""
