@@ -265,7 +265,9 @@ authors = ["{author}"]
     else:
         toml += f'description = "{description}"\n'
 
+    # A V2 plugin was written for the Qt GUI
     toml += f'''api = {api_versions}
+interfaces = ["qt-gui"]
 license = "{license_name}"
 license_url = "{license_url}"
 '''

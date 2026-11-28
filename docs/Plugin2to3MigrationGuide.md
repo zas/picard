@@ -83,6 +83,7 @@ name = "My Plugin"
 authors = ["Author Name"]
 version = "1.0.0"
 api = ["3.0"]
+interfaces = ["qt-gui"]
 license = "GPL-2.0-or-later"
 ```
 
@@ -505,6 +506,14 @@ picard-cli plugins list
 - Enable your plugin
 - Test all features
 - Check logs for errors
+
+### 5. Headless Mode (Optional)
+
+The migration tool declares `interfaces = ["qt-gui"]` in the MANIFEST.toml: a V2 plugin
+was written for the Qt GUI, and is only loaded there. If the plugin works without any GUI
+(no Qt widgets, no use of the main window), add `"headless"` to be loaded by the
+`picard-cli shell` too. Only do it after testing it there.
+See `interfaces` in [MANIFEST.md](PLUGINSV3/MANIFEST.md).
 
 ---
 

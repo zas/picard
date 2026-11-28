@@ -23,6 +23,11 @@ import tempfile
 
 from test.picardtestcase import PicardTestCase
 
+from picard.plugin3.validator import (
+    check_manifest_warnings,
+    validate_manifest_dict,
+)
+
 
 try:
     import tomllib  # type: ignore[unresolved-import]
@@ -117,6 +122,25 @@ register_track_metadata_processor(process_metadata)
         self.assertNotIn('\nregister_track_metadata_processor(process_metadata)', code)
         self.assertIn('def enable(api: PluginApi):', code)
         self.assertIn('api.register_track_metadata_processor(process_metadata)', code)
+
+    def test_migrate_plugin_declares_the_interface(self):
+        """A V2 plugin was written for the Qt GUI: the migrated manifest says so, and is valid."""
+        v2_plugin = '''PLUGIN_NAME = "Test Plugin"
+PLUGIN_AUTHOR = "Test Author"
+PLUGIN_DESCRIPTION = "A test plugin"
+PLUGIN_VERSION = "1.0.0"
+PLUGIN_API_VERSIONS = ["2.0"]
+PLUGIN_LICENSE = "GPL-2.0-or-later"
+PLUGIN_LICENSE_URL = "https://www.gnu.org/licenses/gpl-2.0.html"
+'''
+
+        _result, output_dir = self._run_migrate(v2_plugin, 'test_plugin')
+
+        with open(output_dir / 'MANIFEST.toml', 'rb') as f:
+            data = tomllib.load(f)
+        self.assertEqual(data['interfaces'], ['qt-gui'])
+        self.assertEqual(validate_manifest_dict(data), [])
+        self.assertEqual(check_manifest_warnings(data), [])
 
     def test_migrate_plugin_with_long_description(self):
         """Test migrating plugin with description > 200 chars."""
