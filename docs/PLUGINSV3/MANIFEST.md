@@ -21,6 +21,7 @@ uuid = "550e8400-e29b-41d4-a716-446655440000"  # Generate with: uuidgen or pytho
 name = "My Plugin"
 description = "Short description of what the plugin does"
 api = ["3.0"]
+interfaces = ["qt-gui"]  # Interfaces the plugin supports, see "interfaces" below
 ```
 
 **Note:** For more complex plugins, consider adding `long_description` to provide detailed information about features, requirements, and usage. See [Description Fields](#description-fields-short-vs-long) below.
@@ -83,6 +84,7 @@ def disable():
 | `license` | string | SPDX license identifier | `"GPL-2.0-or-later"` |
 | `license_url` | string | URL to license text | `"https://..."` |
 | `long_description` | string | Detailed description (multi-line, 1-2000 chars, Python-Markdown supported) | See below |
+| `interfaces` | array | Interfaces the plugin supports (should be set explicitly, defaults to `["qt-gui"]`) | `["qt-gui", "headless"]` |
 | `categories` | array | Plugin categories | `["metadata", "coverart"]` |
 | `homepage` | string | Plugin homepage URL | `"https://..."` |
 | `report_bugs_to` | string | URL for bug reports (http, https, or mailto) | `"https://..."` or `"mailto:bugs@example.com"` |
@@ -122,6 +124,7 @@ Requirements:
 The plugin respects your privacy and only sends data you explicitly choose to submit listens.
 """
 api = ["3.0", "3.1"]
+interfaces = ["qt-gui", "headless"]
 authors = ["MusicBrainz Picard Team", "Philipp Wolfer"]
 maintainers = ["Philipp Wolfer"]
 license = "GPL-2.0-or-later"
@@ -386,6 +389,20 @@ Vollständige deutsche Beschreibung hier...
 - Optional
 - URL to full license text
 - Should be stable URL (not subject to change)
+
+### `interfaces`
+- Optional for now, but new plugins should set it explicitly (it may become required)
+- Array of strings, at least one
+- The interfaces (frontends) the plugin was written for and works with:
+  - `"qt-gui"`: the Qt GUI
+  - `"headless"`: Picard without a GUI (the shell)
+- If absent, it defaults to `["qt-gui"]`: all plugins written before this field existed assume the Qt GUI
+- A plugin that works in both must list both: `["qt-gui", "headless"]`.
+  `["headless"]` alone means the plugin is not usable in the GUI
+- Only declare `"headless"` if the plugin works without any GUI: no Qt widgets, no
+  use of the main window (`api.tagger.window`)
+- Unknown values are accepted, with a warning, so a manifest written for a newer Picard still loads
+- The missing field, unknown or duplicate values are reported as warnings by `picard-cli plugins validate`
 
 ### `categories`
 - Optional
