@@ -51,6 +51,7 @@ from picard.ui.util import (
     context_menu_item,
     font_scaled_size,
 )
+from picard.ui.widgets.pluginformat import unsupported_interface_text
 
 
 render_markdown: Callable[[str], str] | None = None
@@ -743,6 +744,13 @@ class InstallPluginDialog(PicardDialog):
             url=url, ref=ref, no_git=no_git, progress_callback=self._on_progress, callback=self._on_complete
         )
 
+    def _not_enabled_reason(self, plugin_id):
+        """Why the installed plugin could not be enabled, None if nothing prevented it."""
+        plugin = self.plugin_manager.plugin_id_to_plugin(plugin_id)
+        if plugin is None or self.plugin_manager.is_plugin_compatible(plugin):
+            return None
+        return unsupported_interface_text(plugin, self.plugin_manager.interface)
+
     def _on_progress(self, update):
         """Handle installation progress."""
         self.progress_bar.setValue(update.percent)
@@ -755,6 +763,11 @@ class InstallPluginDialog(PicardDialog):
         if result.success:
             self.status_label.setText(_("Plugin installed successfully"))
             self.plugin_installed.emit(result.result)
+            reason = self._not_enabled_reason(result.result)
+            if reason:
+                QtWidgets.QMessageBox.information(
+                    self, _("Plugin Not Enabled"), _("The plugin was installed, but not enabled.") + '\n\n' + reason
+                )
             # No need to re-enable UI, we're closing the dialog
             QtCore.QTimer.singleShot(1000, self.accept)  # Close after 1 second
         else:
