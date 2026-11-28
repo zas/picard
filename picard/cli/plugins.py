@@ -49,6 +49,10 @@ from picard.cli.argparse_grouped import (
 )
 from picard.cli.subcommand import Subcommand
 from picard.plugin3.constants import DEFAULT_SOURCE_LOCALE
+from picard.plugin3.validator import (
+    DEFAULT_INTERFACES,
+    INTERFACES,
+)
 
 
 class PluginsSubcommand(Subcommand):
@@ -199,6 +203,13 @@ class PluginsSubcommand(Subcommand):
             metavar='CATEGORY',
             action='append',
             help="plugin category, several can be given (comma-separated, or the option repeated)",
+        )
+        p_init.add_argument(
+            '--interface',
+            metavar='INTERFACE',
+            action='append',
+            help=f"interface the plugin works with ({', '.join(INTERFACES)}; default: {', '.join(DEFAULT_INTERFACES)}), "
+            "several can be given (comma-separated, or the option repeated)",
         )
         p_init.add_argument('--target-dir', metavar='DIR', help="override directory name")
         p_init.add_argument('--parent-dir', metavar='DIR', help="parent directory (default: current directory)")

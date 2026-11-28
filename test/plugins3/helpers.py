@@ -190,6 +190,7 @@ class MockCliArgs(Mock):
             'reinstall': False,
             'force_blacklisted': False,
             'category': None,
+            'interface': None,
             'trust': None,
             'locale': 'en',
             'with_translations': False,

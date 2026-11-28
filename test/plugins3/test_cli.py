@@ -1344,6 +1344,33 @@ class TestPluginCLIInit(PicardTestCase):
         manifest = (target / 'MANIFEST.toml').read_text(encoding='utf-8')
         self.assertIn(f'categories = {expected}\n', manifest)
 
+    @subtest_cases(
+        "interface,expected",
+        {
+            'not given': (None, '["qt-gui"]'),
+            'headless only': (['headless'], '["headless"]'),
+            'comma-separated': (['qt-gui,headless'], '["qt-gui", "headless"]'),
+            'repeated, any order': (['headless', 'qt-gui'], '["qt-gui", "headless"]'),
+        },
+    )
+    def test_init_with_interfaces(self, interface, expected):
+        target = Path(self.mktmpdir()) / 'test-plugin'
+        exit_code, _stdout, stderr = run_cli(
+            MockPluginManager(), verb='init', name='Test', target_dir=str(target), interface=interface
+        )
+        self.assertEqual(ExitCode.SUCCESS, exit_code, stderr)
+        manifest = (target / 'MANIFEST.toml').read_text(encoding='utf-8')
+        self.assertIn(f'interfaces = {expected}\n', manifest)
+
+    def test_init_with_unknown_interface(self):
+        target = self.tmpdir / 'test-plugin'
+        exit_code, _stdout, stderr = run_cli(
+            MockPluginManager(), verb='init', name='Test', target_dir=str(target), interface=['qt-gui,web']
+        )
+        self.assertEqual(ExitCode.ERROR, exit_code)
+        self.assertIn('Unknown interface: web (known interfaces: qt-gui, headless)', stderr)
+        self.assertFalse(target.exists())
+
     def test_init_with_unknown_category(self):
         """A typo is an error, nothing is created."""
         target = self.tmpdir / 'test-plugin'
@@ -1561,13 +1588,15 @@ class TestPluginCLIInitInteractive(PicardTestCase):
         self.assertIn('description = "A test plugin"', manifest)
         self.assertIn('categories = ["metadata"]', manifest)
 
-    def _interactive_interfaces(self, answer):
+    def _interactive_interfaces(self, answer, interface=None):
         """Run the interactive init answering `answer` to the interfaces question, return the manifest."""
         # Each case has its own directory: it must not exist yet
         target = Path(self.mktmpdir()) / 'my-plugin'
         inputs = self._init_inputs(name='My Plugin', interfaces=answer)
         with patch('builtins.input', side_effect=inputs):
-            exit_code, _stdout, stderr = run_cli(MockPluginManager(), verb='init', target_dir=str(target))
+            exit_code, _stdout, stderr = run_cli(
+                MockPluginManager(), verb='init', target_dir=str(target), interface=interface
+            )
         self.assertEqual(ExitCode.SUCCESS, exit_code, stderr)
         return (target / 'MANIFEST.toml').read_text(encoding='utf-8')
 
@@ -1589,6 +1618,14 @@ class TestPluginCLIInitInteractive(PicardTestCase):
     def test_interactive_interfaces(self, answer, expected):
         manifest = self._interactive_interfaces(answer)
         self.assertIn(f'interfaces = {expected}\n', manifest)
+
+    def test_interactive_interfaces_option_is_the_default(self):
+        manifest = self._interactive_interfaces('', interface=['headless'])
+        self.assertIn('interfaces = ["headless"]\n', manifest)
+
+    def test_interactive_interfaces_answer_wins_over_the_option(self):
+        manifest = self._interactive_interfaces('1', interface=['headless'])
+        self.assertIn('interfaces = ["qt-gui"]\n', manifest)
 
     def test_interactive_minimal(self):
         """Interactive mode with only name provided."""

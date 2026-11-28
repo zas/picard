@@ -1855,13 +1855,20 @@ class PluginCLI(BaseCLI):
 
     def _cmd_init(self, name):
         """Create a new plugin project directory."""
+        # Checked first, not to ask questions in vain
+        interfaces, unknown = _select_named(getattr(self._args, 'interface', None), INTERFACES)
+        if unknown:
+            self._out.error(f'Unknown interface: {", ".join(unknown)} (known interfaces: {", ".join(INTERFACES)})')
+            return ExitCode.ERROR
+        interfaces = interfaces or list(DEFAULT_INTERFACES)
+
         if not name:
             if self._args.yes:
                 self._out.error(f'Plugin name is required in non-interactive mode ({self._out.d_option("--yes")})')
                 return ExitCode.ERROR
-            return self._cmd_init_interactive()
+            return self._cmd_init_interactive(default_interfaces=interfaces)
 
-        return self.create_plugin_project(PluginProjectConfig(name=name))
+        return self.create_plugin_project(PluginProjectConfig(name=name, interfaces=interfaces))
 
     def _cmd_compile_ui(self, ui_file, force):
         """Compile the UI for a plugin."""
@@ -1886,8 +1893,12 @@ class PluginCLI(BaseCLI):
 
         return ExitCode.SUCCESS
 
-    def _cmd_init_interactive(self):
-        """Run interactive plugin project creation."""
+    def _cmd_init_interactive(self, default_interfaces):
+        """Run interactive plugin project creation.
+
+        Args:
+            default_interfaces: The interfaces the plugin works with if the answer gives none
+        """
         self._out.print(self._out.bold('Create a new Picard plugin project'))
         self._out.nl()
 
@@ -1977,13 +1988,12 @@ class PluginCLI(BaseCLI):
         self._out.print(f'{self._out.bold("Interfaces")} (the ones the plugin works with):')
         for i, interface in enumerate(INTERFACES, 1):
             self._out.info(f'{self._out.d_number(i)}. {interface}')
-        default_interfaces = ', '.join(DEFAULT_INTERFACES)
         interfaces_input = input(
-            f'{self._out.bold("Interface numbers")} (comma-separated) [{self._out.dim(default_interfaces)}]: '
+            f'{self._out.bold("Interface numbers")} (comma-separated) [{self._out.dim(", ".join(default_interfaces))}]: '
         ).strip()
         selected_interfaces = _select_numbered(interfaces_input, INTERFACES)
         # In the order of INTERFACES
-        interfaces = [i for i in INTERFACES if i in selected_interfaces] or list(DEFAULT_INTERFACES)
+        interfaces = [i for i in INTERFACES if i in selected_interfaces] or default_interfaces
 
         with_i18n = getattr(self._args, 'with_translations', False) or self._out.yesno(
             'Include translation support (i18n)?', default='N'

@@ -1133,7 +1133,8 @@ appear in order:
 6. Categories — comma-separated numbers for multiple (e.g. `1,3`)
 7. License — defaults to last used value or GPL-2.0-or-later
 8. Interfaces — the interfaces the plugin works with (`qt-gui`, `headless`), comma-separated numbers for
-   multiple (e.g. `1,2`), written as `interfaces` in the MANIFEST. Defaults to `qt-gui`
+   multiple (e.g. `1,2`), written as `interfaces` in the MANIFEST. Defaults to the ones given with
+   `--interface`, else `qt-gui`
 9. Include translation support (i18n)? — yes/no (default: no)
 10. Initialize git repository? — yes/no (default: yes)
 11. Create initial git commit? — yes/no (default: yes) — only if "Initialize git repository?" is yes.
@@ -1148,6 +1149,7 @@ Author name, email, and license are persisted across runs.
 | `--parent-dir DIR` | Parent directory where the project is created (default: current directory) |
 | `--author NAME` | Author name for MANIFEST.toml |
 | `--category CATEGORY` | Plugin category (metadata, coverart, ui, etc.). Several can be given, comma-separated or repeating the option. An unknown category is an error |
+| `--interface INTERFACE` | Interfaces the plugin works with (`qt-gui`, `headless`; default: `qt-gui`). Several can be given, comma-separated or repeating the option. An unknown interface is an error. In interactive mode, the default answer |
 | `--with-translations` | Include translation support (locale files and examples) |
 | `--no-git` | Skip initialization of the git repository (works in both interactive and non-interactive modes) |
 | `--no-commit` | Skip initial git commit (works in both interactive and non-interactive modes) |
@@ -1166,6 +1168,9 @@ picard-cli plugins init "My Cool Plugin" --author "Jane Doe" --category metadata
 
 # Several categories
 picard-cli plugins init "My Cool Plugin" --category metadata,scripting
+
+# A plugin that also works without the GUI (picard-cli shell)
+picard-cli plugins init "My Cool Plugin" --interface qt-gui,headless
 
 # Create in a specific parent directory
 picard-cli plugins init "My Cool Plugin" --parent-dir ~/dev

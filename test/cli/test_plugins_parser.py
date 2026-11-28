@@ -38,3 +38,9 @@ class PluginsInitParserTest(PicardTestCase):
         self.assertEqual(
             self._parse('--category', 'metadata,ui', '--category', 'coverart').category, ['metadata,ui', 'coverart']
         )
+
+    def test_interface_values_are_collected(self):
+        self.assertIsNone(self._parse().interface)
+        self.assertEqual(
+            self._parse('--interface', 'qt-gui,headless', '--interface', 'x').interface, ['qt-gui,headless', 'x']
+        )
