@@ -36,6 +36,7 @@ from picard.debug_opts import DebugOpt
 
 
 if TYPE_CHECKING:
+    from picard.cli.headless import HeadlessTagger
     from picard.tagger import Tagger
 
 from picard.config import get_config
@@ -98,11 +99,11 @@ class PluginManager(QObject):
     refresh_updates_available = pyqtSignal()
     plugin_update_checks_complete = pyqtSignal(dict)
 
-    def __init__(self, tagger: 'Tagger | None' = None) -> None:
+    def __init__(self, tagger: 'Tagger | HeadlessTagger | None' = None) -> None:
         # Tests pass in a mock object and not an actual Tagger instance,
         # hence check type before passing it to QObject.
         super().__init__(parent=tagger if isinstance(tagger, QObject) else None)
-        self._tagger: Tagger | None = tagger
+        self._tagger: Tagger | HeadlessTagger | None = tagger
         self._plugins: list[Plugin] = []  # Instance variable, not class variable
         self._enabled_plugins: set[str] = set()
         self._failed_plugins: list[tuple[Path, str, str]] = []  # List of (path, name, error_message) tuples

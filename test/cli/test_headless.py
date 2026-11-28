@@ -23,10 +23,18 @@ exist per process. The shared test suite already runs under a QApplication
 the same process. These tests therefore exercise it in a fresh subprocess.
 """
 
+import os
 import subprocess
 import sys
+from unittest.mock import (
+    Mock,
+    patch,
+)
 
 from test.picardtestcase import PicardTestCase
+from test.plugins3.helpers import skip_if_no_git_backend
+
+from picard.cli.headless import HeadlessTagger
 
 
 # Program run in a clean subprocess: build a HeadlessTagger and assert the
@@ -348,6 +356,81 @@ print('AUTHORIZATION_OK')
 """
 
 
+# The plugins directory is the one of PICARD_PLUGIN_DIR, set by the test, and the
+# configuration file is given as the only argument.
+_PLUGINS_PROGRAM = """
+import os
+import sys
+from pathlib import Path
+from PyQt6 import QtCore
+
+QtCore.QCoreApplication.setApplicationName('MusicBrainz-Picard-headless-test')
+QtCore.QCoreApplication.setOrganizationName('MusicBrainz-headless-test')
+
+from picard.cli.headless import HeadlessTagger
+from picard.config import get_config
+from picard.plugin3.validator import generate_uuid
+
+plugins_dir = Path(os.environ['PICARD_PLUGIN_DIR'])
+markers = plugins_dir.parent / 'markers'
+markers.mkdir()
+
+
+def make_plugin(name, interfaces):
+    uuid = generate_uuid()
+    path = plugins_dir / name
+    path.mkdir(parents=True)
+    lines = [f'uuid = "{uuid}"', f'name = "{name}"', 'description = "Test"', 'api = ["3.0"]']
+    if interfaces is not None:
+        lines.append(f'interfaces = {interfaces!r}')
+    (path / 'MANIFEST.toml').write_text('\\n'.join(lines))
+    # What the plugin saw as the interface is written to a marker file
+    (path / '__init__.py').write_text(
+        f"def enable(api):\\n    open({str(markers / name)!r}, 'a').write(api.interface + '\\\\n')\\n"
+    )
+    return uuid
+
+
+uuids = [
+    make_plugin('gui-only', None),
+    make_plugin('both', ['qt-gui', 'headless']),
+    make_plugin('headless-only', ['headless']),
+    make_plugin('not-enabled', ['headless']),
+]
+
+app = HeadlessTagger(sys.argv, config_file=sys.argv[1])
+get_config().setting['plugins3_enabled_plugins'] = uuids[:3]
+
+# Nothing is done until asked for
+assert app._plugin_manager is None
+print('PLUGINS_LAZY_OK')
+
+manager = app.get_plugin_manager()
+assert manager is app.get_plugin_manager()
+assert manager.interface == 'headless', manager.interface
+assert sorted(p.plugin_id for p in manager.plugins) == ['both', 'gui-only', 'headless-only', 'not-enabled']
+assert list(markers.iterdir()) == [], 'discovering plugins must not load them'
+print('PLUGINS_DISCOVERED_OK')
+
+app.load_plugins()
+loaded = sorted(f.name for f in markers.iterdir())
+assert loaded == ['both', 'headless-only'], loaded
+assert (markers / 'both').read_text() == 'headless\\n'
+print('PLUGINS_LOADED_OK')
+
+# Loading is done once
+app.load_plugins()
+assert (markers / 'both').read_text() == 'headless\\n'
+print('PLUGINS_ONCE_OK')
+
+# A skipped plugin stays listed and enabled
+assert 'gui-only' in [p.plugin_id for p in manager.plugins]
+assert uuids[0] in manager._enabled_plugins
+app.run_cleanup()
+print('PLUGINS_DONE_OK')
+"""
+
+
 class HeadlessTaggerSubprocessTest(PicardTestCase):
     def test_qt_messages_go_through_the_message_handler(self):
         result = subprocess.run(
@@ -478,3 +561,67 @@ class HeadlessTaggerSubprocessTest(PicardTestCase):
         )
         for marker in ('LAZY_UNBUILT_OK', 'LAZY_ISOLATED_OK', 'LAZY_IDLE_OK', 'LAZY_BUILD_OK'):
             self.assertIn(marker, result.stdout)
+
+    def test_plugins_are_loaded_for_the_headless_interface_only_when_asked(self):
+        # The plugin system needs a git backend (optional): without one there is
+        # no plugin to load, see HeadlessTaggerPluginsWithoutBackendTest
+        skip_if_no_git_backend()
+        plugins_dir = self.mktmpdir() + '/plugins'
+        config_file = self.mktmpdir() + '/Picard.ini'
+        result = subprocess.run(
+            [sys.executable, '-c', _PLUGINS_PROGRAM, config_file],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            timeout=120,
+            env={**os.environ, 'PICARD_PLUGIN_DIR': plugins_dir},
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            msg=f"subprocess failed\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        for marker in (
+            'PLUGINS_LAZY_OK',
+            'PLUGINS_DISCOVERED_OK',
+            'PLUGINS_LOADED_OK',
+            'PLUGINS_ONCE_OK',
+            'PLUGINS_DONE_OK',
+        ):
+            self.assertIn(marker, result.stdout)
+
+
+class HeadlessTaggerPluginsWithoutBackendTest(PicardTestCase):
+    """Without a git backend there is no plugin system: nothing to load, and no failure.
+
+    HeadlessTagger cannot be instantiated here (see above), so the methods are called on a stand-in.
+    """
+
+    def test_no_plugin_manager(self):
+        app = Mock(_plugin_manager=None)
+        with patch('picard.cli.headless.HAS_PLUGIN3', False):
+            self.assertIsNone(HeadlessTagger.get_plugin_manager(app))
+
+    def test_load_plugins_without_plugin_manager(self):
+        app = Mock(_plugins_loaded=False, get_plugin_manager=Mock(return_value=None))
+        self.assertEqual(HeadlessTagger.load_plugins(app), ([], []))
+        app.get_plugin_manager.assert_called_once_with()
+
+
+class HeadlessTaggerLoadPluginsReportTest(PicardTestCase):
+    """load_plugins() gives the plugins that were not loaded because blacklisted or failing."""
+
+    def _app(self):
+        manager = Mock(_init_failed_plugins=[('failing', 'boom')])
+        manager.init_plugins.return_value = [('blacklisted', 'malware')]
+        return Mock(_plugins_loaded=False, get_plugin_manager=Mock(return_value=manager))
+
+    def test_report(self):
+        app = self._app()
+        self.assertEqual(HeadlessTagger.load_plugins(app), ([('blacklisted', 'malware')], [('failing', 'boom')]))
+
+    def test_loaded_once(self):
+        app = self._app()
+        HeadlessTagger.load_plugins(app)
+        self.assertEqual(HeadlessTagger.load_plugins(app), ([], []))
+        app.get_plugin_manager.return_value.init_plugins.assert_called_once_with()

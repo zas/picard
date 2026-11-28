@@ -60,6 +60,7 @@ from picard.config import (
     setup_config,
 )
 from picard.config_upgrade import run_config_upgrades
+from picard.const import USER_PLUGIN_DIR
 from picard.extension_points.event_hooks import register_file_post_save_processor
 from picard.formats import DEFAULT_FORMATS
 from picard.formats.registry import FormatRegistry
@@ -73,6 +74,19 @@ from picard.workspace import (
     WorkspaceHost,
     set_workspace_provider,
 )
+
+
+# The plugin system needs a git backend, which is optional (as in picard/tagger.py)
+HAS_PLUGIN3 = False
+try:
+    from picard.git.factory import has_git_backend
+
+    HAS_PLUGIN3 = has_git_backend()
+except ImportError:
+    pass
+
+if HAS_PLUGIN3:
+    from picard.plugin3.manager import PluginManager
 
 
 class HeadlessTagger(WorkspaceHost, QtCore.QCoreApplication):
@@ -117,6 +131,11 @@ class HeadlessTagger(WorkspaceHost, QtCore.QCoreApplication):
         self._acoustid_client = None
         self._acoustid_manager = None
         self._isrc_submit_manager = None
+
+        # The plugin manager, created by get_plugin_manager(), and whether the
+        # plugins were loaded by load_plugins()
+        self._plugin_manager = None
+        self._plugins_loaded = False
 
         # Config must be set up before any service (WebService reads config).
         # Mirror minimal_init(): set app/org name (used for the versioned
@@ -224,6 +243,43 @@ class HeadlessTagger(WorkspaceHost, QtCore.QCoreApplication):
         return self._isrc_submit_manager
 
     # --- threads ------------------------------------------------------------
+
+    # --- plugins --------------------------------------------------------------
+    #
+    # Plugins are not loaded by the constructor: a command that does not need
+    # them (e.g. managing the plugins) must not run their code, a broken plugin
+    # could prevent removing it. The entry points running engine sessions call
+    # load_plugins().
+
+    def get_plugin_manager(self):
+        """The plugin manager, created (and the installed plugins found, not loaded) on first use.
+
+        None if the plugin system is not available (it needs a git backend).
+        """
+        if self._plugin_manager is None:
+            if not HAS_PLUGIN3:
+                log.warning('Plugins are not available: no git backend')
+                return None
+            manager = PluginManager(self)
+            manager.add_directory(USER_PLUGIN_DIR, primary=True)
+            self._plugin_manager = manager
+        return self._plugin_manager
+
+    def load_plugins(self) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        """Load the enabled plugins supporting the headless interface, once.
+
+        Returns the plugins that were not loaded, for the frontend to report:
+        the blacklisted ones (disabled) and the ones failing to load, as lists
+        of (plugin ID, reason). Both are empty when called again.
+        """
+        if self._plugins_loaded:
+            return [], []
+        self._plugins_loaded = True
+        manager = self.get_plugin_manager()
+        if manager is None:
+            return [], []
+        blacklisted = manager.init_plugins()
+        return blacklisted, list(manager._init_failed_plugins)
 
     def _init_threads(self):
         self.thread_pool = QtCore.QThreadPool(self)
