@@ -139,6 +139,14 @@ Valid category values:
 - `formats` - File format support
 - `other` - Miscellaneous
 
+### Interfaces
+
+The `interfaces` field of `MANIFEST.toml` (see [MANIFEST.md](MANIFEST.md)) is not part of a
+registry entry: plugins can be installed from other sources than the registry, so Picard
+only relies on the manifest of the installed plugin. The registry tools validate manifests
+with copies of `picard/plugin3/validator.py` and `picard/plugin3/constants.py`, which have to
+be refreshed to accept (and warn about) this field.
+
 ---
 
 ## Git Refs

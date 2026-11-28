@@ -1043,6 +1043,10 @@ version = "1.0.0"
 description = "Short one-line description (1-200 characters)"
 api = ["3.0"]
 
+# Interfaces the plugin works with, one or more of: "qt-gui", "headless"
+# Add "headless" only if the plugin works without the GUI (no Qt widgets, no UI-only features).
+interfaces = ["qt-gui"]
+
 # Optional fields (recommended)
 # authors = ["Your Name"]
 # maintainers = ["Your Name"]
@@ -1101,7 +1105,7 @@ repository.
 
 **Generated files:**
 
-- `MANIFEST.toml` — Plugin metadata with a generated UUID
+- `MANIFEST.toml` — Plugin metadata with a generated UUID (and `interfaces = ["qt-gui"]`)
 - `__init__.py` — Plugin code with `enable()`/`disable()` stubs
 - `README.md` — Basic readme with plugin name
 - `.gitignore` — Python-specific ignore rules

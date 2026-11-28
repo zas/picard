@@ -566,6 +566,42 @@ picard -e "PLUGIN_ENABLE listenbrainz"
 
 ---
 
+### Q25: How do plugins opt in to run without the Qt GUI (headless mode)?
+
+**Question:** `picard-cli shell` runs Picard without a GUI. Plugins were all written for the Qt GUI, and
+Picard cannot tell which ones work without it. How can a plugin say it does, in a way that also works
+for other interfaces later (e.g. a web interface)?
+
+**Decision:** an optional `interfaces` list in `MANIFEST.toml`, e.g. `interfaces = ["qt-gui", "headless"]`
+
+**Rationale:**
+- Explicit opt-in: all existing plugins assume the Qt GUI, so a plugin not declaring anything
+  means `["qt-gui"]` (nothing changes for the GUI) and is not loaded headless
+- Declared in the manifest, the only thing every installation source has in common (the registry is
+  just a list of known plugins)
+- A list of interface names, not a boolean: a new interface is a new name. An unknown name only gives a warning
+- New plugins (templates, `plugins init`, migration tool) declare it explicitly. It may become required later
+- Plugins not matching the running interface are not loaded, but are still listed, and their
+  enabled state is not changed (it is shared by all the interfaces)
+- The registrations that only make sense in a GUI (actions, options page) are ignored when the interface has
+  no GUI, so supporting both interfaces needs no special code
+- `api.interface` gives the running interface to plugins that need it
+- Plugins are loaded by the shell once, before the first command, and `--no-plugins` loads none
+
+**Alternatives considered:**
+- A `headless = true` boolean: needs a new flag for each new interface
+- Capabilities the plugin requires (`requires = ["qt"]`): "nothing declared" would mean "works everywhere",
+  wrong for all existing plugins
+- Detecting GUI use by scanning the plugin code: not reliable
+- A user override to load a plugin not declaring the interface anyway: not needed for now (the plugin
+  author, or the user editing the manifest, decides); can be added later without breaking anything
+- Loading plugins lazily when the shell first needs one: plugins can extend too many places
+  (formats, processors, script functions, cover art providers), there is no reliable trigger
+
+**Status:** CLOSED
+
+---
+
 ## Questions for Future Consideration
 
 ### Plugin Marketplace

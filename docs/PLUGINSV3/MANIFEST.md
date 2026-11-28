@@ -403,6 +403,13 @@ Vollständige deutsche Beschreibung hier...
   use of the main window (`api.tagger.window`)
 - Unknown values are accepted, with a warning, so a manifest written for a newer Picard still loads
 - The missing field, unknown or duplicate values are reported as warnings by `picard-cli plugins validate`
+- A plugin is only loaded by an interface it declares: the Qt GUI loads plugins declaring `"qt-gui"`,
+  the shell (`picard-cli shell`) the ones declaring `"headless"`
+- A plugin not loaded because of its interfaces stays listed, and keeps its enabled state (shared by all
+  the interfaces). It cannot be enabled where it is not supported: the install succeeds, but the plugin
+  stays disabled
+- In a plugin declaring `"headless"`, the registrations that only make sense in a GUI (actions,
+  options page) are ignored by the shell, see `interface` in [API.md](API.md)
 
 ### `categories`
 - Optional
