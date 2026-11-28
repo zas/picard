@@ -25,7 +25,6 @@ import tempfile
 import unittest
 from unittest.mock import (
     Mock,
-    PropertyMock,
     patch,
 )
 
@@ -126,9 +125,8 @@ class TestPluginCLI(PicardTestCase):
 
     def test_list_plugins_with_plugins(self):
         """Test listing plugins with details."""
-        test_uuid = generate_uuid()
         manifest = load_plugin_manifest('example')
-        type(manifest).uuid = PropertyMock(return_value=test_uuid)
+        test_uuid = manifest.uuid
 
         mock_plugin = MockPlugin(name='test-plugin', uuid=test_uuid, manifest=manifest)
         manager = MockPluginManager(plugins=[mock_plugin], _enabled_plugins={test_uuid})
@@ -612,9 +610,8 @@ class TestPluginCLI(PicardTestCase):
 
     def test_update_commit_pinned_plugin(self):
         """Test update command shows warning for commit-pinned plugins."""
-        test_uuid = generate_uuid()
         manifest = load_plugin_manifest('example')
-        type(manifest).uuid = PropertyMock(return_value=test_uuid)
+        test_uuid = manifest.uuid
 
         mock_plugin = MockPlugin(name='test-plugin', uuid=test_uuid, manifest=manifest)
         manager = MockPluginManager(plugins=[mock_plugin])
