@@ -28,7 +28,10 @@ from unittest.mock import (
 
 from PyQt6.QtCore import QSettings
 
-from test.picardtestcase import PicardTestCase
+from test.picardtestcase import (
+    PicardTestCase,
+    subtest_cases,
+)
 from test.plugins3.helpers import load_plugin_manifest
 
 from picard import (
@@ -214,6 +217,76 @@ class TestPluginApiInterface(PicardTestCase):
 
     def test_interface_not_declared(self):
         self.assertIsNone(self._create_api(Mock()).interface)
+
+
+# The registrations only useful in a GUI. Each one calls the function of the same name.
+_UI_REGISTRATIONS = [
+    'register_album_action',
+    'register_cluster_action',
+    'register_clusterlist_action',
+    'register_track_action',
+    'register_file_action',
+    'register_tools_menu_action',
+    'register_metadata_tag_action',
+    'register_options_page',
+]
+
+
+class TestPluginApiUiRegistrations(PicardTestCase):
+    def _create_api(self, interface):
+        return PluginApi(load_plugin_manifest('example'), Mock(interface=interface), Mock(), Path(''))
+
+    def _register(self, interface, method):
+        api = self._create_api(interface)
+        ui_class = Mock()
+        with patch(f'picard.plugin3.api_impl.{method}') as register:
+            result = getattr(api, method)(ui_class)
+        return result, register, ui_class
+
+    @subtest_cases("method", _UI_REGISTRATIONS)
+    def test_registered_in_gui(self, method):
+        _result, register, ui_class = self._register('qt-gui', method)
+        register.assert_called_once_with(ui_class)
+
+    @subtest_cases("method", _UI_REGISTRATIONS)
+    def test_registered_without_interface(self, method):
+        _result, register, ui_class = self._register(None, method)
+        register.assert_called_once_with(ui_class)
+
+    @subtest_cases("method", _UI_REGISTRATIONS)
+    def test_ignored_in_headless(self, method):
+        result, register, ui_class = self._register('headless', method)
+        register.assert_not_called()
+        self.assertIsNone(result)
+
+    def test_ignored_registration_does_not_touch_the_class(self):
+        api = self._create_api('headless')
+        ui_class = Mock(spec=[])
+        api.register_album_action(ui_class)
+        self.assertFalse(hasattr(ui_class, 'api'))
+
+
+class TestPluginApiQtTranslators(PicardTestCase):
+    """The application object of a non-GUI interface has no Qt translators."""
+
+    def _create_api(self):
+        tagger = Mock(spec=['interface'], interface='headless')
+        api = PluginApi(load_plugin_manifest('example'), tagger, Mock(), Path(''))
+        api._translations = {'en': {'qt.MyDialog.Submit': 'Submit'}}
+        return api
+
+    def test_install(self):
+        api = self._create_api()
+        api._install_qt_translator()
+        self.assertIsNone(api._qt_translator)
+
+    def test_remove(self):
+        self._create_api()._remove_qt_translator()
+
+    def test_reload(self):
+        api = self._create_api()
+        with patch.object(api, '_load_translations'):
+            api.reload_translations()
 
 
 class TestPluginApi(PicardTestCase):

@@ -25,6 +25,7 @@ from collections.abc import (
 from functools import (
     partial,
     update_wrapper,
+    wraps,
 )
 import json
 from logging import (
@@ -120,6 +121,7 @@ from picard.plugin3.i18n import (
 )
 from picard.plugin3.interfaces import get_interface
 from picard.plugin3.manifest import PluginManifest
+from picard.plugin3.validator import INTERFACE_QT_GUI
 from picard.services import services
 from picard.track import Track
 from picard.util.display_title_base import HasDisplayTitle
@@ -293,6 +295,23 @@ class PluginLogger:
         self._underlying_logger.exception(msg, *args, stacklevel=2, **kwargs)
 
 
+def _gui_only(method):
+    """Make a PluginApi method do nothing when the running interface has no GUI.
+
+    This lets a plugin supporting several interfaces register its GUI extras
+    (actions, options page) unconditionally.
+    """
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if not self._has_gui:
+            self._logger.debug('%s ignored: the interface (%s) has no GUI', method.__name__, self.interface)
+            return None
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class PluginApi:
     # Class-level registries for get_api()
     _instances: ClassVar[dict[str, 'PluginApi']] = {}  # Maps module name -> PluginApi instance
@@ -365,7 +384,7 @@ class PluginApi:
 
     def _install_qt_translator(self) -> None:
         """Install Qt translator for .ui file translations."""
-        if not self._translations:
+        if not self._translations or not self._has_gui:
             return
         self._logger.debug(
             f"Installing Qt translator with {len(self._translations)} locales: {list(self._translations.keys())}"
@@ -408,7 +427,8 @@ class PluginApi:
 
         # Emit signal to trigger Qt translator reinstall and UI retranslation
         # This is only called during plugin updates, not normal installation
-        self._tagger._qt_translators_updated.emit()
+        if self._has_gui:
+            self._tagger._qt_translators_updated.emit()
 
     def _is_valid_locale(self, locale: str) -> bool:
         """Check if locale string is valid (basic sanity check).
@@ -545,6 +565,11 @@ class PluginApi:
                     api.tagger.window.statusBar().showMessage('Plugin enabled')
         """
         return get_interface(self._tagger)
+
+    @property
+    def _has_gui(self) -> bool:
+        """Whether the running interface has a GUI (also the case if there is no running interface)."""
+        return self.interface in {None, INTERFACE_QT_GUI}
 
     @property
     def web_service(self) -> WebService:
@@ -1530,6 +1555,7 @@ class PluginApi:
         return unregister_all_script_variables(self)
 
     # Menu actions
+    @_gui_only
     def register_album_action(self, action: type[BaseAction]) -> None:
         """Register a context menu action for albums.
 
@@ -1557,6 +1583,7 @@ class PluginApi:
         action.api = self
         return register_album_action(action)
 
+    @_gui_only
     def register_cluster_action(self, action: type[BaseAction]) -> None:
         """Register a context menu action for clusters.
 
@@ -1584,6 +1611,7 @@ class PluginApi:
         action.api = self
         return register_cluster_action(action)
 
+    @_gui_only
     def register_clusterlist_action(self, action: type[BaseAction]) -> None:
         """Register a context menu action for the cluster list.
 
@@ -1611,6 +1639,7 @@ class PluginApi:
         action.api = self
         return register_clusterlist_action(action)
 
+    @_gui_only
     def register_track_action(self, action: type[BaseAction]) -> None:
         """Register a context menu action for tracks.
 
@@ -1638,6 +1667,7 @@ class PluginApi:
         action.api = self
         return register_track_action(action)
 
+    @_gui_only
     def register_file_action(self, action: type[BaseAction]) -> None:
         """Register a context menu action for files.
 
@@ -1665,6 +1695,7 @@ class PluginApi:
         action.api = self
         return register_file_action(action)
 
+    @_gui_only
     def register_tools_menu_action(self, action: type[BaseAction]) -> None:
         """Register an action in the plugin Tools menu.
 
@@ -1691,6 +1722,7 @@ class PluginApi:
         action.api = self
         return register_tools_menu_action(action)
 
+    @_gui_only
     def register_metadata_tag_action(self, action: type[MetadataTagAction]) -> None:
         """Register a context menu action for metadata tags.
 
@@ -1733,6 +1765,7 @@ class PluginApi:
         return register_metadata_tag_action(action)
 
     # UI
+    @_gui_only
     def register_options_page(self, page_class: type[OptionsPage]) -> None:
         """Register a settings page in Picard's options dialog.
 

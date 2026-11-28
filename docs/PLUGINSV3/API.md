@@ -160,6 +160,13 @@ def enable(api):
         api.tagger.window.statusBar().showMessage('Plugin enabled')
 ```
 
+The registrations that only make sense in a GUI are ignored (and logged at debug level)
+when the interface has no GUI, so a plugin supporting both `'qt-gui'` and `'headless'`
+can call them unconditionally:
+`register_album_action`, `register_cluster_action`, `register_clusterlist_action`,
+`register_track_action`, `register_file_action`, `register_tools_menu_action`,
+`register_metadata_tag_action` and `register_options_page`.
+
 ---
 
 ### `api_version: str`
