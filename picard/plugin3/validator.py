@@ -41,6 +41,13 @@ except ImportError:
 # Required MANIFEST.toml fields
 REQUIRED_MANIFEST_FIELDS = ['uuid', 'name', 'description', 'api']
 
+# Interfaces (frontends) a plugin can declare support for in MANIFEST.toml.
+# A plugin that does not declare any is assumed to work in the Qt GUI only.
+INTERFACE_QT_GUI = 'qt-gui'
+INTERFACE_HEADLESS = 'headless'
+INTERFACES = [INTERFACE_QT_GUI, INTERFACE_HEADLESS]
+DEFAULT_INTERFACES = [INTERFACE_QT_GUI]
+
 # String length constraints for MANIFEST.toml fields
 MAX_NAME_LENGTH = 100
 MAX_DESCRIPTION_LENGTH = 200
@@ -302,6 +309,12 @@ def validate_manifest_dict(manifest_data):
     _validate_array_field(manifest_data, 'maintainers', errors, 'maintainer')
     _validate_array_field(manifest_data, 'categories', errors, 'category')
 
+    def check_interface(item, errs):
+        if not isinstance(item, str) or not item.strip():
+            errs.append(f"Invalid interface: {item}")
+
+    _validate_array_field(manifest_data, 'interfaces', errors, 'interface', check_items=check_interface)
+
     # Empty i18n sections
     for section in ['name_i18n', 'description_i18n', 'long_description_i18n']:
         if section in manifest_data:
@@ -326,3 +339,42 @@ def validate_manifest_dict(manifest_data):
                     _validate_markdown(text, f'long_description_i18n.{locale}', errors)
 
     return errors
+
+
+def check_manifest_warnings(manifest_data):
+    """Check manifest dictionary for problems that do not make it invalid.
+
+    Malformed values are not reported here, `validate_manifest_dict` reports
+    them as errors.
+
+    Args:
+        manifest_data: Parsed TOML data as dict
+
+    Returns:
+        list: Warnings (empty if there is nothing to report)
+    """
+    warnings = []
+
+    if 'interfaces' not in manifest_data:
+        warnings.append(
+            "Field 'interfaces' is missing, the plugin is assumed to support only "
+            f"{', '.join(DEFAULT_INTERFACES)}. Declare the supported interfaces explicitly "
+            f"(known interfaces: {', '.join(INTERFACES)})"
+        )
+        return warnings
+
+    interfaces = manifest_data['interfaces']
+    if isinstance(interfaces, list):
+        seen = set()
+        for interface in interfaces:
+            if not isinstance(interface, str):
+                continue
+            if interface in seen:
+                warnings.append(f"Duplicate interface '{interface}' in 'interfaces'")
+            elif interface not in INTERFACES:
+                warnings.append(
+                    f"Unknown interface '{interface}' in 'interfaces' (known interfaces: {', '.join(INTERFACES)})"
+                )
+            seen.add(interface)
+
+    return warnings

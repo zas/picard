@@ -23,8 +23,11 @@ from test.picardtestcase import (
 )
 
 from picard.plugin3.validator import (
+    DEFAULT_INTERFACES,
+    INTERFACES,
     PLACEHOLDER_UUIDS,
     _is_placeholder_uuid,
+    check_manifest_warnings,
     render_markdown,
     validate_manifest_dict,
 )
@@ -423,3 +426,81 @@ code block
         manifest = _valid_manifest(uuid=uuid)
         errors = validate_manifest_dict(manifest)
         self.assertEqual(errors, [])
+
+
+class TestManifestInterfaces(PicardTestCase):
+    def test_interfaces_constants(self):
+        self.assertEqual(INTERFACES, ['qt-gui', 'headless'])
+        self.assertEqual(DEFAULT_INTERFACES, ['qt-gui'])
+
+    @subtest_cases(
+        "interfaces",
+        {
+            'gui only': (['qt-gui'],),
+            'headless only': (['headless'],),
+            'both': (['qt-gui', 'headless'],),
+            'unknown identifier': (['qt-gui', 'web'],),
+        },
+    )
+    def test_validate_interfaces_valid(self, interfaces):
+        manifest = _valid_manifest(interfaces=interfaces)
+        self.assertEqual(validate_manifest_dict(manifest), [])
+
+    def test_validate_interfaces_absent_is_valid(self):
+        self.assertNotIn('interfaces', _valid_manifest())
+        self.assertEqual(validate_manifest_dict(_valid_manifest()), [])
+
+    def test_validate_interfaces_empty(self):
+        errors = validate_manifest_dict(_valid_manifest(interfaces=[]))
+        self.assertIn("Field 'interfaces' must contain at least one interface if present", errors)
+
+    def test_validate_interfaces_not_an_array(self):
+        errors = validate_manifest_dict(_valid_manifest(interfaces='qt-gui'))
+        self.assertIn("Field 'interfaces' must be an array", errors)
+
+    @subtest_cases(
+        "item",
+        {
+            'integer': (1,),
+            'empty string': ('',),
+            'blank string': ('  ',),
+            'table': ({'name': 'qt-gui'},),
+        },
+    )
+    def test_validate_interfaces_invalid_item(self, item):
+        errors = validate_manifest_dict(_valid_manifest(interfaces=['qt-gui', item]))
+        self.assertIn(f"Invalid interface: {item}", errors)
+
+
+class TestManifestWarnings(PicardTestCase):
+    def test_no_warning_when_declared(self):
+        manifest = _valid_manifest(interfaces=['qt-gui', 'headless'])
+        self.assertEqual(check_manifest_warnings(manifest), [])
+
+    def test_warning_when_missing(self):
+        warnings = check_manifest_warnings(_valid_manifest())
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("'interfaces'", warnings[0])
+        self.assertIn('qt-gui', warnings[0])
+
+    def test_warning_unknown_interface(self):
+        warnings = check_manifest_warnings(_valid_manifest(interfaces=['qt-gui', 'web']))
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Unknown interface 'web'", warnings[0])
+
+    def test_warning_duplicate_interface(self):
+        warnings = check_manifest_warnings(_valid_manifest(interfaces=['headless', 'headless']))
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("Duplicate interface 'headless'", warnings[0])
+
+    @subtest_cases(
+        "interfaces",
+        {
+            'not an array': ('qt-gui',),
+            'empty': ([],),
+            'non-string items': ([1, None],),
+        },
+    )
+    def test_no_warning_for_malformed_interfaces(self, interfaces):
+        """Malformed values are reported as errors by the validator, not as warnings."""
+        self.assertEqual(check_manifest_warnings(_valid_manifest(interfaces=interfaces)), [])
