@@ -36,6 +36,7 @@ from test.plugins3.helpers import (
     MockPluginTagger,
     backend_init_and_commit,
     create_test_registry,
+    make_manifest,
     skip_if_no_git_backend,
 )
 
@@ -956,6 +957,86 @@ class TestPluginManager(PicardTestCase):
         plugin = manager._load_plugin(get_test_data_path('testplugins3'), 'newer-api')
 
         self.assertIsNone(plugin)
+
+
+class TestPluginInterfaceCompatibility(PicardTestCase):
+    """Plugins are only loaded for the interfaces they declare."""
+
+    @staticmethod
+    def _manager(interface):
+        return PluginManager(MockPluginTagger(interface=interface))
+
+    @staticmethod
+    def _plugin(name, interfaces=None):
+        return MockPlugin(name, manifest=make_manifest(interfaces, name=name))
+
+    def test_interface(self):
+        self.assertEqual(self._manager('headless').interface, 'headless')
+        self.assertEqual(self._manager('qt-gui').interface, 'qt-gui')
+
+    def test_no_interface_without_application(self):
+        self.assertIsNone(PluginManager().interface)
+
+    def test_no_interface_when_application_declares_none(self):
+        self.assertIsNone(_create_manager().interface)
+
+    def test_everything_is_compatible_without_interface(self):
+        manager = PluginManager()
+        for interfaces in (None, ['qt-gui'], ['headless'], ['web']):
+            with self.subTest(interfaces=interfaces):
+                self.assertTrue(manager.is_plugin_compatible(self._plugin('p', interfaces)))
+
+    def test_compatibility_in_headless(self):
+        manager = self._manager('headless')
+        self.assertFalse(manager.is_plugin_compatible(self._plugin('p')))
+        self.assertFalse(manager.is_plugin_compatible(self._plugin('p', ['qt-gui'])))
+        self.assertTrue(manager.is_plugin_compatible(self._plugin('p', ['headless'])))
+        self.assertTrue(manager.is_plugin_compatible(self._plugin('p', ['qt-gui', 'headless'])))
+
+    def test_compatibility_in_gui(self):
+        manager = self._manager('qt-gui')
+        self.assertTrue(manager.is_plugin_compatible(self._plugin('p')))
+        self.assertTrue(manager.is_plugin_compatible(self._plugin('p', ['qt-gui', 'headless'])))
+        self.assertFalse(manager.is_plugin_compatible(self._plugin('p', ['headless'])))
+
+    def test_init_plugins_skips_incompatible_plugins(self):
+        manager = self._manager('headless')
+        gui_only = self._plugin('gui-only')
+        both = self._plugin('both', ['qt-gui', 'headless'])
+        headless_only = self._plugin('headless-only', ['headless'])
+        manager._plugins = [gui_only, both, headless_only]
+        manager._enabled_plugins = {gui_only.uuid, both.uuid, headless_only.uuid}
+
+        manager.init_plugins()
+
+        gui_only.enable.assert_not_called()
+        both.enable.assert_called_once_with(manager._tagger)
+        headless_only.enable.assert_called_once_with(manager._tagger)
+
+    def test_init_plugins_keeps_skipped_plugins_listed_and_enabled(self):
+        """Skipping does not change the plugin list nor the enabled flag, shared by all interfaces."""
+        manager = self._manager('headless')
+        gui_only = self._plugin('gui-only')
+        manager._plugins = [gui_only]
+        manager._enabled_plugins = {gui_only.uuid}
+
+        manager.init_plugins()
+
+        self.assertEqual(manager.plugins, [gui_only])
+        self.assertEqual(manager._enabled_plugins, {gui_only.uuid})
+        self.assertEqual(manager._init_failed_plugins, [])
+
+    def test_init_plugins_loads_everything_without_interface(self):
+        manager = PluginManager(MockPluginTagger())
+        gui_only = self._plugin('gui-only')
+        headless_only = self._plugin('headless-only', ['headless'])
+        manager._plugins = [gui_only, headless_only]
+        manager._enabled_plugins = {gui_only.uuid, headless_only.uuid}
+
+        manager.init_plugins()
+
+        gui_only.enable.assert_called_once()
+        headless_only.enable.assert_called_once()
 
 
 class TestPluginErrors(PicardTestCase):

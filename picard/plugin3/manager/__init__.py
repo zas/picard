@@ -44,6 +44,7 @@ from picard.git.backend import GitRefType
 from picard.git.factory import git_backend
 from picard.git.ops import GitOperations
 from picard.git.utils import is_local_path
+from picard.plugin3.interfaces import get_interface
 from picard.plugin3.manager.clean import PluginCleanupManager
 from picard.plugin3.manager.errors import (  # noqa: F401
     PluginAlreadyInstalledError,
@@ -145,6 +146,20 @@ class PluginManager(QObject):
     @property
     def plugins(self):
         return self._plugins
+
+    @property
+    def interface(self) -> str | None:
+        """The interface Picard is running as, None if there is no running interface.
+
+        There is none without an application object (e.g. ``picard-cli plugins``,
+        which manages plugins but never loads them).
+        """
+        return get_interface(self._tagger)
+
+    def is_plugin_compatible(self, plugin: Plugin) -> bool:
+        """Whether the plugin supports the running interface (always True without one)."""
+        interface = self.interface
+        return interface is None or plugin.supports_interface(interface)
 
     @property
     def registry(self):

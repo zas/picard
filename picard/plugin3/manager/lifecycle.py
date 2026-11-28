@@ -270,43 +270,56 @@ class PluginLifecycleManager:
         # Check for blacklisted plugins on startup
         blacklisted_plugins = self._check_blacklisted_plugins()
 
+        # All loaded plugins have UUIDs (validated during load)
+        enabled_plugins = [plugin for plugin in self.manager._plugins if plugin.uuid in self.manager._enabled_plugins]
+        # Plugins not supporting the running interface stay enabled (the flag is shared by
+        # all interfaces) and listed, but are not loaded
+        plugins_to_load = []
+        for plugin in enabled_plugins:
+            if self.manager.is_plugin_compatible(plugin):
+                plugins_to_load.append(plugin)
+            else:
+                log.info(
+                    'Plugin %s not loaded: it supports %s, not the current interface (%s)',
+                    plugin.plugin_id,
+                    ', '.join(plugin.interfaces) or 'no interface',
+                    self.manager.interface,
+                )
+
         enabled_count = 0
-        for plugin in self.manager._plugins:
-            # All loaded plugins have UUIDs (validated during load)
-            if plugin.uuid in self.manager._enabled_plugins:
-                try:
-                    plugin_name = plugin.manifest.name() if plugin.manifest else plugin.plugin_id
-                    registry_plugin = self.manager._registry.find_plugin(uuid=plugin.uuid)
-                    trust_level = self._get_trust_level_from_registry(registry_plugin)
-                    source_info = self._get_source_info_from_registry(plugin, registry_plugin)
+        for plugin in plugins_to_load:
+            try:
+                plugin_name = plugin.manifest.name() if plugin.manifest else plugin.plugin_id
+                registry_plugin = self.manager._registry.find_plugin(uuid=plugin.uuid)
+                trust_level = self._get_trust_level_from_registry(registry_plugin)
+                source_info = self._get_source_info_from_registry(plugin, registry_plugin)
 
-                    # Enhanced logging with trust level and source
-                    log.info('Loading plugin: %s [%s] %s', plugin_name, trust_level.upper(), source_info)
+                # Enhanced logging with trust level and source
+                log.info('Loading plugin: %s [%s] %s', plugin_name, trust_level.upper(), source_info)
 
-                    # Warn about unregistered plugins
-                    if trust_level not in REGISTRY_TRUST_LEVELS:
-                        log.warning(
-                            'Plugin "%s" (UUID: %s) is not in the official registry. '
-                            'Only install plugins from trusted sources.',
-                            plugin_name,
-                            plugin.uuid,
-                        )
+                # Warn about unregistered plugins
+                if trust_level not in REGISTRY_TRUST_LEVELS:
+                    log.warning(
+                        'Plugin "%s" (UUID: %s) is not in the official registry. '
+                        'Only install plugins from trusted sources.',
+                        plugin_name,
+                        plugin.uuid,
+                    )
 
-                    plugin.load_module()
-                    plugin.enable(self.manager._tagger)
-                    enabled_count += 1
-                except Exception as ex:
-                    log.error('Failed initializing plugin %s from %s', plugin.plugin_id, plugin.local_path, exc_info=ex)
-                    self.manager._init_failed_plugins.append((plugin.plugin_id, str(ex)))
+                plugin.load_module()
+                plugin.enable(self.manager._tagger)
+                enabled_count += 1
+            except Exception as ex:
+                log.error('Failed initializing plugin %s from %s', plugin.plugin_id, plugin.local_path, exc_info=ex)
+                self.manager._init_failed_plugins.append((plugin.plugin_id, str(ex)))
 
         # Build trust level summary and log
         if enabled_count > 0:
             trust_summary = defaultdict(int)
-            for plugin in self.manager._plugins:
-                if plugin.uuid in self.manager._enabled_plugins:
-                    registry_plugin = self.manager._registry.find_plugin(uuid=plugin.uuid)
-                    trust_level = self._get_trust_level_from_registry(registry_plugin)
-                    trust_summary[trust_level] += 1
+            for plugin in plugins_to_load:
+                registry_plugin = self.manager._registry.find_plugin(uuid=plugin.uuid)
+                trust_level = self._get_trust_level_from_registry(registry_plugin)
+                trust_summary[trust_level] += 1
 
             summary_parts = []
             # First show known trust levels in order
