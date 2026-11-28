@@ -32,9 +32,11 @@ from test.plugins3.helpers import (
 
 from picard.config import get_config
 from picard.plugin3.manager import (
+    PluginInterfaceIncompatibleError,
     PluginManager,
     PluginManifestNotFoundError,
 )
+from picard.plugin3.plugin import PluginState
 from picard.plugin3.validator import generate_uuid
 
 
@@ -156,6 +158,32 @@ class TestLocalNonGitPlugin(PicardTestCase):
             self.assertEqual(result.old_commit, '')
             self.assertEqual(result.new_commit, '')
             self.assertEqual(plugin.manifest.name(), 'Updated Name')
+
+    def test_reload_dropping_the_interface_keeps_the_plugin_enabled(self):
+        """The enabled flag is shared by all the interfaces: losing support for one does not clear it."""
+        with tempfile.TemporaryDirectory() as tmp_dir, tempfile.TemporaryDirectory() as plugins_dir:
+            uuid = generate_uuid()
+            plugin_dir, _plugin_name = _create_plugin_dir(tmp_dir, uuid)
+            manifest = plugin_dir / 'MANIFEST.toml'
+            manifest.write_text(create_test_manifest_content(uuid=uuid, interfaces=['qt-gui', 'headless']))
+            manager = PluginManager(MockPluginTagger(interface='headless'))
+            manager._primary_plugin_dir = Path(plugins_dir)
+            manager._plugin_dirs.append(manager._primary_plugin_dir)
+            plugin = manager.plugin_id_to_plugin(manager.install_plugin(str(plugin_dir), enable_after_install=True))
+            self.assertIn(uuid, manager._enabled_plugins)
+            reenable_failed = []
+            manager.plugin_reenable_failed.connect(lambda plugin, error: reenable_failed.append(error))
+
+            # The new version no longer supports the headless interface
+            manifest.write_text(create_test_manifest_content(uuid=uuid, interfaces=['qt-gui']))
+            manager.update_plugin(plugin)
+
+            self.assertNotEqual(plugin.state, PluginState.ENABLED)
+            self.assertIn(uuid, manager._enabled_plugins)
+            self.assertIn(uuid, get_config().setting['plugins3_enabled_plugins'])
+            # Reported, so the user knows why it is not loaded any more
+            self.assertEqual(len(reenable_failed), 1)
+            self.assertIsInstance(reenable_failed[0], PluginInterfaceIncompatibleError)
 
     def test_stale_path_cleanup(self):
         """Local plugin with missing path is auto-removed on startup."""

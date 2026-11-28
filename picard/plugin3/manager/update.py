@@ -33,6 +33,7 @@ from picard.plugin3.manager.errors import (
     PluginBlacklistedError,
     PluginCommitPinnedError,
     PluginDirtyError,
+    PluginInterfaceIncompatibleError,
     PluginNoSourceError,
 )
 from picard.plugin3.plugin import (
@@ -101,6 +102,13 @@ class PluginUpdater:
             if was_enabled:
                 try:
                     self.manager.enable_plugin(plugin)
+                except PluginInterfaceIncompatibleError as e:
+                    # The new version does not support this interface: it is not loaded, but
+                    # stays enabled, as the flag is shared by all the interfaces
+                    log.warning('%s, it stays enabled for the other interfaces', e)
+                    self.manager._enabled_plugins.add(plugin.uuid)
+                    self.manager._save_config()
+                    self.manager.plugin_reenable_failed.emit(plugin, e)
                 except Exception as e:
                     log.warning("Failed to re-enable plugin %s", plugin.plugin_id, exc_info=True)
                     self.manager.plugin_reenable_failed.emit(plugin, e)
