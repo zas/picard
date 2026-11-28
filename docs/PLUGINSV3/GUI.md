@@ -163,6 +163,7 @@ The plugin GUI provides a user-friendly interface for discovering, installing, a
 - Long description (if available)
 - Git ref (current and available)
 - Authors
+- Interfaces the plugin supports (with "not loaded" if it does not support the Qt GUI)
 - Trust level
 - Category
 - License

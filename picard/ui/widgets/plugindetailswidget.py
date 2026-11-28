@@ -100,6 +100,11 @@ class PluginDetailsWidget(QtWidgets.QWidget):
         self.maintainers_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         self.details_layout.addRow(_("Maintainers:"), self.maintainers_label)
 
+        self.interfaces_label = QtWidgets.QLabel()
+        self.interfaces_label.setWordWrap(True)
+        self.interfaces_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.details_layout.addRow(_("Interfaces:"), self.interfaces_label)
+
         self.git_url_label = QtWidgets.QLabel()
         self.git_url_label.setWordWrap(True)
         self.git_url_label.setTextInteractionFlags(
@@ -180,6 +185,11 @@ class PluginDetailsWidget(QtWidgets.QWidget):
         self.details_layout.setRowVisible(self.maintainers_label, bool(maintainers))
         if maintainers:
             self.maintainers_label.setText(maintainers)
+
+        interfaces = self._get_interfaces_display(plugin)
+        self.details_layout.setRowVisible(self.interfaces_label, bool(interfaces))
+        if interfaces:
+            self.interfaces_label.setText(interfaces)
 
         if self.plugin_manager.is_local_plugin(plugin):
             self.git_url_row_label.setText(_("Path:"))
@@ -264,6 +274,15 @@ class PluginDetailsWidget(QtWidgets.QWidget):
             if maintainers:
                 return ", ".join(maintainers)
         return ""
+
+    def _get_interfaces_display(self, plugin):
+        """Get the interfaces the plugin supports, saying if it is not loaded because of them."""
+        interfaces = ", ".join(plugin.interfaces)
+        if not interfaces:
+            return ""
+        if not self.plugin_manager.is_plugin_compatible(plugin):
+            return _("{interfaces} (not loaded)").format(interfaces=interfaces)
+        return interfaces
 
     def _get_plugin_remote_url(self, plugin):
         """Get plugin remote URL from metadata."""
