@@ -35,6 +35,7 @@ from test.plugins3.helpers import (
     backend_create_tag,
     backend_init_and_commit,
     create_git_repo_with_backend,
+    make_manifest,
     skip_if_no_git_backend,
 )
 
@@ -481,3 +482,35 @@ class TestPluginSourceGitFindLatestTag(PicardTestCase):
         with backend.create_repository(repo_path) as repo:
             result = source._find_latest_tag(repo, '2024.1.1')
         self.assertEqual(result, '2024.12.30')
+
+
+class TestPluginSupportsInterface(PicardTestCase):
+    def _plugin(self, interfaces=None):
+        plugin = Plugin(Path('/tmp'), 'test-plugin')
+        plugin.manifest = make_manifest(interfaces)
+        return plugin
+
+    def test_declared(self):
+        plugin = self._plugin(['qt-gui', 'headless'])
+        self.assertTrue(plugin.supports_interface('qt-gui'))
+        self.assertTrue(plugin.supports_interface('headless'))
+        self.assertFalse(plugin.supports_interface('web'))
+
+    def test_headless_only(self):
+        plugin = self._plugin(['headless'])
+        self.assertTrue(plugin.supports_interface('headless'))
+        self.assertFalse(plugin.supports_interface('qt-gui'))
+
+    def test_not_declared_means_qt_gui(self):
+        plugin = self._plugin()
+        self.assertTrue(plugin.supports_interface('qt-gui'))
+        self.assertFalse(plugin.supports_interface('headless'))
+
+    def test_manifest_not_read(self):
+        plugin = Plugin(Path('/tmp'), 'test-plugin')
+        self.assertFalse(plugin.supports_interface('qt-gui'))
+        self.assertEqual(plugin.interfaces, ())
+
+    def test_interfaces(self):
+        self.assertEqual(self._plugin(['headless']).interfaces, ('headless',))
+        self.assertEqual(self._plugin().interfaces, ('qt-gui',))

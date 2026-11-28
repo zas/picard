@@ -626,6 +626,15 @@ class Plugin:
         # Add a shortcut
         self.uuid = self.manifest.uuid
 
+    @property
+    def interfaces(self) -> tuple[str, ...]:
+        """The interfaces the plugin supports (see MANIFEST.toml ``interfaces``), none if its manifest is not read."""
+        return self.manifest.interfaces if self.manifest is not None else ()
+
+    def supports_interface(self, interface: str) -> bool:
+        """Whether the plugin declares it supports the interface."""
+        return interface in self.interfaces
+
     def has_versioning(self, registry=None, is_tag_installation=False):
         """Check if plugin supports version-based updates.
 

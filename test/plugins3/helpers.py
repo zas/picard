@@ -18,7 +18,10 @@
 # along with this program; if not, see <https://www.gnu.org/licenses/>.
 
 
-from io import StringIO
+from io import (
+    BytesIO,
+    StringIO,
+)
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -115,6 +118,20 @@ class MockPluginTagger(Mock):
             self.webservice = Mock()
         if 'register_cleanup' not in kwargs:
             self.register_cleanup = Mock()
+
+
+def make_manifest(interfaces=None, name='test-plugin') -> PluginManifest:
+    """Create a valid PluginManifest, declaring `interfaces` if given (None: not declared)."""
+    lines = [
+        f'uuid = "{generate_uuid()}"',
+        f'name = "{name}"',
+        'description = "Test plugin"',
+        'api = ["3.0"]',
+    ]
+    if interfaces is not None:
+        interfaces_str = ', '.join(f'"{i}"' for i in interfaces)
+        lines.append(f'interfaces = [{interfaces_str}]')
+    return PluginManifest(name, BytesIO('\n'.join(lines).encode()))
 
 
 def load_plugin_manifest(plugin_name: str) -> PluginManifest:
