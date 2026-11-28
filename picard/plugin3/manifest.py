@@ -30,6 +30,7 @@ from picard.plugin3.constants import (
 )
 from picard.plugin3.validator import (
     DEFAULT_INTERFACES,
+    INTERFACES,
     check_manifest_warnings,
     generate_uuid,
     validate_manifest_dict,
@@ -223,6 +224,8 @@ def generate_manifest_template():
     """
     generated_uuid = generate_uuid()
     categories_str = ', '.join(f'"{c}"' for c in CATEGORIES)
+    interfaces_str = ', '.join(f'"{i}"' for i in INTERFACES)
+    default_interfaces_str = ', '.join(f'"{i}"' for i in DEFAULT_INTERFACES)
 
     return f'''# MANIFEST.toml Template
 # See https://picard-docs.musicbrainz.org/en/extending/plugins.html
@@ -232,6 +235,10 @@ uuid = "{generated_uuid}"  # Generated UUID - keep this value
 name = "My Plugin Name"
 description = "Short one-line description (1-200 characters)"
 api = ["3.0"]
+
+# Interfaces the plugin works with, one or more of: {interfaces_str}
+# Add "headless" only if the plugin works without the GUI (no Qt widgets, no UI-only features).
+interfaces = [{default_interfaces_str}]
 
 # Optional fields
 # authors = ["Your Name"]

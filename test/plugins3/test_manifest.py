@@ -24,13 +24,17 @@ from unittest.mock import patch
 from test.picardtestcase import PicardTestCase
 from test.plugins3.helpers import load_plugin_manifest
 
-from picard.plugin3.manifest import PluginManifest
+from picard.plugin3.manifest import (
+    PluginManifest,
+    generate_manifest_template,
+)
 from picard.version import Version
 
 
 def _manifest_from_toml(content):
     """Create a PluginManifest from a TOML content string."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+    # TOML is UTF-8, whatever the locale (cp1252 on Windows)
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.toml', delete=False) as f:
         f.write(content)
         temp_path = Path(f.name)
     try:
@@ -303,3 +307,14 @@ class TestPluginManifestInterfaces(PicardTestCase):
     def test_warnings_none_when_declared(self):
         manifest = _manifest_from_toml(_MANIFEST_BASE + 'interfaces = ["qt-gui"]\n')
         self.assertEqual(manifest.warnings(), [])
+
+
+class TestGenerateManifestTemplate(PicardTestCase):
+    def test_template_declares_interfaces_explicitly(self):
+        manifest = _manifest_from_toml(generate_manifest_template())
+        self.assertIn('interfaces', manifest._data)
+        self.assertEqual(manifest.interfaces, ('qt-gui',))
+        self.assertEqual(manifest.warnings(), [])
+
+    def test_template_documents_headless(self):
+        self.assertIn('headless', generate_manifest_template())
