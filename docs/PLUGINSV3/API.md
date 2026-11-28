@@ -146,6 +146,22 @@ def enable(api):
 
 ---
 
+### `interface`
+
+The interface Picard is running as: `'qt-gui'` in the Qt GUI, `'headless'` in the
+shell (the value is `None` only if the application does not declare an interface).
+It is one of the interfaces a plugin can declare in its `MANIFEST.toml`
+(see the `interfaces` field in [MANIFEST.md](MANIFEST.md)).
+
+```python
+def enable(api):
+    if api.interface == 'qt-gui':
+        # Only the Qt GUI has a main window
+        api.tagger.window.statusBar().showMessage('Plugin enabled')
+```
+
+---
+
 ### `api_version: str`
 
 Newest plugin API version supported by this Picard.

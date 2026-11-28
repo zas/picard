@@ -204,6 +204,18 @@ class TestPluginApiMethods(PicardTestCase):
         self.assertEqual(result, "Unknown")
 
 
+class TestPluginApiInterface(PicardTestCase):
+    def _create_api(self, tagger):
+        return PluginApi(load_plugin_manifest('example'), tagger, Mock(), Path(''))
+
+    def test_interface_of_the_application(self):
+        self.assertEqual(self._create_api(Mock(interface='headless')).interface, 'headless')
+        self.assertEqual(self._create_api(Mock(interface='qt-gui')).interface, 'qt-gui')
+
+    def test_interface_not_declared(self):
+        self.assertIsNone(self._create_api(Mock()).interface)
+
+
 class TestPluginApi(PicardTestCase):
     def _create_api(self):
         return PluginApi(load_plugin_manifest('example'), Mock(), Mock(), Path(''))

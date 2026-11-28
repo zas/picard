@@ -118,6 +118,7 @@ from picard.plugin3.i18n import (
     Plural,
     get_plural_form,
 )
+from picard.plugin3.interfaces import get_interface
 from picard.plugin3.manifest import PluginManifest
 from picard.services import services
 from picard.track import Track
@@ -530,6 +531,20 @@ class PluginApi:
     def tagger(self) -> 'Tagger':
         """Access to the main Tagger instance."""
         return self._tagger
+
+    @property
+    def interface(self) -> str | None:
+        """The interface Picard is running as.
+
+        ``'qt-gui'`` in the Qt GUI, ``'headless'`` in the shell. It is only
+        ``None`` if the application does not declare an interface.
+
+        Example:
+            def enable(api):
+                if api.interface == 'qt-gui':
+                    api.tagger.window.statusBar().showMessage('Plugin enabled')
+        """
+        return get_interface(self._tagger)
 
     @property
     def web_service(self) -> WebService:
